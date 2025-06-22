@@ -94,6 +94,8 @@
 	.pm-editor {
 		--prosemirror-hover-outline: 2px solid #8cf;
 		--prosemirror-selected-outline: 3px solid #299af3;
+		position: relative;
+		height: 100%;
 	}
 
 	.pm-editor.loaded {
@@ -101,7 +103,6 @@
 	}
 
 	.pm-editor :global(.ProseMirror) {
-		position: relative;
 		font-size: 18px;
 		padding: 25px 30px;
 		min-height: 620px;

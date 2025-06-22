@@ -1,7 +1,4 @@
 import {
-	smartQuotes,
-	emDash,
-	ellipsis,
 	textblockTypeInputRule,
 	wrappingInputRule,
 	inputRules,
@@ -38,10 +35,6 @@ function markInputRule(regexp: RegExp, markType: MarkType, getAttrs?: any, skipS
 
 export default function inputRulesPlugin() {
 	var rules = [
-		...smartQuotes,
-		emDash,
-		ellipsis,
-
 		headingRule(schema.nodes.heading!),
 		blockQuoteRule(schema.nodes.blockquote!),
 		orderedListRule(schema.nodes.ordered_list!),
