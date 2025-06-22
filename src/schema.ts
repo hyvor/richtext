@@ -26,23 +26,6 @@ export const nodes = {
         toDOM() { return ['p', 0] }
     } as NodeSpec,
 
-    // :: NodeSpec A blockquote (`<blockquote>`) wrapping one or more blocks.
-    blockquote: {
-        content: "block+",
-        group: "block",
-        defining: true,
-        selectable: false,
-        parseDOM: [{tag: "blockquote"}],
-        toDOM() { return ["blockquote", 0] }
-    } as NodeSpec,
-
-    // :: NodeSpec A horizontal rule (`<hr>`).
-    horizontal_rule: {
-        group: "block",
-        parseDOM: [{tag: "hr"}],
-        toDOM() { return ['hr'] }
-    } as NodeSpec,
-
     // :: NodeSpec A heading textblock, with a `level` attribute that
     // should hold the number 2 to 6. Parsed and serialized as `<h1>` to
     // `<h6>` elements.
@@ -65,6 +48,16 @@ export const nodes = {
             {tag: "h6", getAttrs(h: HTMLElement) {return {id: h.id, level: 6}}}
         ],
         toDOM(node: Node) { return ["h" + node.attrs.level, {id: node.attrs.id}, 0] }
+    } as NodeSpec,
+
+    // :: NodeSpec A blockquote (`<blockquote>`) wrapping one or more blocks.
+    blockquote: {
+        content: "block+",
+        group: "block",
+        defining: true,
+        selectable: false,
+        parseDOM: [{tag: "blockquote"}],
+        toDOM() { return ["blockquote", 0] }
     } as NodeSpec,
 
     // :: NodeSpec A code listing. Disallows marks or non-text inline
@@ -241,6 +234,13 @@ export const nodes = {
                 "data-url": node.attrs.url
             }]
         }
+    } as NodeSpec,
+
+    // :: NodeSpec A horizontal rule (`<hr>`).
+    horizontal_rule: {
+        group: "block",
+        parseDOM: [{tag: "hr"}],
+        toDOM() { return ['hr'] }
     } as NodeSpec,
 
     // :: NodeSpec A hard line break, represented in the DOM as `<br>`.
