@@ -13,7 +13,8 @@ import wordCountPlugin from './plugin-wordcount';
 import slashPlugin from './slash/plugin-slash.svelte.js';
 import slashTipPlugin from './slash/plugin-slash-tip';
 import tableMenuPlugin from './table/plugin-table-menu.svelte.js';
-import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
+// import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
+// import { completionPlugin } from './completion/plugin-completion';
 
 export function getPlugins() {
 	return [
@@ -36,12 +37,13 @@ export function getPlugins() {
 		pasteImagesPlugin(),
 
 		// https://github.com/curvenote/prosemirror-codemark
-		...codemark({ markType: schema.marks.code }),
+		// ...codemark({ markType: schema.marks.code }),
 
 		columnResizing({ cellMinWidth: 20 }),
 		tableEditing(),
 		tableMenuPlugin(),
 
-		nodeMenuPlugin(),
+		// nodeMenuPlugin(),
+		// completionPlugin(),
 	];
 }
