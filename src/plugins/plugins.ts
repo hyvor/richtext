@@ -12,11 +12,12 @@ import slashPlugin from './slash/plugin-slash.svelte.js';
 import slashTipPlugin from './slash/plugin-slash-tip';
 import tableMenuPlugin from './table/plugin-table-menu.svelte.js';
 import type { Schema } from 'prosemirror-model';
+import type { Config } from '../config';
 // import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
 // import { completionPlugin } from './completion/plugin-completion';
 
-export function getPlugins(schema: Schema) {
-	return [
+export function getPlugins(schema: Schema, config: Config) {
+	const plugins = [
 		inputRulesPlugin(schema),
 		...keymapPlugins(schema),
 
@@ -24,7 +25,7 @@ export function getPlugins(schema: Schema) {
 		marksTooltipPlugin(),
 		wordCountPlugin(),
 
-		slashPlugin(),
+		slashPlugin(config),
 		slashTipPlugin(),
 
 		// from defaults
@@ -38,11 +39,18 @@ export function getPlugins(schema: Schema) {
 		// https://github.com/curvenote/prosemirror-codemark
 		// ...codemark({ markType: schema.marks.code }),
 
-		columnResizing({ cellMinWidth: 20 }),
-		tableEditing(),
-		tableMenuPlugin(),
 
 		// nodeMenuPlugin(),
 		// completionPlugin(),
 	];
+
+	if (config.tableEnabled) {
+		plugins.push(
+			columnResizing({ cellMinWidth: 20 }),
+			tableEditing(),
+			tableMenuPlugin(),
+		);
+	}
+
+	return plugins;
 }

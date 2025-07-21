@@ -212,7 +212,7 @@
 		display: flex;
 
 		&.active {
-			background-color: var(--accent-light-mid);
+			background-color: var(--hover);
 		}
 
 		.icon {

@@ -30,7 +30,7 @@
 
 		let state = EditorState.create({
 			schema: schema,
-			plugins: getPlugins(schema),
+			plugins: getPlugins(schema, config),
 			doc: props.value ? schema.nodeFromJSON(jsonParsedValue) : undefined
 		});
 

@@ -13,11 +13,9 @@ import IconSoundwave from '@hyvor/icons/IconSoundwave';
 import IconTable from '@hyvor/icons/IconTable';
 import IconTypeH2 from '@hyvor/icons/IconTypeH2';
 import IconTypeH3 from '@hyvor/icons/IconTypeH3';
-
-// import FileUploader from '../../../../routes/console/lib/components/FileUploader/FileUploader.svelte';
-// import type { SelectedFile } from '../../../../routes/console/lib/components/FileUploader/image-uploader';
 import EmbedCreator from './Embed/EmbedCreator.svelte';
 import BookmarkCreator from './Bookmark/BookmarkCreator.svelte';
+import type { Config } from '../../config';
 
 export interface SlashOption {
 	name: string;
@@ -28,114 +26,141 @@ export interface SlashOption {
 	attrs?: Record<string, unknown>;
 }
 
-const options: SlashOption[] = [
-	{
-		name: 'Heading - Large',
-		description: 'To divide main sections of the post',
-		icon: IconTypeH2,
-		keywords: ['heading', 'large', 'title', 'h1', 'h2'],
-		node: 'heading',
-		attrs: { level: 2 }
-	},
-	{
-		name: 'Heading - Medium',
-		description: 'To divide small sections of the post',
-		icon: IconTypeH3,
-		keywords: ['heading', 'medium', 'title', 'h2', 'h3', 'h4'],
-		node: 'heading',
-		attrs: { level: 3 }
-	},
-	{
-		name: 'Image',
-		description: 'Add an image',
-		icon: IconCardImage,
-		keywords: ['image', 'picture', 'upload'],
-		node: selectImage
-	},
-	{
-		name: 'Embed',
-		description: 'Embed content from YouTube, Twitter, etc.',
-		icon: IconLink45deg,
-		keywords: [
-			'embed',
-			'rich',
-			'video',
-			'youtube',
-			'twitter',
-			'facebook',
-			'instagram',
-			'reddit',
-			'github'
-		],
-		node: createEmbed
-	},
-	{
-		name: 'Audio',
-		description: 'Add an audio',
-		icon: IconSoundwave,
-		keywords: ['audio', 'sound', 'upload'],
-		node: selectAudio
-	},
-	{
-		name: 'Code Block',
-		description: 'A block of code',
-		icon: IconCode,
-		keywords: ['code', 'snippet'],
-		node: 'code_block'
-	},
-	{
-		name: 'Quote',
-		description: 'Capture a quote',
-		icon: IconQuote,
-		keywords: ['quote', 'blockquote'],
-		node: createQuote
-	},
-	{
-		name: 'Callout',
-		description: 'Write something standing out',
-		icon: IconLightbulb,
-		keywords: ['alert', 'notice', 'callout', 'aside'],
-		node: 'callout'
-	},
-	{
-		name: 'Link Bookmark',
-		description: 'Link preview as a bookmark',
-		icon: IconBookmark,
-		keywords: ['bookmark', 'link'],
-		node: createBookmark
-	},
-	{
-		name: 'Divider',
-		description: 'Divide sections with a horizontal line',
-		icon: IconHr,
-		keywords: ['hr', 'divider', 'horizontal', 'line'],
-		node: 'horizontal_rule'
-	},
-	{
-		name: 'Custom HTML/Twig',
-		description: 'Add custom HTML (or Twig)',
-		icon: IconCodeSlash,
-		keywords: ['html', 'twig', 'code', 'custom'],
-		node: 'custom_html'
-	},
-	{
-		name: 'Table of Contents',
-		description: 'Add a table of contents',
-		icon: IconListUl,
-		keywords: ['toc', 'table of contents', 'contents', 'outline', 'index', 'menu'],
-		node: 'toc'
-	},
-	{
-		name: 'Table',
-		description: 'Add a table',
-		icon: IconTable,
-		keywords: ['table', 'spreadsheet'],
-		node: createTable
+export function getOptions(config: Config): SlashOption[] {
+
+	const options: SlashOption[] = [
+		{
+			name: 'Heading - Large',
+			description: 'To divide main sections of the post',
+			icon: IconTypeH2,
+			keywords: ['heading', 'large', 'title', 'h1', 'h2'],
+			node: 'heading',
+			attrs: { level: 2 }
+		},
+		{
+			name: 'Heading - Medium',
+			description: 'To divide small sections of the post',
+			icon: IconTypeH3,
+			keywords: ['heading', 'medium', 'title', 'h2', 'h3', 'h4'],
+			node: 'heading',
+			attrs: { level: 3 }
+		},
+		{
+			name: 'Image',
+			description: 'Add an image',
+			icon: IconCardImage,
+			keywords: ['image', 'picture', 'upload'],
+			node: selectImage
+		},
+		{
+			name: 'Quote',
+			description: 'Capture a quote',
+			icon: IconQuote,
+			keywords: ['quote', 'blockquote'],
+			node: createQuote
+		},
+		{
+			name: 'Callout',
+			description: 'Write something standing out',
+			icon: IconLightbulb,
+			keywords: ['alert', 'notice', 'callout', 'aside'],
+			node: 'callout'
+		},
+		{
+			name: 'Divider',
+			description: 'Divide sections with a horizontal line',
+			icon: IconHr,
+			keywords: ['hr', 'divider', 'horizontal', 'line'],
+			node: 'horizontal_rule'
+		}
+	]
+
+	if (config.codeBlockEnabled) {
+		options.push({
+			name: 'Code Block',
+			description: 'A block of code',
+			icon: IconCode,
+			keywords: ['code', 'snippet'],
+			node: 'code_block'
+		})
 	}
-];
+
+	if (config.customHtmlEnabled) {
+		options.push({
+			name: 'Custom HTML/Twig',
+			description: 'Add custom HTML (or Twig)',
+			icon: IconCodeSlash,
+			keywords: ['html', 'twig', 'code', 'custom'],
+			node: 'custom_html'
+		})
+	}
+
+	if (config.embedEnabled) {
+		options.push({
+			name: 'Embed',
+			description: 'Embed content from YouTube, Twitter, etc.',
+			icon: IconLink45deg,
+			keywords: [
+				'embed',
+				'rich',
+				'video',
+				'youtube',
+				'twitter',
+				'facebook',
+				'instagram',
+				'reddit',
+				'github'
+			],
+			node: createEmbed
+		});
+	}
+
+	if (config.bookmarkEnabled) {
+		options.push({
+			name: 'Link Bookmark',
+			description: 'Link preview as a bookmark',
+			icon: IconBookmark,
+			keywords: ['bookmark', 'link'],
+			node: createBookmark
+		});
+	}
+
+	if (config.audioEnabled) {
+		options.push({
+			name: 'Audio',
+			description: 'Add an audio',
+			icon: IconSoundwave,
+			keywords: ['audio', 'sound', 'upload'],
+			node: selectAudio
+		});
+	}
+
+	if (config.tocEnabled) {
+		options.push({
+			name: 'Table of Contents',
+			description: 'Add a table of contents',
+			icon: IconListUl,
+			keywords: ['toc', 'table of contents', 'contents', 'outline', 'index', 'menu'],
+			node: 'toc'
+		});
+	}
+
+	if (config.tableEnabled) {
+		options.push({
+			name: 'Table',
+			description: 'Add a table',
+			icon: IconTable,
+			keywords: ['table', 'spreadsheet'],
+			node: createTable
+		});
+	}
+
+	return options;
+
+}
 
 // finds options by best guess
-export function findOptions(match: string): SlashOption[] {
+export function findOptions(match: string, options: SlashOption[]): SlashOption[] {
 	const matchWords = match
 		.toLowerCase()
 		.split(/\W+/)

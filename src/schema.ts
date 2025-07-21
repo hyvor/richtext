@@ -94,7 +94,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
 
         // required for image and embed
         figure: {
-            content: "(image|embed) figcaption",
+            content: embedEnabled ? "(image|embed) figcaption" : "image figcaption",
             group: "block",
             selectable: false,
             draggable: true,
@@ -155,6 +155,29 @@ function getNodes(config: Config): Record<string, NodeSpec> {
             selectable: false,
             parseDOM: [{tag: "br"}],
             toDOM() { return ['br'] }
+        },
+
+        button: {
+            attrs: {
+                href: {},
+            },
+            group: 'block',
+            draggable: true,
+            parseDOM: [
+                {
+                    tag: 'div.pm-button-wrapper a[href]',
+                    getAttrs(dom: HTMLElement) {
+                        return {
+                            href: dom.getAttribute('href'),
+                            text: dom.textContent || 'Click me'
+                        };
+                    }
+                }
+            ],
+            toDOM(node) {
+                const { href } = node.attrs;
+                return ['div', { class: 'pm-button-wrapper' }, ['a', { href, class: 'pm-button', target: '_blank' }, text]];
+            }
         }
 
     };
@@ -362,10 +385,10 @@ export const marks = {
         toDOM() { return ["sub", 0] }
     } as MarkSpec,
 
-    comment: {
+   /*  comment: {
         parseDOM: [{tag: "comment"}],
         toDOM() { return ["comment", 0] }
-    } as MarkSpec,
+    } as MarkSpec, */
 }
 
 export function getSchema(config: Config): Schema {

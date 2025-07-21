@@ -3,7 +3,6 @@ import CodeMirror from 'codemirror'; // eslint-disable-line
 import { exitCode, joinBackward } from 'prosemirror-commands';
 import { undo, redo } from 'prosemirror-history';
 import { TextSelection, Selection } from 'prosemirror-state';
-import schema from '../schema';
 import type { NodeView } from 'prosemirror-view';
 
 // https://prosemirror.net/examples/codemirror/
@@ -118,7 +117,7 @@ export default class CodeBlockNodeView implements NodeView {
 			let tr = this.view.state.tr.replaceWith(
 				start + change.from,
 				start + change.to,
-				change.text ? schema.text(change.text) : null
+				change.text ? this.view.state.schema.text(change.text) : null
 			);
 			this.view.dispatch(tr);
 		}

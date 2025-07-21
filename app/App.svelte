@@ -6,6 +6,10 @@
 	<Editor
 		value={localStorage.getItem('doc')}
 		onvaluechange={(val) => localStorage.setItem('doc', val)}
+		config={{
+			embedEnabled: false,
+			tableEnabled: false
+		}}
 	/>
 </div>
 

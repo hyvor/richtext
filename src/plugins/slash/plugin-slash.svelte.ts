@@ -2,12 +2,13 @@ import { EditorState, Plugin, type PluginView } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import  { mount } from "svelte";
 import Slash from "./Slash.svelte";
-import { findOptions, type SlashOption } from "./options";
+import { findOptions, getOptions, type SlashOption } from "./options";
+import type { Config } from "../../config";
 
-export default function slashPlugin() {
+export default function slashPlugin(config: Config) {
     return new Plugin({
         view(editorView) {
-            return new SlashPlugin(editorView);
+            return new SlashPlugin(editorView, config);
         },
     });
 }
@@ -16,7 +17,7 @@ class SlashPlugin implements PluginView {
 
     private view: EditorView;
     private wrap: HTMLDivElement;
-    
+    private allOptions: SlashOption[] = [];
     
     private props: {
         view: EditorView;
@@ -24,8 +25,9 @@ class SlashPlugin implements PluginView {
         options: SlashOption[]|undefined;
     } = $state({} as any);
 
-    constructor(view: EditorView) {
+    constructor(view: EditorView, config: Config) {
         this.view = view;
+        this.allOptions = getOptions(config);
         
         this.wrap = document.createElement("div");
         this.wrap.id = "pm-slash-view";
@@ -71,7 +73,7 @@ class SlashPlugin implements PluginView {
         const match = text.match(/^\/(.*)/);
         if (!match) return this.hide();
 
-        const options = findOptions(match[1] || '');
+        const options = findOptions(match[1] || '', this.allOptions);
         if (!options.length) return this.hide();
 
         if (text === '/') {
