@@ -11,13 +11,11 @@
 	import IconTypeBold from '@hyvor/icons/IconTypeBold';
 	import IconTypeItalic from '@hyvor/icons/IconTypeItalic';
 	import IconTypeStrikethrough from '@hyvor/icons/IconTypeStrikethrough';
-
 	import { Mark, type MarkType } from 'prosemirror-model';
 	import type { EditorState } from 'prosemirror-state';
 	import { toggleMark } from 'prosemirror-commands';
 	import LinkSelector from './LinkSelector/LinkSelector.svelte';
 	import { markExtend } from './mark-helpers';
-	import IconChatRight from '@hyvor/icons/IconChatRight';
 
 	interface Props {
 		view: EditorView;
@@ -99,7 +97,7 @@
 		} as { size: 'small'; variant: 'fill' | 'invisible' };
 	}
 
-	function handleClick(markName: MarkName) {
+	async function handleClick(markName: MarkName) {
 		if (markName === 'link') {
 			linkSelectorOpen = true;
 			return;
@@ -107,6 +105,9 @@
 		const markType = schema.marks[markName]!;
 		toggleMark(markType)(view.state, view.dispatch, view);
 		view.focus();
+		show = false;
+		await tick();
+		show = true;
 	}
 
 	function getTrimmedLink(link: string) {
@@ -172,9 +173,9 @@
 					<IconTypeStrikethrough />
 				</IconButton>
 
-				<IconButton {...getProps('comment')} on:click={() => handleClick('comment')}>
+				<!-- <IconButton {...getProps('comment')} on:click={() => handleClick('comment')}>
 					<IconChatRight />
-				</IconButton>
+				</IconButton> -->
 			</div>
 		</span>
 	{/if}
