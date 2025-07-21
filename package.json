@@ -1,6 +1,8 @@
 {
-  "name": "editor",
-  "private": true,
+  "name": "@hyvor/richtext",
+  "license": "MIT",
+  "description": "Rich Text Editor for Hyvor Blogs & Hyvor Posts",
+  "private": false,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
@@ -17,14 +19,16 @@
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "@tsconfig/svelte": "^5.0.4",
-    "svelte": "^5.19.6",
     "svelte-check": "^4.1.4",
     "typescript": "~5.7.2",
     "vite": "^6.1.0"
   },
-  "dependencies": {
+  "peerDependencies": {
+    "svelte": ">=5",
     "@hyvor/design": "^1.1.8",
-    "@hyvor/icons": "^1.1.0",
+    "@hyvor/icons": "^1.1.0"
+  },
+  "dependencies": {
     "codemirror": "^5.0.0",
     "prosemirror-codemark": "^0.4.2",
     "prosemirror-commands": "^1.5.2",
