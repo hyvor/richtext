@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { EditorState } from 'prosemirror-state';
-	import schema from './schema';
+	import { getSchema } from './schema';
 	import { EditorView, type DOMEventMap } from 'prosemirror-view';
 	import { onMount } from 'svelte';
 	import { getNodeViews } from './nodeviews/nodeviews';
@@ -11,6 +11,7 @@
 	import { getMarkViews } from './markviews/markviews';
 
 	let props: Props = $props();
+	let config = $derived(props.config || {});
 
 	let wrap: HTMLDivElement | undefined = $state();
 
@@ -25,9 +26,11 @@
 		const jsonParsedValue = props.value ? JSON.parse(props.value) : null;
 		wrap!.innerHTML = '';
 
+		const schema = getSchema(config);
+
 		let state = EditorState.create({
 			schema: schema,
-			plugins: getPlugins(),
+			plugins: getPlugins(schema),
 			doc: props.value ? schema.nodeFromJSON(jsonParsedValue) : undefined
 		});
 

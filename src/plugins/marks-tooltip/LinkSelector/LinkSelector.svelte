@@ -8,7 +8,6 @@
 	import SearchPosts from './SearchPosts.svelte';
 	import type { EditorView } from 'prosemirror-view';
 	import { toggleMark } from 'prosemirror-commands';
-	import schema from '../../../schema';
 	import { TextSelection } from 'prosemirror-state';
 	import Anchors from './Anchors.svelte';
 
@@ -25,10 +24,10 @@
 	function handleAdd(e: CustomEvent<string>) {
 		if (edit) {
 			// remove the link
-			toggleMark(schema.marks.link!)(view.state, view.dispatch);
+			toggleMark(view.state.schema.marks.link!)(view.state, view.dispatch);
 		}
 
-		toggleMark(schema.marks.link!, { href: e.detail })(view.state, view.dispatch);
+		toggleMark(view.state.schema.marks.link!, { href: e.detail })(view.state, view.dispatch);
 		show = false;
 		view.focus();
 

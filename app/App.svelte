@@ -3,7 +3,10 @@
 </script>
 
 <div class="container">
-	<Editor value={null} />
+	<Editor
+		value={localStorage.getItem('doc')}
+		onvaluechange={(val) => localStorage.setItem('doc', val)}
+	/>
 </div>
 
 <style>

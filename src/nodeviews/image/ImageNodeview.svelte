@@ -2,7 +2,6 @@
 	import { IconButton, TextInput, Tooltip, confirm } from '@hyvor/design/components';
 	import type { EditorView } from 'prosemirror-view';
 	import { NodeSelection } from 'prosemirror-state';
-	import schema from '../../schema';
 	import IconPencil from '@hyvor/icons/IconPencil';
 	import IconTrash from '@hyvor/icons/IconTrash';
 	import { onMount } from 'svelte';
@@ -142,6 +141,8 @@
 			src: image.url as string,
 			alt: image.unsplash?.alt || ''
 		});
+
+		const schema = view.state.schema;
 
 		if (image.from === 'unsplash' && image.unsplash) {
 			const nodeSel = NodeSelection.create(view.state.doc, pos + 1);

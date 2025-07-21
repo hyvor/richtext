@@ -1,5 +1,6 @@
 import type { EditorView } from "prosemirror-view";
 import { writable } from "svelte/store";
+import type { Config } from "./config";
 
 export interface Props {
 
@@ -24,6 +25,11 @@ export interface Props {
      * Whether the current language is right-to-left.
      */
     rtl?: boolean;
+
+    /**
+     * The configuration for the editor.
+     */
+    config?: Config;
     
 
 }

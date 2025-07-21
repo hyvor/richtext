@@ -1,6 +1,5 @@
 import type { Node } from 'prosemirror-model';
 import { type Component, mount, unmount } from 'svelte';
-import schema from '../../schema';
 import IconBookmark from '@hyvor/icons/IconBookmark';
 import IconCardImage from '@hyvor/icons/IconCardImage';
 import IconCode from '@hyvor/icons/IconCode';

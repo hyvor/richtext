@@ -23,9 +23,8 @@ import {
 import { ResolvedPos, Schema } from 'prosemirror-model';
 import { EditorView } from 'prosemirror-view';
 import { undoInputRule } from 'prosemirror-inputrules';
-import schema from '../schema';
 
-export default function keymapPlugins() {
+export default function keymapPlugins(schema: Schema) {
 	var extendedKeymap: Record<string, Command> = {};
 
 	function bind(key: string, func: Command) {

@@ -6,7 +6,6 @@ import { TextSelection, Selection } from 'prosemirror-state';
 import { computeChange } from './nodeview-codeblock';
 import { Node } from 'prosemirror-model';
 import { EditorView } from 'prosemirror-view';
-import schema from '../schema';
 
 export default class CustomHtmlNodeView {
 	private cm: CodeMirror.Editor;
@@ -124,7 +123,7 @@ export default class CustomHtmlNodeView {
 			let tr = this.view.state.tr.replaceWith(
 				start + change.from,
 				start + change.to,
-				change.text ? schema.text(change.text) : []
+				change.text ? this.view.state.schema.text(change.text) : []
 			);
 			this.view.dispatch(tr);
 		}

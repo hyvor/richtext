@@ -1,10 +1,12 @@
 import { DOMParser, Node } from "prosemirror-model";
-import schema from "./schema";
 import { EditorView } from "prosemirror-view";
 import { TextSelection } from "prosemirror-state";
+import { get } from "svelte/store";
+import { editorStore } from "./store";
 
 
 export function getDocFromContent(content: string | null): Node {
+    const schema = get(editorStore).view.state.schema;
     const json = content ? JSON.parse(content) : null;
     return json ? Node.fromJSON(schema, json) : schema.nodes.doc!.createAndFill()!;
 }
@@ -78,6 +80,7 @@ export function positionSelectionInMiddleOfScreen(view: EditorView) {
 }
 
 export function appendHtml(view: EditorView, html: string) {
+    const schema = get(editorStore).view.state.schema;
 
     const div = document.createElement('div');
     div.innerHTML = html;

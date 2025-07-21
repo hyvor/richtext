@@ -1,273 +1,294 @@
 import {Mark, type MarkSpec, Node, type NodeSpec, Schema} from "prosemirror-model"
 import { addListNodes } from "prosemirror-schema-list"
 import { tableNodes } from "prosemirror-tables"
+import type { Config } from "./config";
 
-/**
- * Copied and changed from
- * https://github.com/ProseMirror/prosemirror-schema-basic
- */
+// mostly from https://github.com/ProseMirror/prosemirror-schema-basic
 
-// :: Object
-// [Specs](#model.NodeSpec) for the nodes defined in this schema.
-export const nodes = {
-    // :: NodeSpec The top level document node.
-    doc: {
-        content: "block+"
-    } as NodeSpec,
+function getNodes(config: Config): Record<string, NodeSpec> {
 
-    // :: NodeSpec A plain paragraph textblock. Represented in the DOM
-    // as a `<p>` element.
-    paragraph: {
-        content: "inline*",
-        group: "block",
-        selectable: false,
-        draggable: true,
-        parseDOM: [{tag: "p"}],
-        toDOM() { return ['p', 0] }
-    } as NodeSpec,
+    const {
+        codeBlockEnabled = true,
+        customHtmlEnabled = true,
+        embedEnabled = true,
+        bookmarkEnabled = true,
+        tocEnabled = true,
+        audioEnabled = true,
+        tableEnabled = true
+    } = config;
 
-    // :: NodeSpec A heading textblock, with a `level` attribute that
-    // should hold the number 2 to 6. Parsed and serialized as `<h1>` to
-    // `<h6>` elements.
-    heading: {
-        attrs: {
-            level: {default: 1},
-            id: {default: null},
+    const nodes: Record<string, NodeSpec> = {
+
+        doc: {
+            content: "block+"
         },
-        content: "inline*",
-        group: "block",
-        defining: true,
-        draggable: false,
-        selectable: false,
-        parseDOM: [
-            {tag: "h1", getAttrs(h: HTMLElement) {return {id: h.id, level: 1}}},
-            {tag: "h2", getAttrs(h: HTMLElement) {return {id: h.id, level: 2}}},
-            {tag: "h3", getAttrs(h: HTMLElement) {return {id: h.id, level: 3}}},
-            {tag: "h4", getAttrs(h: HTMLElement) {return {id: h.id, level: 4}}},
-            {tag: "h5", getAttrs(h: HTMLElement) {return {id: h.id, level: 5}}},
-            {tag: "h6", getAttrs(h: HTMLElement) {return {id: h.id, level: 6}}}
-        ],
-        toDOM(node: Node) { return ["h" + node.attrs.level, {id: node.attrs.id}, 0] }
-    } as NodeSpec,
 
-    // :: NodeSpec A blockquote (`<blockquote>`) wrapping one or more blocks.
-    blockquote: {
-        content: "block+",
-        group: "block",
-        defining: true,
-        selectable: false,
-        parseDOM: [{tag: "blockquote"}],
-        toDOM() { return ["blockquote", 0] }
-    } as NodeSpec,
+        text: {
+            group: "inline"
+        },
 
-    // :: NodeSpec A code listing. Disallows marks or non-text inline
-    // nodes by default. Represented as a `<pre>` element with a
-    // `<code>` element inside of it.
-    code_block: {
-        attrs: {
-            language: {default: null},
-            annotations: {default: null},
-            name: {default: null},
+        paragraph: {
+            content: "inline*",
+            group: "block",
+            selectable: false,
+            draggable: true,
+            parseDOM: [{tag: "p"}],
+            toDOM() { return ['p', 0] }
         },
-        content: "text*",
-        marks: "",
-        group: "block",
-        code: true,
-        defining: true,
-        selectable: false,
-        parseDOM: [{tag: "pre", preserveWhitespace: "full"}],
-        toDOM() { return ["pre", ["code", 0]] }
-    } as NodeSpec,
-    
-    custom_html: {
-        content: "text*",
-        marks: "",
-        group: "block",
-        code: true,
-        defining: true,
-        selectable: false,
-        parseDOM: [{tag: "custom", preserveWhitespace: "full"}],
-        toDOM() { return ["custom", 0] }
-    } as NodeSpec,
 
-    // :: NodeSpec The text node.
-    text: {
-        group: "inline"
-    } as NodeSpec,
+        heading: {
+            attrs: {
+                level: {default: 1},
+                id: {default: null},
+            },
+            content: "inline*",
+            group: "block",
+            defining: true,
+            draggable: false,
+            selectable: false,
+            parseDOM: [
+                {tag: "h1", getAttrs(h: HTMLElement) {return {id: h.id, level: 1}}},
+                {tag: "h2", getAttrs(h: HTMLElement) {return {id: h.id, level: 2}}},
+                {tag: "h3", getAttrs(h: HTMLElement) {return {id: h.id, level: 3}}},
+                {tag: "h4", getAttrs(h: HTMLElement) {return {id: h.id, level: 4}}},
+                {tag: "h5", getAttrs(h: HTMLElement) {return {id: h.id, level: 5}}},
+                {tag: "h6", getAttrs(h: HTMLElement) {return {id: h.id, level: 6}}}
+            ],
+            toDOM(node: Node) { return ["h" + node.attrs.level, {id: node.attrs.id}, 0] }
+        },
 
-    figure: {
-        content: "(image|embed) figcaption",
-        group: "block",
-        selectable: false,
-        draggable: true,
-        parseDOM: [
-            {
-                tag: "figure",
-            }
-        ],
-        toDOM() { 
-            return ["figure", 0] 
-        }
-    } as NodeSpec,
-    image: {
-        attrs: {
-            src: {default: null},
-            alt: {default: null},
-            width: {default: null},
-            height: {default: null}
+        blockquote: {
+            content: "block+",
+            group: "block",
+            defining: true,
+            selectable: false,
+            parseDOM: [{tag: "blockquote"}],
+            toDOM() { return ["blockquote", 0] }
         },
-        inline: false,
-        draggable: false,
-        selectable: false,
-        //group: "figure",
-        parseDOM: [{
-          tag: "img[src]", 
-          getAttrs(img: HTMLElement) {
-            return {
-                src: img.getAttribute("src"),
-                alt: img.getAttribute("alt"),
-                width: img.getAttribute("width"),
-                height: img.getAttribute("height")
-            };
-          }
-        }],
-        toDOM(node: Node) {
-          return ["img", {...node.attrs}]; 
-        }
-    } as NodeSpec,
-    audio: {
-        attrs: {
-            src: {default: null}
-        },
-        inline: false,
-        selectable: false,
-        group: "block",
-        atom: true,
-        parseDOM: [{
-          tag: "audio[src]", 
-          getAttrs(audio: HTMLElement) {
-            return {
-                src: audio.getAttribute("src"),
-            };
-          }
-        }],
-        toDOM(node: Node) {
-          return ["audio", {...node.attrs}]; 
-        }
-    } as NodeSpec,
-    embed: {
-        attrs: {
-            url: {default: null}
-        },
-        // content: "text*",
-        //group: "block",
-        // atom: true,
-        selectable: true,
-        draggable: false,
-        parseDOM: [{
-            tag: "x-embed[data-url]",
-            getAttrs(div: HTMLElement) {
-                return {
-                    url: div.dataset.url
+
+        callout: {
+            attrs: {
+                emoji: {default: "💡"},
+                bg: {default: "#f1f1ef"},
+                fg: {default: "#000000"}
+            },
+            content: "inline*",
+            group: "block",
+            defining: true,
+            selectable: false,
+            parseDOM: [{
+                tag: "aside",
+                getAttrs(aside: HTMLElement) {
+                    return {
+                        emoji: aside.dataset.emoji,
+                        bg: aside.style.backgroundColor,
+                        fg: aside.style.color
+                    }
                 }
-            }
-        }],
-        toDOM(node: Node) {
-            return ["x-embed", {
-                "data-url": node.attrs.url
-            }]
-        }
-    } as NodeSpec,
-
-    figcaption: {
-        content: "inline*",
-        //group: "figure",
-        selectable: false,
-        parseDOM: [{tag: "figcaption"}],
-        toDOM() { return ["figcaption", 0]; },
-    } as NodeSpec,
-
-    callout: {
-        attrs: {
-            emoji: {default: "💡"},
-            bg: {default: "#f1f1ef"},
-            fg: {default: "#000000"}
+            }],
+            toDOM(node: Node) { return ["aside", {
+                'data-emoji': node.attrs.emoji,
+                style: `background-color: ${node.attrs.bg}; color: ${node.attrs.fg}`
+            }, 0] }
         },
-        content: "inline*",
-        group: "block",
-        defining: true,
-        selectable: false,
-        parseDOM: [{
-            tag: "aside",
-            getAttrs(aside: HTMLElement) {
-                return {
-                    emoji: aside.dataset.emoji,
-                    bg: aside.style.backgroundColor,
-                    fg: aside.style.color
+
+        // required for image and embed
+        figure: {
+            content: "(image|embed) figcaption",
+            group: "block",
+            selectable: false,
+            draggable: true,
+            parseDOM: [
+                {
+                    tag: "figure",
                 }
+            ],
+            toDOM() { 
+                return ["figure", 0] 
             }
-        }],
-        toDOM(node: Node) { return ["aside", {
-            'data-emoji': node.attrs.emoji,
-            style: `background-color: ${node.attrs.bg}; color: ${node.attrs.fg}`
-        }, 0] }
-    } as NodeSpec,
-
-    bookmark: {
-        attrs: {
-            url: {default: null}
         },
-        //atom: true,
-        //draggable: true,
-        selectable: true,
-        group: "block",
-        parseDOM: [{
-            tag: "bookmark[data-url]",
-            getAttrs(div: HTMLElement) {
+
+        figcaption: {
+            content: "inline*",
+            //group: "figure",
+            selectable: false,
+            parseDOM: [{tag: "figcaption"}],
+            toDOM() { return ["figcaption", 0]; },
+        },
+
+        image: {
+            attrs: {
+                src: {default: null},
+                alt: {default: null},
+                width: {default: null},
+                height: {default: null}
+            },
+            inline: false,
+            draggable: false,
+            selectable: false,
+            //group: "figure",
+            parseDOM: [{
+            tag: "img[src]", 
+            getAttrs(img: HTMLElement) {
                 return {
-                    url: div.dataset.url
-                }
+                    src: img.getAttribute("src"),
+                    alt: img.getAttribute("alt"),
+                    width: img.getAttribute("width"),
+                    height: img.getAttribute("height")
+                };
             }
-        }],
-        toDOM(node: Node) {
-            return ["bookmark", {
-                "data-url": node.attrs.url
-            }]
-        }
-    } as NodeSpec,
-
-    // :: NodeSpec A horizontal rule (`<hr>`).
-    horizontal_rule: {
-        group: "block",
-        parseDOM: [{tag: "hr"}],
-        toDOM() { return ['hr'] }
-    } as NodeSpec,
-
-    // :: NodeSpec A hard line break, represented in the DOM as `<br>`.
-    hard_break: {
-        inline: true,
-        group: "inline",
-        selectable: false,
-        parseDOM: [{tag: "br"}],
-        toDOM() { return ['br'] }
-    } as NodeSpec,
-
-    toc: {
-        attrs: { 
-            levels: {default: [1,2,3,4,5,6]} 
+            }],
+            toDOM(node: Node) {
+            return ["img", {...node.attrs}]; 
+            }
         },
-        group: "block",
-        inline: false,
-        draggable: true,
-        selectable: true,
-        atom: true,
-    },
 
-     ...tableNodes({
-        tableGroup: "block",
-        cellContent: "block+",
-        cellAttributes: {}
-    })
+        horizontal_rule: {
+            group: "block",
+            parseDOM: [{tag: "hr"}],
+            toDOM() { return ['hr'] }
+        },
+
+        hard_break: {
+            inline: true,
+            group: "inline",
+            selectable: false,
+            parseDOM: [{tag: "br"}],
+            toDOM() { return ['br'] }
+        }
+
+    };
+
+    if (codeBlockEnabled) {
+        nodes.code_block = {
+            attrs: {
+                language: {default: null},
+                annotations: {default: null},
+                name: {default: null},
+            },
+            content: "text*",
+            marks: "",
+            group: "block",
+            code: true,
+            defining: true,
+            selectable: false,
+            parseDOM: [{tag: "pre", preserveWhitespace: "full"}],
+            toDOM() { return ["pre", ["code", 0]] }
+        }
+    }
+
+    if (customHtmlEnabled) {
+        nodes.custom_html = {
+            content: "text*",
+            marks: "",
+            group: "block",
+            code: true,
+            defining: true,
+            selectable: false,
+            parseDOM: [{tag: "custom", preserveWhitespace: "full"}],
+            toDOM() { return ["custom", 0] }
+        }
+    }
+
+    if (audioEnabled) {
+        nodes.audio = {
+            attrs: {
+                src: {default: null}
+            },
+            inline: false,
+            selectable: false,
+            group: "block",
+            atom: true,
+            parseDOM: [{
+            tag: "audio[src]", 
+            getAttrs(audio: HTMLElement) {
+                return {
+                    src: audio.getAttribute("src"),
+                };
+            }
+            }],
+            toDOM(node: Node) {
+            return ["audio", {...node.attrs}]; 
+            }
+        }
+    }
+
+    if (embedEnabled) {
+        nodes.embed = {
+            attrs: {
+                url: {default: null}
+            },
+            // content: "text*",
+            //group: "block",
+            // atom: true,
+            selectable: true,
+            draggable: false,
+            parseDOM: [{
+                tag: "x-embed[data-url]",
+                getAttrs(div: HTMLElement) {
+                    return {
+                        url: div.dataset.url
+                    }
+                }
+            }],
+            toDOM(node: Node) {
+                return ["x-embed", {
+                    "data-url": node.attrs.url
+                }]
+            }
+        }
+    }
+
+    if (bookmarkEnabled) {
+        nodes.bookmark = {
+            attrs: {
+                url: {default: null}
+            },
+            //atom: true,
+            //draggable: true,
+            selectable: true,
+            group: "block",
+            parseDOM: [{
+                tag: "bookmark[data-url]",
+                getAttrs(div: HTMLElement) {
+                    return {
+                        url: div.dataset.url
+                    }
+                }
+            }],
+            toDOM(node: Node) {
+                return ["bookmark", {
+                    "data-url": node.attrs.url
+                }]
+            }
+        }
+    }
+
+    if (tocEnabled) {
+        nodes.toc = {
+            attrs: { 
+                levels: {default: [1,2,3,4,5,6]} 
+            },
+            group: "block",
+            inline: false,
+            draggable: true,
+            selectable: true,
+            atom: true,
+        }
+    }
+
+    if (tableEnabled) {
+        const tableNodess = tableNodes({
+            tableGroup: "block",
+            cellContent: "block+",
+            cellAttributes: {}
+        });
+        Object.assign(nodes, tableNodess);
+    }
+
+
+    return nodes;
+
 }
 
 // :: Object [Specs](#model.MarkSpec) for the marks in the schema.
@@ -347,18 +368,15 @@ export const marks = {
     } as MarkSpec,
 }
 
-// :: Schema
-// This schema roughly corresponds to the document schema used by
-// [CommonMark](http://commonmark.org/), minus the list elements,
-// which are defined in the [`prosemirror-schema-list`](#schema-list)
-// module.
-//
-// To reuse elements from this schema, extend or read from its
-// `spec.nodes` and `spec.marks` [properties](#model.Schema.spec).
+export function getSchema(config: Config): Schema {
 
-const schemaWithoutList = new Schema({nodes, marks});
+    const schemaWithoutList = new Schema({
+        nodes: getNodes(config), 
+        marks
+    });
 
-export default new Schema({
-    nodes: addListNodes(schemaWithoutList.spec.nodes, "block+", "block"),
-    marks: schemaWithoutList.spec.marks
-});
+    return new Schema({
+        nodes: addListNodes(schemaWithoutList.spec.nodes, "block+", "block"),
+        marks
+    });
+}

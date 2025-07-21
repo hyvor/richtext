@@ -4,9 +4,8 @@ import {
 	inputRules,
 	InputRule
 } from 'prosemirror-inputrules';
-import type { MarkType, Node, NodeType } from 'prosemirror-model';
+import type { MarkType, Node, NodeType, Schema } from 'prosemirror-model';
 import { findWrapping, canJoin } from 'prosemirror-transform';
-import schema from '../schema';
 
 function markInputRule(regexp: RegExp, markType: MarkType, getAttrs?: any, skipStart?: any) {
 	return new InputRule(regexp, (state, match, start, end) => {
@@ -33,7 +32,7 @@ function markInputRule(regexp: RegExp, markType: MarkType, getAttrs?: any, skipS
 	});
 }
 
-export default function inputRulesPlugin() {
+export default function inputRulesPlugin(schema: Schema) {
 	var rules = [
 		headingRule(schema.nodes.heading!),
 		blockQuoteRule(schema.nodes.blockquote!),

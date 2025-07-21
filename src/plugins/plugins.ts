@@ -4,22 +4,21 @@ import { gapCursor } from 'prosemirror-gapcursor';
 import { history } from 'prosemirror-history';
 import inputRulesPlugin from './plugin-inputrules';
 import keymapPlugins from './plugin-keymap';
-import codemark from 'prosemirror-codemark';
 import pasteImagesPlugin from './plugin-paste-images';
 import { columnResizing, tableEditing } from 'prosemirror-tables';
 import marksTooltipPlugin from './marks-tooltip/plugin-marks-tooltip.svelte.js';
-import schema from '../schema';
 import wordCountPlugin from './plugin-wordcount';
 import slashPlugin from './slash/plugin-slash.svelte.js';
 import slashTipPlugin from './slash/plugin-slash-tip';
 import tableMenuPlugin from './table/plugin-table-menu.svelte.js';
+import type { Schema } from 'prosemirror-model';
 // import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
 // import { completionPlugin } from './completion/plugin-completion';
 
-export function getPlugins() {
+export function getPlugins(schema: Schema) {
 	return [
-		inputRulesPlugin(),
-		...keymapPlugins(),
+		inputRulesPlugin(schema),
+		...keymapPlugins(schema),
 
 		placeholderPlugin('Start writing...'),
 		marksTooltipPlugin(),

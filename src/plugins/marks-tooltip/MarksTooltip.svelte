@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { EditorView } from 'prosemirror-view';
-	import schema from '../../schema';
 	import { tick } from 'svelte';
 	import { IconButton } from '@hyvor/design/components';
 	import IconBoxArrowUpRight from '@hyvor/icons/IconBoxArrowUpRight';
@@ -32,7 +31,7 @@
 		const sel = view.state.selection;
 		let link: Mark | null = null;
 		view.state.doc.nodesBetween(sel.from, sel.to, (node, pos) => {
-			const mark = schema.marks.link!.isInSet(node.marks);
+			const mark = view.state.schema.marks.link!.isInSet(node.marks);
 			if (mark) {
 				link = mark;
 			}
@@ -88,7 +87,7 @@
 	type MarkName = 'link' | 'strong' | 'em' | 'code' | 'strike' | 'comment';
 
 	function getProps(markName: MarkName) {
-		const markType = schema.marks[markName]!;
+		const markType = view.state.schema.marks[markName]!;
 		const isActive = isMarkActive(view.state, markType);
 		return {
 			size: 'small',
@@ -102,7 +101,7 @@
 			linkSelectorOpen = true;
 			return;
 		}
-		const markType = schema.marks[markName]!;
+		const markType = view.state.schema.marks[markName]!;
 		toggleMark(markType)(view.state, view.dispatch, view);
 		view.focus();
 		show = false;

@@ -3,7 +3,6 @@
 	import type { SlashOption } from './options';
 	import { onMount, tick } from 'svelte';
 	import { Node } from 'prosemirror-model';
-	import schema from '../../schema';
 	import { NodeSelection, TextSelection } from 'prosemirror-state';
 	import { editorStore } from '../../store';
 
@@ -111,7 +110,7 @@
 		if (isCreatingNode) return;
 
 		if (typeof option.node === 'string') {
-			node = schema.nodes[option.node]!.create(option.attrs);
+			node = view.state.schema.nodes[option.node]!.create(option.attrs);
 		} else {
 			isCreatingNode = true;
 			const tempNode = await option.node();

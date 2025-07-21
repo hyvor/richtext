@@ -16,7 +16,6 @@
 		deleteTable,
 		toggleHeaderColumn
 	} from 'prosemirror-tables';
-	import schema from '../../schema';
 	import { editorStore } from '../../store';
 
 	let { updateId }: { updateId: number } = $props();
@@ -171,7 +170,7 @@
 					tr.replaceWith(
 						cellPos,
 						cellPos + cell.nodeSize,
-						schema.nodes.table_cell!.createAndFill()!
+						$editorStore.view.state.schema.nodes.table_cell!.createAndFill()!
 					);
 				}
 			});
