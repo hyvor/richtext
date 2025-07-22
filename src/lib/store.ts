@@ -31,7 +31,7 @@ export interface Props {
     /**
      * The configuration for the editor.
      */
-    config?: Config;
+    config?: Partial<Config>;
     
 
 }

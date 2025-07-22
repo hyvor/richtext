@@ -13,6 +13,7 @@ import slashTipPlugin from './slash/plugin-slash-tip';
 import tableMenuPlugin from './table/plugin-table-menu.svelte.js';
 import type { Schema } from 'prosemirror-model';
 import type { Config } from '../config';
+import buttonTooltipPlugin from './button-tooltip/plugin-button-tooltip.svelte';
 // import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
 // import { completionPlugin } from './completion/plugin-completion';
 
@@ -23,6 +24,7 @@ export function getPlugins(schema: Schema, config: Config) {
 
 		placeholderPlugin('Start writing...'),
 		marksTooltipPlugin(),
+		buttonTooltipPlugin(),
 		wordCountPlugin(),
 
 		slashPlugin(config),

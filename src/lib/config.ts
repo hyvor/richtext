@@ -1,44 +1,51 @@
 
 export interface Config {
 
+    // Colors
+    colorButtonBackground: string;
+    colorButtonText: string;
+
     // Schema
     // ======
 
     // code block
     // default: true
-    codeBlockEnabled?: boolean;
+    codeBlockEnabled: boolean;
 
     // custom HTML/Twig block
     // default: true
-    customHtmlEnabled?: boolean; 
+    customHtmlEnabled: boolean; 
     
     // Embed block
     // default: true
-    embedEnabled?: boolean;
+    embedEnabled: boolean;
     
     // Bookmark block
     // default: true
-    bookmarkEnabled?: boolean;
+    bookmarkEnabled: boolean;
     
     // TOC: Table of Contents
     // default: true
-    tocEnabled?: boolean;
+    tocEnabled: boolean;
 
     // Audio
     // default: true
-    audioEnabled?: boolean;
+    audioEnabled: boolean;
 
     // Table
     // default: true
-    tableEnabled?: boolean;
+    tableEnabled: boolean;
 
     // Button
     // default: true
-    buttonEnabled?: boolean;
+    buttonEnabled: boolean;
 
 }
 
 export const defaultConfig: Config = {
+    colorButtonBackground: '#000',
+    colorButtonText: '#fff',
+
     codeBlockEnabled: true,
     customHtmlEnabled: true,
     embedEnabled: true,

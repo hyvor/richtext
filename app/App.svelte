@@ -12,7 +12,8 @@
 		onvaluechange={(val) => localStorage.setItem('doc', val)}
 		config={{
 			embedEnabled: true,
-			tableEnabled: true
+			tableEnabled: true,
+			colorButtonBackground: '#585895'
 		}}
 	/>
 </div>

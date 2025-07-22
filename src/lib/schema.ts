@@ -286,7 +286,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
             selectable: false,
             parseDOM: [
                 {
-                    tag: 'div.pm-button-wrap a[href]',
+                    tag: 'div.button-wrap a[href]',
                     getAttrs(dom: HTMLElement) {
                         return {
                             href: dom.getAttribute('href'),
@@ -298,10 +298,10 @@ function getNodes(config: Config): Record<string, NodeSpec> {
                 const { href } = node.attrs;
                 return [
                     'div', 
-                    { class: 'pm-button-wrap' }, 
+                    { class: 'button-wrap' }, 
                     [
                         'a', 
-                        { href, class: 'pm-button', target: '_blank' },
+                        { href, class: 'button', target: '_blank' },
                         0
                     ]
                 ];

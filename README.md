@@ -2,12 +2,23 @@
 
 Used in Hyvor Blogs and Hyvor Post.
 
-## Features
+## Usage
 
-### Nodes
+```svelte
+import { Editor } from '@hyvor/richtext';
 
-- [x] Paragraph
-- [x] Heading (1-6)
-- [x] Blockquote
-- [x] Code Block
-- [ ] Custom HTML
+
+<Editor
+
+    bind:editorView
+    content={content}
+    onvaluechange={handleValueChange}
+    rtl={false}
+
+    config={{
+        embedEnabled: false,
+        // see config.ts for more options
+    }}
+
+/>
+```

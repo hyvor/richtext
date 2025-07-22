@@ -92,6 +92,8 @@
 	onclick={handleWrapClick}
 	onkeyup={(e) => e.key === 'Enter' && handleWrapClick(e)}
 	class:loaded={!isLoading}
+	style:--button-background={config.colorButtonBackground}
+	style:--button-text={config.colorButtonText}
 >
 	{#if isLoading}
 		<Loader block padding={250} />
@@ -548,22 +550,22 @@
 		transform: translateY(-50%);
 	}
 
-	.pm-editor :global(.pm-button-wrap) {
+	.pm-editor :global(.button-wrap) {
 		margin-top: 30px;
 		text-align: center;
 	}
-	.pm-editor :global(.pm-button-wrap a) {
+	.pm-editor :global(.button-wrap a.button) {
 		display: inline-block;
 		padding: 10px 20px;
 		font-weight: 600;
-		background-color: var(--accent);
-		color: var(--accent-text);
+		background-color: var(--button-background);
+		color: var(--button-text);
 		text-decoration: none;
 		border-radius: 5px;
 		cursor: text;
 	}
 
-	.pm-editor :global(.pm-button-wrap a:empty::before) {
+	.pm-editor :global(.button-wrap a.button:empty::before) {
 		content: 'Your text here';
 		color: var(--text-light);
 	}

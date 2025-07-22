@@ -10,6 +10,7 @@ import TableNodeView from './table/nodeview-table';
 import ImageView from './image/nodeview-image.svelte.js';
 import TocView from './toc/nodeview-toc.svelte.js';
 import AudioView from './audio/nodeview-audio.svelte.js';
+import ButtonNodeView from './button/nodeview-button.svelte.js';
 
 interface NodeViewsType {
 	[key: string]: NodeViewConstructor;
@@ -49,6 +50,9 @@ export function getNodeViews(): NodeViewsType {
 		},
 		toc(node, view, getPos) {
 			return new TocView(node, view, getPos);
+		},
+		button(node, view, getPos) {
+			return new ButtonNodeView(node, view, getPos);
 		}
 	};
 }
