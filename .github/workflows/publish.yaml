@@ -23,4 +23,4 @@ jobs:
           npm ci
           npm run package
           npm version $VERSION --no-git-tag-version
-          npm publish
+          npm publish --access=public
