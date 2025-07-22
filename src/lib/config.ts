@@ -32,4 +32,19 @@ export interface Config {
     // default: true
     tableEnabled?: boolean;
 
+    // Button
+    // default: true
+    buttonEnabled?: boolean;
+
 }
+
+export const defaultConfig: Config = {
+    codeBlockEnabled: true,
+    customHtmlEnabled: true,
+    embedEnabled: true,
+    bookmarkEnabled: true,
+    tocEnabled: true,
+    audioEnabled: true,
+    tableEnabled: true,
+    buttonEnabled: true,
+};

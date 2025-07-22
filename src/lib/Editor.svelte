@@ -9,9 +9,13 @@
 	import { editorContent, editorStore, type Props } from './store';
 	import { importCodemirrorAll } from './codemirror';
 	import { getMarkViews } from './markviews/markviews';
+	import { defaultConfig } from './config';
 
-	let props: Props = $props();
-	let config = $derived(props.config || {});
+	let { editorView = $bindable({} as EditorView), ...props }: Props = $props();
+	let config = $derived({
+		...defaultConfig,
+		...props.config
+	});
 
 	let wrap: HTMLDivElement | undefined = $state();
 
@@ -67,6 +71,7 @@
 		});
 
 		editorStore.set({ view, props });
+		editorView = view;
 
 		return view;
 	}
@@ -541,5 +546,25 @@
 		border: 8px solid transparent;
 		border-left-color: #e0d32e;
 		transform: translateY(-50%);
+	}
+
+	.pm-editor :global(.pm-button-wrap) {
+		margin-top: 30px;
+		text-align: center;
+	}
+	.pm-editor :global(.pm-button-wrap a) {
+		display: inline-block;
+		padding: 10px 20px;
+		font-weight: 600;
+		background-color: var(--accent);
+		color: var(--accent-text);
+		text-decoration: none;
+		border-radius: 5px;
+		cursor: text;
+	}
+
+	.pm-editor :global(.pm-button-wrap a:empty::before) {
+		content: 'Your text here';
+		color: var(--text-light);
 	}
 </style>

@@ -1,16 +1,24 @@
 <script lang="ts">
-	import { Editor } from '../src';
+	import { EditorView } from 'prosemirror-view';
+	import { Editor } from '../src/lib';
+
+	let editorView: EditorView = $state({} as EditorView);
 </script>
 
 <div class="container">
 	<Editor
+		bind:editorView
 		value={localStorage.getItem('doc')}
 		onvaluechange={(val) => localStorage.setItem('doc', val)}
 		config={{
-			embedEnabled: false,
-			tableEnabled: false
+			embedEnabled: true,
+			tableEnabled: true
 		}}
 	/>
+</div>
+
+<div class="focus">
+	<button onclick={() => editorView.focus()}>Focus</button>
 </div>
 
 <style>
@@ -21,5 +29,10 @@
 		background-color: #fff;
 		border: 1px solid #ccc;
 		border-radius: 20px;
+	}
+	.focus {
+		margin: 20px auto;
+		width: 650px;
+		text-align: center;
 	}
 </style>

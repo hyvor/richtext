@@ -4,6 +4,8 @@ import type { Config } from "./config";
 
 export interface Props {
 
+    editorView?: EditorView;
+
     /**
      * The initial value of the editor.
      */

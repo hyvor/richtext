@@ -7,16 +7,6 @@ import type { Config } from "./config";
 
 function getNodes(config: Config): Record<string, NodeSpec> {
 
-    const {
-        codeBlockEnabled = true,
-        customHtmlEnabled = true,
-        embedEnabled = true,
-        bookmarkEnabled = true,
-        tocEnabled = true,
-        audioEnabled = true,
-        tableEnabled = true
-    } = config;
-
     const nodes: Record<string, NodeSpec> = {
 
         doc: {
@@ -94,7 +84,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
 
         // required for image and embed
         figure: {
-            content: embedEnabled ? "(image|embed) figcaption" : "image figcaption",
+            content: config.embedEnabled ? "(image|embed) figcaption" : "image figcaption",
             group: "block",
             selectable: false,
             draggable: true,
@@ -155,34 +145,10 @@ function getNodes(config: Config): Record<string, NodeSpec> {
             selectable: false,
             parseDOM: [{tag: "br"}],
             toDOM() { return ['br'] }
-        },
-
-        button: {
-            attrs: {
-                href: {},
-            },
-            group: 'block',
-            draggable: true,
-            parseDOM: [
-                {
-                    tag: 'div.pm-button-wrapper a[href]',
-                    getAttrs(dom: HTMLElement) {
-                        return {
-                            href: dom.getAttribute('href'),
-                            text: dom.textContent || 'Click me'
-                        };
-                    }
-                }
-            ],
-            toDOM(node) {
-                const { href } = node.attrs;
-                return ['div', { class: 'pm-button-wrapper' }, ['a', { href, class: 'pm-button', target: '_blank' }, text]];
-            }
         }
-
     };
 
-    if (codeBlockEnabled) {
+    if (config.codeBlockEnabled) {
         nodes.code_block = {
             attrs: {
                 language: {default: null},
@@ -200,7 +166,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (customHtmlEnabled) {
+    if (config.customHtmlEnabled) {
         nodes.custom_html = {
             content: "text*",
             marks: "",
@@ -213,7 +179,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (audioEnabled) {
+    if (config.audioEnabled) {
         nodes.audio = {
             attrs: {
                 src: {default: null}
@@ -236,7 +202,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (embedEnabled) {
+    if (config.embedEnabled) {
         nodes.embed = {
             attrs: {
                 url: {default: null}
@@ -262,7 +228,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (bookmarkEnabled) {
+    if (config.bookmarkEnabled) {
         nodes.bookmark = {
             attrs: {
                 url: {default: null}
@@ -287,7 +253,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (tocEnabled) {
+    if (config.tocEnabled) {
         nodes.toc = {
             attrs: { 
                 levels: {default: [1,2,3,4,5,6]} 
@@ -300,13 +266,47 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (tableEnabled) {
+    if (config.tableEnabled) {
         const tableNodess = tableNodes({
             tableGroup: "block",
             cellContent: "block+",
             cellAttributes: {}
         });
         Object.assign(nodes, tableNodess);
+    }
+
+    if (config.buttonEnabled) {
+        nodes.button = {
+            attrs: {
+                href: {default: null},
+            },
+            content: "inline*",
+            group: 'block',
+            draggable: false,
+            selectable: false,
+            parseDOM: [
+                {
+                    tag: 'div.pm-button-wrap a[href]',
+                    getAttrs(dom: HTMLElement) {
+                        return {
+                            href: dom.getAttribute('href'),
+                        };
+                    }
+                }
+            ],
+            toDOM(node) {
+                const { href } = node.attrs;
+                return [
+                    'div', 
+                    { class: 'pm-button-wrap' }, 
+                    [
+                        'a', 
+                        { href, class: 'pm-button', target: '_blank' },
+                        0
+                    ]
+                ];
+            }
+        }
     }
 
 

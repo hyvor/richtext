@@ -27,7 +27,7 @@ class SlashPlugin implements PluginView {
 
     constructor(view: EditorView, config: Config) {
         this.view = view;
-        this.allOptions = getOptions(config);
+        this.allOptions = getOptions(view, config);
         
         this.wrap = document.createElement("div");
         this.wrap.id = "pm-slash-view";

@@ -1,4 +1,4 @@
-import type { Node } from 'prosemirror-model';
+import type { Node, Schema } from 'prosemirror-model';
 import { type Component, mount, unmount } from 'svelte';
 import IconBookmark from '@hyvor/icons/IconBookmark';
 import IconCardImage from '@hyvor/icons/IconCardImage';
@@ -16,6 +16,8 @@ import IconTypeH3 from '@hyvor/icons/IconTypeH3';
 import EmbedCreator from './Embed/EmbedCreator.svelte';
 import BookmarkCreator from './Bookmark/BookmarkCreator.svelte';
 import type { Config } from '../../config';
+import type { EditorView } from 'prosemirror-view';
+import IconHandIndexThumb from '@hyvor/icons/IconHandIndexThumb';
 
 export interface SlashOption {
 	name: string;
@@ -26,7 +28,9 @@ export interface SlashOption {
 	attrs?: Record<string, unknown>;
 }
 
-export function getOptions(config: Config): SlashOption[] {
+export function getOptions(view: EditorView, config: Config): SlashOption[] {
+
+	const schema = view.state.schema;
 
 	const options: SlashOption[] = [
 		{
@@ -50,14 +54,14 @@ export function getOptions(config: Config): SlashOption[] {
 			description: 'Add an image',
 			icon: IconCardImage,
 			keywords: ['image', 'picture', 'upload'],
-			node: selectImage
+			node: () => selectImage(view)
 		},
 		{
 			name: 'Quote',
 			description: 'Capture a quote',
 			icon: IconQuote,
 			keywords: ['quote', 'blockquote'],
-			node: createQuote
+			node: () => createQuote(schema)
 		},
 		{
 			name: 'Callout',
@@ -74,6 +78,16 @@ export function getOptions(config: Config): SlashOption[] {
 			node: 'horizontal_rule'
 		}
 	]
+
+	if (config.buttonEnabled) {
+		options.push({
+			name: 'Button',
+			description: 'Add a button',
+			icon: IconHandIndexThumb,
+			keywords: ['button', 'link', 'call to action', 'cta'],
+			node: 'button'
+		});
+	}
 
 	if (config.codeBlockEnabled) {
 		options.push({
@@ -154,6 +168,7 @@ export function getOptions(config: Config): SlashOption[] {
 			node: createTable
 		});
 	}
+
 
 	return options;
 
@@ -252,7 +267,7 @@ function selectAudio() {
 	// });
 }
 
-function createQuote() {
+function createQuote(schema: Schema) {
 	return Promise.resolve(schema.nodes.blockquote!.create({}, [schema.nodes.paragraph!.create()]));
 }
 
