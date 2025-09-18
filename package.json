@@ -10,7 +10,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
-    "package": "svelte-kit sync && svelte-package"
+    "package": "svelte-kit sync && svelte-package",
+    "prepare": "svelte-kit sync"
   },
   "exports": {
     ".": {
