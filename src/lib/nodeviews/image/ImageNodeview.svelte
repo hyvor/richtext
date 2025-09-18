@@ -100,26 +100,25 @@
 	}
 
 	async function handleDelete() {
-		if (
-			await confirm({
-				title: 'Remove image',
-				content:
-					'Are you sure you want to remove this image? It will not be deleted from the media library.',
-				confirmText: 'Yes, remove it',
-				danger: true
-			})
-		) {
-			const pos = getPos();
+		const confirmed = await confirm({
+			title: 'Remove image',
+			content:
+				'Are you sure you want to remove this image? It will not be deleted from the media library.',
+			confirmText: 'Yes, remove it',
+			danger: true
+		});
 
-			if (pos === undefined) return;
+		if (!confirmed) return;
 
-			// figure
-			const figureSel = NodeSelection.create(view.state.doc, pos - 1);
+		const pos = getPos();
 
-			view.dispatch(view.state.tr.delete(figureSel.from, figureSel.to));
+		if (pos === undefined) return;
 
-			view.focus();
-		}
+		// figure
+		const figureSel = NodeSelection.create(view.state.doc, pos - 1);
+
+		view.dispatch(view.state.tr.delete(figureSel.from, figureSel.to));
+		view.focus();
 	}
 
 	function changeImage(image: ImageUploadResult) {
