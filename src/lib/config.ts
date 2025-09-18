@@ -14,16 +14,21 @@ export interface Config {
 
     // custom HTML/Twig block
     // default: true
-    customHtmlEnabled: boolean; 
-    
+    customHtmlEnabled: boolean;
+
     // Embed block
     // default: true
     embedEnabled: boolean;
-    
+
+    // Image block
+    // default: true
+    imageEnabled: boolean;
+    imageUploader?: () => Promise<ImageUploadResult | null>;
+
     // Bookmark block
     // default: true
     bookmarkEnabled: boolean;
-    
+
     // TOC: Table of Contents
     // default: true
     tocEnabled: boolean;
@@ -49,9 +54,17 @@ export const defaultConfig: Config = {
     codeBlockEnabled: true,
     customHtmlEnabled: true,
     embedEnabled: true,
+    imageEnabled: true,
+    imageUploader: undefined,
     bookmarkEnabled: true,
     tocEnabled: true,
     audioEnabled: true,
     tableEnabled: true,
     buttonEnabled: true,
 };
+
+export interface ImageUploadResult {
+    src: string;
+    alt?: string;
+    caption?: string; // HTML supported
+}

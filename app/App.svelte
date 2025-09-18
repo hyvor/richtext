@@ -13,7 +13,18 @@
 		config={{
 			embedEnabled: true,
 			tableEnabled: true,
-			colorButtonBackground: '#585895'
+			colorButtonBackground: '#585895',
+			imageUploader: async () => {
+				if (!confirm('Simulate an upload?')) {
+					return null;
+				}
+
+				const width = Math.floor(Math.random() * 300) + 300;
+				return {
+					src: `https://picsum.photos/${width}/${width}`,
+					caption: '<b>This is a caption</b> with <i>HTML</i> support'
+				};
+			}
 		}}
 	/>
 </div>
