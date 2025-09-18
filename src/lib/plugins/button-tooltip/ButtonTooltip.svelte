@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Node } from 'prosemirror-model';
 	import type { EditorView } from 'prosemirror-view';
 	import { tick } from 'svelte';
 
@@ -10,6 +11,7 @@
 
 	let { view, show, updateId }: Props = $props();
 	let tooltip: HTMLSpanElement | undefined = $state();
+	let input: HTMLInputElement | undefined = $state();
 
 	$effect(() => {
 		if (updateId && show) {
@@ -33,16 +35,54 @@
 		tooltip.style.left = box.width / 2 - tooltip.getBoundingClientRect().width / 2 + 'px';
 	}
 
-	function getCurrentHref() {
+	function getCurrentButton(): Node | null {
 		const sel = view.state.selection;
 		const button = view.state.doc.nodeAt(sel.from - sel.$from.parentOffset - 1);
-		console.log(button);
+		if (button?.type.name === 'button') {
+			return button;
+		}
+		return null;
+	}
+
+	function getCurrentHref() {
+		return getCurrentButton()?.attrs.href || '';
+	}
+
+	function handleInput() {
+		const button = getCurrentButton();
+		if (button && input) {
+			const href = input.value;
+			const tr = view.state.tr.setNodeMarkup(
+				view.state.selection.from - view.state.selection.$from.parentOffset - 1,
+				undefined,
+				{
+					...button.attrs,
+					href
+				}
+			);
+			view.dispatch(tr);
+		}
+	}
+
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter' || event.key === 'Escape') {
+			event.preventDefault();
+			view.focus();
+		}
 	}
 </script>
 
 {#if show}
 	<span class="tooltip" bind:this={tooltip}>
-		<input type="text" placeholder="Enter URL" value={getCurrentHref()} />
+		<input
+			type="text"
+			placeholder="Enter URL"
+			value={getCurrentHref()}
+			name="button-url"
+			oninput={handleInput}
+			onkeydown={handleKeydown}
+			bind:this={input}
+		/>
 	</span>
 {/if}
 
@@ -75,5 +115,6 @@
 		padding: 8px 20px;
 		border: none;
 		background-color: transparent;
+		font-family: inherit;
 	}
 </style>
