@@ -311,11 +311,15 @@
 	}
 
 	.pm-editor :global(aside .emoji-icon) {
-		text-align: center;
 		cursor: pointer;
 		user-select: none;
-		display: inline-block;
 		padding: 10px 12px;
+	}
+
+	.pm-editor :global(aside .emoji-icon .dropdown) {
+		display: inline-flex;
+		justify-content: center;
+		color: var(--text);
 	}
 
 	.pm-editor :global(aside .content-div) {
