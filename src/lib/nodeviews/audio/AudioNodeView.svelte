@@ -4,15 +4,16 @@
 	import IconPencil from '@hyvor/icons/IconPencil';
 	import IconTrash from '@hyvor/icons/IconTrash';
 	import { onMount } from 'svelte';
-	// import FileUploader from '../../../../routes/console/lib/components/FileUploader/FileUploader.svelte';
+	import type { Config } from '$lib/config';
 
 	interface Props {
 		src: string;
 		getPos: () => number | undefined;
 		view: EditorView;
+		audioUploader: Config['audioUploader'];
 	}
 
-	let { src, getPos, view }: Props = $props();
+	let { src, getPos, view, audioUploader }: Props = $props();
 
 	let audioEl: HTMLAudioElement | undefined = $state();
 	//let fileInputEl: HTMLInputElement;
@@ -37,33 +38,22 @@
 		);
 	}
 
-	function handleChangeClick() {
-		// TODO: abstract this
+	async function handleChangeClick() {
+		if (!audioUploader) {
+			return;
+		}
+
+		const audio = await audioUploader();
+
+		if (audio === null) {
+			return;
+		}
+
+		updateProps({
+			src: audio.src
+		});
+
 		return;
-
-		/* const div = document.createElement("div");
-    document.body.appendChild(div);
-
-    const selector = mount(FileUploader, {
-      target: div,
-      props: {
-        type: "audio",
-        onselect: (file: any) => {
-          updateProps({
-            src: file.url,
-          });
-          destroy();
-        },
-        onclose: () => {
-          destroy();
-        },
-      },
-    });
-
-    function destroy() {
-      unmount(selector);
-      div.remove();
-    } */
 	}
 
 	async function handleDelete() {

@@ -5,6 +5,8 @@
 	import IconPencil from '@hyvor/icons/IconPencil';
 	import IconTrash from '@hyvor/icons/IconTrash';
 	import { onMount } from 'svelte';
+	import type { Config, ImageUploadResult } from '$lib/config';
+	import { getFigureNode } from './image-upload';
 
 	interface Props {
 		src: string | null;
@@ -12,10 +14,11 @@
 		width: number | null;
 		height: number | null;
 		getPos: () => number | undefined;
+		imageUploader: Config['imageUploader'];
 		view: EditorView;
 	}
 
-	let { src, alt, width, height, getPos, view }: Props = $props();
+	let { src, alt, width, height, getPos, imageUploader, view }: Props = $props();
 
 	let imgEl: HTMLImageElement | undefined = $state();
 
@@ -82,90 +85,60 @@
 		});
 	}
 
-	function handleChangeClick() {
-		// TODO: abstract this away
-		return;
+	async function handleChangeClick() {
+		if (!imageUploader) {
+			return;
+		}
 
-		/* const div = document.createElement("div");
-    document.body.appendChild(div);
+		const image = await imageUploader();
 
-    const selector = mount(FileUploader, {
-      target: div,
-      props: {
-        type: "image",
-        onselect: (file) => {
-          destroy();
-          changeImage(file);
-        },
-        onclose: () => {
-          destroy();
-        },
-      },
-    }); 
+		if (image === null) {
+			return;
+		}
 
-    function destroy() {
-      unmount(selector);
-      div.remove();
-    }*/
+		changeImage(image);
 	}
 
 	async function handleDelete() {
-		if (
-			await confirm({
-				title: 'Remove image',
-				content:
-					'Are you sure you want to remove this image? It will not be deleted from the media library.',
-				confirmText: 'Yes, remove it',
-				danger: true
-			})
-		) {
-			const pos = getPos();
+		const confirmed = await confirm({
+			title: 'Remove image',
+			content:
+				'Are you sure you want to remove this image? It will not be deleted from the media library.',
+			confirmText: 'Yes, remove it',
+			danger: true
+		});
 
-			if (pos === undefined) return;
+		if (!confirmed) return;
 
-			// figure
-			const figureSel = NodeSelection.create(view.state.doc, pos - 1);
+		const pos = getPos();
 
-			view.dispatch(view.state.tr.delete(figureSel.from, figureSel.to));
+		if (pos === undefined) return;
 
-			view.focus();
-		}
+		// figure
+		const figureSel = NodeSelection.create(view.state.doc, pos - 1);
+
+		view.dispatch(view.state.tr.delete(figureSel.from, figureSel.to));
+		view.focus();
 	}
 
-	function changeImage(image: any) {
+	function changeImage(image: ImageUploadResult) {
 		const pos = getPos();
 
 		if (pos === undefined) return;
 
 		updateProps({
-			src: image.url as string,
-			alt: image.unsplash?.alt || ''
+			src: image.src,
+			alt: image.alt || ''
 		});
 
 		const schema = view.state.schema;
 
-		if (image.from === 'unsplash' && image.unsplash) {
+		if (image.caption) {
 			const nodeSel = NodeSelection.create(view.state.doc, pos + 1);
 
-			const utm = '?utm_source=hyvor_blogs&utm_medium=referral';
-
 			const tr = view.state.tr;
-			const newNode = schema.nodes.figcaption!.create({}, [
-				schema.text('Photo by '),
-				schema.text(image.unsplash.author, [
-					schema.marks.link!.create({
-						href: image.unsplash.author_url + utm
-					})
-				]),
-				schema.text(' on '),
-				schema.text('Unsplash', [
-					schema.marks.link!.create({
-						href: 'https://unsplash.com/' + utm
-					})
-				])
-			]);
-
-			tr.replaceWith(nodeSel.from, nodeSel.to, newNode);
+			const newFigcaption = getFigureNode(schema, image).content.content[1];
+			tr.replaceWith(nodeSel.from, nodeSel.to, newFigcaption);
 
 			view.dispatch(tr);
 		}

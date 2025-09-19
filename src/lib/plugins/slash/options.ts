@@ -18,6 +18,8 @@ import BookmarkCreator from './Bookmark/BookmarkCreator.svelte';
 import type { Config } from '../../config';
 import type { EditorView } from 'prosemirror-view';
 import IconHandIndexThumb from '@hyvor/icons/IconHandIndexThumb';
+import { uploadImageGetFigureNode } from '../../nodeviews/image/image-upload'
+import { uploadAudioGetAudioNode } from '../../nodeviews/audio/audio-upload';
 
 export interface SlashOption {
 	name: string;
@@ -50,13 +52,6 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 			attrs: { level: 3 }
 		},
 		{
-			name: 'Image',
-			description: 'Add an image',
-			icon: IconCardImage,
-			keywords: ['image', 'picture', 'upload'],
-			node: () => selectImage(view)
-		},
-		{
 			name: 'Quote',
 			description: 'Capture a quote',
 			icon: IconQuote,
@@ -78,6 +73,16 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 			node: 'horizontal_rule'
 		}
 	]
+
+	if (config.imageEnabled && config.imageUploader) {
+		options.push({
+			name: 'Image',
+			description: 'Add an image',
+			icon: IconCardImage,
+			keywords: ['image', 'picture', 'upload'],
+			node: () => uploadImageGetFigureNode(schema, config.imageUploader),
+		});
+	}
 
 	if (config.buttonEnabled) {
 		options.push({
@@ -139,13 +144,13 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 		});
 	}
 
-	if (config.audioEnabled) {
+	if (config.audioEnabled && config.audioUploader) {
 		options.push({
 			name: 'Audio',
 			description: 'Add an audio',
 			icon: IconSoundwave,
 			keywords: ['audio', 'sound', 'upload'],
-			node: selectAudio
+			node: () => uploadAudioGetAudioNode(schema, config.audioUploader),
 		});
 	}
 
@@ -200,71 +205,6 @@ export function findOptions(match: string, options: SlashOption[]): SlashOption[
 	}
 
 	return matched.sort((a, b) => a.score - b.score) as SlashOption[];
-}
-
-function selectImage() {
-	// TODO: abstract this
-	return; 
-	
-	// return new Promise<Node | null>((resolve) => {
-	// 	const div = document.createElement('div');
-	// 	document.body.appendChild(div);
-
-	// 	const selector = mount(FileUploader, {
-	// 		target: div,
-	// 		props: {
-	// 			type: 'image',
-	// 			onselect: (selected) => {
-	// 				destroy();
-	// 				return resolve(
-	// 					schema.nodes.figure!.create({}, [
-	// 						schema.nodes.image!.create({ src: selected.url }),
-	// 						schema.nodes.figcaption!.create()
-	// 					])
-	// 				);
-	// 			},
-	// 			onclose: () => {
-	// 				destroy();
-	// 				resolve(null);
-	// 			}
-	// 		}
-	// 	});
-
-	// 	function destroy() {
-	// 		unmount(selector);
-	// 		div.remove();
-	// 	}
-	// });
-}
-
-function selectAudio() {
-
-	// TODO: abstract this
-
-	// return new Promise<Node | null>((resolve) => {
-	// 	const div = document.createElement('div');
-	// 	document.body.appendChild(div);
-
-	// 	const selector = mount(FileUploader, {
-	// 		target: div,
-	// 		props: {
-	// 			type: 'audio',
-	// 			onselect: (selected) => {
-	// 				destroy();
-	// 				return resolve(schema.nodes.audio!.create({ src: selected.url }));
-	// 			},
-	// 			onclose: () => {
-	// 				destroy();
-	// 				resolve(null);
-	// 			}
-	// 		}
-	// 	});
-
-	// 	function destroy() {
-	// 		unmount(selector);
-	// 		div.remove();
-	// 	}
-	// });
 }
 
 function createQuote(schema: Schema) {

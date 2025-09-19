@@ -2,6 +2,7 @@ import type { Node } from "prosemirror-model";
 import type { EditorView, NodeView } from "prosemirror-view";
 import ImageNodeview from "./ImageNodeview.svelte";
 import { mount } from "svelte";
+import type { Config } from "$lib/config";
 
 export default class ImageView implements NodeView {
 
@@ -13,15 +14,21 @@ export default class ImageView implements NodeView {
 
     private props: {
         view: EditorView;
+        imageUploader: Config['imageUploader'];
         getPos: () => number | undefined;
         src: string;
         alt: string;
-        width: number|null;
-        height: number|null;
+        width: number | null;
+        height: number | null;
     } = $state({} as any);
 
 
-    constructor(node: Node, view: EditorView, getPos: () => number | undefined) {
+    constructor(
+        node: Node,
+        view: EditorView,
+        getPos: () => number | undefined,
+        imageUploader: Config['imageUploader']
+    ) {
         this.node = node;
         this.view = view;
         this.getPos = getPos;
@@ -33,6 +40,7 @@ export default class ImageView implements NodeView {
 
         this.props.view = this.view;
         this.props.getPos = this.getPos;
+        this.props.imageUploader = imageUploader;
         this.setPropsFromNode(node);
 
         mount(ImageNodeview, {
@@ -40,7 +48,7 @@ export default class ImageView implements NodeView {
             props: this.props
         });
 
-    }   
+    }
 
     private setPropsFromNode(node: Node) {
         this.props.src = node.attrs.src;

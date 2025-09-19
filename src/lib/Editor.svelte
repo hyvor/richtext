@@ -54,7 +54,7 @@
 
 		view = new EditorView(wrap!, {
 			state: state,
-			nodeViews: getNodeViews(),
+			nodeViews: getNodeViews(config),
 			markViews: getMarkViews(),
 			handleDOMEvents: getDomEvents(),
 			// handleClickOn,
