@@ -2,6 +2,7 @@
 export interface Config {
 
     // Colors
+    // ======
     colorButtonBackground: string;
     colorButtonText: string;
 
@@ -60,7 +61,7 @@ export const defaultConfig: Config = {
     audioEnabled: true,
     audioUploader: undefined,
     bookmarkEnabled: true,
-    tocEnabled: true,
+    tocEnabled: false,
     tableEnabled: true,
     buttonEnabled: true,
 };

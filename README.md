@@ -75,3 +75,110 @@ import { Editor } from '@hyvor/richtext';
 - Parsed from `<figure>` HTML tag.
 - Group: `block`
 - Content: `(image|audio) figcaption`
+- `config.imageEnabled` or `config.embedEnabled` must be `true` to enable this node.
+
+### `figcaption`
+
+- An element that represents a caption or legend for a figure.
+- Parsed from `<figcaption>` HTML tag.
+- Content: `inline*`
+- Same conditions as the `figure` node to enable.
+
+### `image`
+
+- A block-level node representing an image, living inside a figure.
+- Attributes:
+  - `src`: The source URL of the image.
+  - `alt`: Alternative text for the image.
+  - `width`: Custom width of the image in pixels (`null` by default).
+  - `height`: Custom height of the image in pixels (`null` by default).
+- Parsed from `<img>` HTML tag.
+- `config.imageEnabled` must be `true` to enable this node.
+
+Note: `config.imageUploader` must be provided to upload images.
+
+### `audio`
+
+- A block-level node representing an audio file.
+- Attributes:
+  - `src`: The source URL of the audio file.
+- Parsed from `<audio>` HTML tag.
+- `config.audioEnabled` must be `true` to enable this node.
+
+Note: `config.audioUploader` must be provided to upload audio files.
+
+### `embed`
+
+- A block-level node representing an embed, living inside a figure.
+- Attributes:
+  - `url`: The URL of the embedded content.
+- Parsed from `<x-embed>` HTML tag.
+- Group: `block`
+- `config.embedEnabled` must be `true` to enable this node.
+
+### `bookmark`
+
+- A block-level node representing a link bookmark preview.
+- Attributes:
+  - `url`: The URL of the bookmark.
+- Parsed from `<bookmark>` HTML tag.
+- Group: `block`
+- `config.bookmarkEnabled` must be `true` to enable this node.
+
+### `toc`
+
+- A block-level node representing a table of contents.
+- Attributes:
+  - `levels`: The heading levels to include in the TOC (e.g., `[1, 2, 3]`).
+- Group: `block`
+- `config.tocEnabled` must be `true` to enable this node.
+
+### `table`
+
+- A block-level node representing a table.
+- Subnodes: `table_row`, `table_cell`, `table_header`
+- Parsed from `<table>` HTML tag.
+- Group: `block`
+- `config.tableEnabled` must be `true` to enable this node.
+
+### `button`
+
+- A block-level node representing a button.
+- Attributes:
+  - `href`: The URL the button links to.
+- Parsed from `<div class="button-wrap">` HTML tag.
+- Group: `block`
+- Content: `inline*`
+- `config.buttonEnabled` must be `true` to enable this node.
+
+
+### `code_block`
+
+- A block-level node representing a block of preformatted code.
+- Attributes:
+  - `language`: The programming language of the code block (optional).
+  - `annotations`: An array of annotations for the code block (optional).
+  - `name`: Filename associated with the code block (optional).
+- Parsed from `<pre><code>` HTML tags.
+- Group: `block`
+- Content: `text*`
+
+### `custom_html`
+
+- A block-level node representing custom HTML content.
+- Attributes:
+- Content: `text*`
+
+
+## Marks
+
+The following marks are supported:
+
+- `code`
+- `highlight`
+- `link` (attributes: `href`)
+- `em`
+- `strong`
+- `strike`
+- `sup`
+- `sub`
