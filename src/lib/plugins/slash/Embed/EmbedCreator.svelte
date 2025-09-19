@@ -24,6 +24,8 @@
 		}
 	});
 
+	let urlData: any = null;
+
 	let isFetching = $state(false);
 	let error: null | string = $state(null);
 	let embedFailed = $state(false);

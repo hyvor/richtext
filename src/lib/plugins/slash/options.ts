@@ -130,7 +130,7 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 				'reddit',
 				'github'
 			],
-			node: createEmbed
+			node: () => null, // TODO
 		});
 	}
 
@@ -140,7 +140,7 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 			description: 'Link preview as a bookmark',
 			icon: IconBookmark,
 			keywords: ['bookmark', 'link'],
-			node: createBookmark
+			node: () => null // TODO:
 		});
 	}
 
@@ -170,7 +170,7 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 			description: 'Add a table',
 			icon: IconTable,
 			keywords: ['table', 'spreadsheet'],
-			node: createTable
+			node: () => null, // TODO:
 		});
 	}
 
@@ -211,91 +211,91 @@ function createQuote(schema: Schema) {
 	return Promise.resolve(schema.nodes.blockquote!.create({}, [schema.nodes.paragraph!.create()]));
 }
 
-function createEmbed() {
-	return new Promise<Node | null>((resolve) => {
-		const div = document.createElement('div');
-		document.body.appendChild(div);
+// function createEmbed() {
+// 	return new Promise<Node | null>((resolve) => {
+// 		const div = document.createElement('div');
+// 		document.body.appendChild(div);
 
-		const creator = mount(EmbedCreator, {
-			target: div,
-			props: {
-				onclose: () => {
-					destroy();
-					resolve(null);
-				},
-				oncreate: (url: string) => {
-					destroy();
-					resolve(
-						schema.nodes.figure!.create({}, [
-							schema.nodes.embed!.create({ url }),
-							schema.nodes.figcaption!.create()
-						])
-					);
-				},
-				oncreatebookmark: (url: string) => {
-					destroy();
-					resolve(
-						schema.nodes.figure!.create({}, [
-							schema.nodes.bookmark!.create({ url: url }),
-							schema.nodes.figcaption!.create()
-						])
-					);
-				},
-				oncreatehtmlblock: (html: string) => {
-					destroy();
-					resolve(schema.nodes.custom_html!.create({ html }));
-				}
-			}
-		});
+// 		const creator = mount(EmbedCreator, {
+// 			target: div,
+// 			props: {
+// 				onclose: () => {
+// 					destroy();
+// 					resolve(null);
+// 				},
+// 				oncreate: (url: string) => {
+// 					destroy();
+// 					resolve(
+// 						schema.nodes.figure!.create({}, [
+// 							schema.nodes.embed!.create({ url }),
+// 							schema.nodes.figcaption!.create()
+// 						])
+// 					);
+// 				},
+// 				oncreatebookmark: (url: string) => {
+// 					destroy();
+// 					resolve(
+// 						schema.nodes.figure!.create({}, [
+// 							schema.nodes.bookmark!.create({ url: url }),
+// 							schema.nodes.figcaption!.create()
+// 						])
+// 					);
+// 				},
+// 				oncreatehtmlblock: (html: string) => {
+// 					destroy();
+// 					resolve(schema.nodes.custom_html!.create({ html }));
+// 				}
+// 			}
+// 		});
 
-		function destroy() {
-			unmount(creator);
-			div.remove();
-		}
-	});
-}
+// 		function destroy() {
+// 			unmount(creator);
+// 			div.remove();
+// 		}
+// 	});
+// }
 
-function createBookmark(url: string = '') {
-	return new Promise<Node | null>((resolve) => {
-		const div = document.createElement('div');
-		document.body.appendChild(div);
+// function createBookmark(url: string = '') {
+// 	return new Promise<Node | null>((resolve) => {
+// 		const div = document.createElement('div');
+// 		document.body.appendChild(div);
 
-		const creator = mount(BookmarkCreator, {
-			target: div,
-			props: {
-				url,
-				onclose: () => {
-					destroy();
-					resolve(null);
-				},
-				oncreate: (url: string) => {
-					destroy();
-					resolve(
-						schema.nodes.figure!.create({}, [
-							schema.nodes.bookmark!.create({ url }),
-							schema.nodes.figcaption!.create()
-						])
-					);
-				}
-			}
-		});
+// 		const creator = mount(BookmarkCreator, {
+// 			target: div,
+// 			props: {
+// 				url,
+// 				onclose: () => {
+// 					destroy();
+// 					resolve(null);
+// 				},
+// 				oncreate: (url: string) => {
+// 					destroy();
+// 					resolve(
+// 						schema.nodes.figure!.create({}, [
+// 							schema.nodes.bookmark!.create({ url }),
+// 							schema.nodes.figcaption!.create()
+// 						])
+// 					);
+// 				}
+// 			}
+// 		});
 
-		function destroy() {
-			unmount(creator);
-			div.remove();
-		}
-	});
-}
+// 		function destroy() {
+// 			unmount(creator);
+// 			div.remove();
+// 		}
+// 	});
+// }
 
-function createTable() {
-	const rows = [];
-	for (let i = 0; i < 3; i++) {
-		const cells = [];
-		for (let j = 0; j < 3; j++) {
-			cells.push(schema.nodes.table_cell!.create({}, [schema.nodes.paragraph!.create()]));
-		}
-		rows.push(schema.nodes.table_row!.create({}, cells));
-	}
+// function createTable() {
+// 	const rows = [];
+// 	for (let i = 0; i < 3; i++) {
+// 		const cells = [];
+// 		for (let j = 0; j < 3; j++) {
+// 			cells.push(schema.nodes.table_cell!.create({}, [schema.nodes.paragraph!.create()]));
+// 		}
+// 		rows.push(schema.nodes.table_row!.create({}, cells));
+// 	}
 
-	return Promise.resolve(schema.nodes.table!.create({}, [...rows]));
-}
+// 	return Promise.resolve(schema.nodes.table!.create({}, [...rows]));
+// }

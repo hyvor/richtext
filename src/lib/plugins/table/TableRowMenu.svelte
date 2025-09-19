@@ -118,7 +118,8 @@
 				tr.replaceWith(
 					rowPos,
 					rowPos + node.nodeSize,
-					schema.nodes.table_row!.createAndFill()!
+					[] // TODO:
+					// schema.nodes.table_row!.createAndFill()!
 				).setSelection(TextSelection.create(tr.doc, rowPos));
 				$editorStore.view.dispatch(tr);
 				return close();

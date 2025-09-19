@@ -61,7 +61,7 @@ export const defaultConfig: Config = {
     audioEnabled: true,
     audioUploader: undefined,
     bookmarkEnabled: true,
-    tocEnabled: false,
+    tocEnabled: true,
     tableEnabled: true,
     buttonEnabled: true,
 };
