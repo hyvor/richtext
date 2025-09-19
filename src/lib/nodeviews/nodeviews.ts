@@ -47,7 +47,7 @@ export function getNodeViews(config: Config): NodeViewsType {
 			return new ImageView(node, view, getPos, config.imageUploader);
 		},
 		audio(node, view, getPos) {
-			return new AudioView(node, view, getPos);
+			return new AudioView(node, view, getPos, config.audioUploader);
 		},
 		toc(node, view, getPos) {
 			return new TocView(node, view, getPos);
