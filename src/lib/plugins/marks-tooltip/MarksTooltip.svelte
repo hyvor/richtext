@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { EditorView } from 'prosemirror-view';
-	import { tick } from 'svelte';
+	import { tick, onMount, onDestroy } from 'svelte';
 	import { IconButton } from '@hyvor/design/components';
 	import IconBoxArrowUpRight from '@hyvor/icons/IconBoxArrowUpRight';
 	import IconCode from '@hyvor/icons/IconCode';
@@ -58,14 +58,15 @@
 			endLeft = Math.max(endLeft, view.coordsAtPos(i).left);
 		}
 
-		// The box in which the tooltip is positioned, to use as base
-		let box = tooltip.offsetParent!.getBoundingClientRect();
 		// Find a center-ish x position from the selection endpoints (when
 		// crossing lines, end may be more to the left)
 		let left = (endLeft - startLeft) / 2;
+		const selectionTop = view.coordsAtPos(from).top;
+		
+		// Position tooltip using fixed positioning relative to viewport
 		tooltip.style.left =
-			startLeft - box.left + left - tooltip.getBoundingClientRect().width / 2 + 'px';
-		tooltip.style.bottom = box.bottom - view.coordsAtPos(from).top + 'px';
+			startLeft + left - tooltip.getBoundingClientRect().width / 2 + 'px';
+		tooltip.style.top = selectionTop - tooltip.getBoundingClientRect().height - 10 + 'px';
 	}
 
 	function isMarkActive(state: EditorState, type: MarkType) {
@@ -129,6 +130,19 @@
 	function editLink() {
 		linkSelectorOpen = true;
 	}
+
+	onMount(() => {
+		const handleScroll = () => {
+			if (show && tooltip) {
+				updatePosition();
+			}
+		};
+
+		window.addEventListener('scroll', handleScroll, true);
+		return () => {
+			window.removeEventListener('scroll', handleScroll, true);
+		};
+	});
 </script>
 
 {#key view}
@@ -186,12 +200,11 @@
 
 <style>
 	.tooltip {
-		position: absolute;
+		position: fixed;
 		background: #fff;
 		box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 		border-radius: 20px;
-		margin-bottom: 10px;
-		z-index: 100;
+		z-index: 1000;
 	}
 
 	.tooltip:after {

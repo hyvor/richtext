@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { EditorView } from 'prosemirror-view';
 	import type { SlashOption } from './options';
-	import { onMount, tick } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
 	import { Node } from 'prosemirror-model';
 	import { NodeSelection, TextSelection } from 'prosemirror-state';
 	import { editorStore } from '../../store';
@@ -27,21 +27,20 @@
 
 		if (!slashEl) return;
 
-		const posTop = view.coordsAtPos(view.state.selection.from).top;
-
-		// The box in which the slash view is positioned, to use as base
-		const wrapPos = slashEl.offsetParent!.getBoundingClientRect();
+		const coords = view.coordsAtPos(view.state.selection.from);
 		const viewPos = view.dom.getBoundingClientRect();
-		const spaceBelow = wrapPos.bottom - posTop;
-		const spaceAbove = posTop - wrapPos.top;
+		const spaceBelow = window.innerHeight - coords.top;
+		const spaceAbove = coords.top;
 
-		if (spaceAbove > spaceBelow) {
-			slashEl.style.bottom = spaceBelow + 'px';
-			slashEl.style.top = 'auto';
+		// Determine if tooltip should appear above or below cursor
+		if (spaceAbove > spaceBelow && spaceAbove > 300) {
+			slashEl.style.top = coords.top - slashEl.getBoundingClientRect().height - 10 + 'px';
+			slashEl.style.bottom = 'auto';
 			slashEl.classList.add('top');
 			slashEl.classList.remove('bottom');
 		} else {
-			slashEl.style.top = posTop - wrapPos.top + 35 + 'px';
+			slashEl.style.top = coords.top + 35 + 'px';
+			slashEl.style.bottom = 'auto';
 			slashEl.classList.add('bottom');
 			slashEl.classList.remove('top');
 		}
@@ -50,15 +49,28 @@
 
 		if (isRtl) {
 			slashEl.style.left = 'auto';
-			slashEl.style.right = wrapPos.right - viewPos.right + 25 + 'px';
+			slashEl.style.right = window.innerWidth - viewPos.right + 25 + 'px';
 		} else {
-			slashEl.style.left = viewPos.left - wrapPos.left + 'px';
+			slashEl.style.left = viewPos.left + 'px';
 		}
 	}
 
 	$effect(() => {
 		show;
 		updatePosition();
+	});
+
+	onMount(() => {
+		const handleScroll = () => {
+			if (show && slashEl) {
+				updatePosition();
+			}
+		};
+
+		window.addEventListener('scroll', handleScroll, true);
+		return () => {
+			window.removeEventListener('scroll', handleScroll, true);
+		};
 	});
 
 	function houseMouseOver(option: SlashOption) {
@@ -193,12 +205,10 @@
 
 <style lang="scss">
 	.wrap {
-		position: absolute;
+		position: fixed;
 		width: 325px;
 		max-height: 275px;
 		overflow: auto;
-		left: 50px;
-		margin-left: 30px;
 		background: var(--box-background);
 		box-shadow: 0 0 20px 2px rgba(0, 0, 0, 0.2);
 		border-radius: var(--box-radius);
