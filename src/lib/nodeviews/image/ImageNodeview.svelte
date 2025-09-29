@@ -6,7 +6,7 @@
 	import IconTrash from '@hyvor/icons/IconTrash';
 	import { onMount } from 'svelte';
 	import type { Config, ImageUploadResult } from '$lib/config';
-	import { getFigureNode } from './image-upload';
+	import { getFigureNode, uploadImage } from './image-upload';
 
 	interface Props {
 		src: string | null;
@@ -14,11 +14,12 @@
 		width: number | null;
 		height: number | null;
 		getPos: () => number | undefined;
-		imageUploader: Config['imageUploader'];
+		fileUploader: Config['fileUploader'];
+		fileMaxSizeInMB: Config['fileMaxSizeInMB'];
 		view: EditorView;
 	}
 
-	let { src, alt, width, height, getPos, imageUploader, view }: Props = $props();
+	let { src, alt, width, height, getPos, view, fileUploader, fileMaxSizeInMB }: Props = $props();
 
 	let imgEl: HTMLImageElement | undefined = $state();
 
@@ -86,11 +87,11 @@
 	}
 
 	async function handleChangeClick() {
-		if (!imageUploader) {
+		if (!fileUploader) {
 			return;
 		}
 
-		const image = await imageUploader();
+		const image = await uploadImage(fileUploader, fileMaxSizeInMB);
 
 		if (image === null) {
 			return;

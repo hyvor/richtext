@@ -2,13 +2,31 @@ import type { Config, ImageUploadResult } from "$lib/config";
 import { uploadFile } from "@hyvor/design/components";
 import { DOMParser, type Schema } from "prosemirror-model";
 
-export async function uploadImageGetFigureNode(schema: Schema, config: Config) {
-
+export async function uploadImage(fileUploader: Config['fileUploader'], fileMaxSizeInMB: Config['fileMaxSizeInMB']) {
     const image = await uploadFile({
         type: 'image',
-        uploader: config.fileUploader,
-        maxFileSizeInMB: config.fileMaxSizeInMB
-    })
+        uploader: (file, name) => fileUploader(file, name, 'image'),
+        maxFileSizeInMB: fileMaxSizeInMB
+    });
+
+    if (image === null) {
+        return null;
+    }
+
+    const result: ImageUploadResult = {
+        src: image.url,
+        // TODO: set caption if unsplash
+    }
+
+    return result;
+}
+
+export async function uploadImageGetFigureNode(
+    schema: Schema,
+    fileUploader: Config['fileUploader'],
+    fileMaxSizeInMB: Config['fileMaxSizeInMB']
+) {
+    const image = await uploadImage(fileUploader, fileMaxSizeInMB);
 
     if (image === null) {
         return null;
@@ -18,8 +36,12 @@ export async function uploadImageGetFigureNode(schema: Schema, config: Config) {
 
 }
 
-export function getFigureNode(schema: Schema, result: ImageUploadResult) {
+export function getFigureNode(
+    schema: Schema,
+    result: ImageUploadResult
+) {
 
+    // parse from HTML
     function getCaptionText(caption: string) {
         const parser = DOMParser.fromSchema(schema);
         const tempEl = document.createElement('div');
