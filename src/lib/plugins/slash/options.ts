@@ -80,7 +80,7 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 			description: 'Add an image',
 			icon: IconCardImage,
 			keywords: ['image', 'picture', 'upload'],
-			node: () => uploadImageGetFigureNode(schema, config.imageUploader),
+			node: () => uploadImageGetFigureNode(schema, config),
 		});
 	}
 

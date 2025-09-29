@@ -29,6 +29,12 @@ export interface Config {
     // Audio
     // default: true
     audioEnabled: boolean;
+
+    // File uploader config (from HDS)
+    // fileUploader must be provided if imageEnabled or audioEnabled is true
+    fileUploader?: (file: File, name: string | null) => Promise<{ url: string } | null>;
+    fileMaxSizeInMB?: number; // default: 10
+
     audioUploader?: () => Promise<AudioUploadResult | null>;
 
     // Bookmark block

@@ -1,15 +1,21 @@
 import type { Config, ImageUploadResult } from "$lib/config";
+import { uploadFile } from "@hyvor/design/components";
 import { DOMParser, type Schema } from "prosemirror-model";
 
-export async function uploadImageGetFigureNode(schema: Schema, imageUploader: Config['imageUploader']) {
+export async function uploadImageGetFigureNode(schema: Schema, config: Config) {
 
-    const image = await imageUploader();
+    const image = await uploadFile({
+        type: 'image',
+        uploader: config.fileUploader,
+        maxFileSizeInMB: config.fileMaxSizeInMB
+    })
 
     if (image === null) {
         return null;
     }
 
     return getFigureNode(schema, image);
+
 }
 
 export function getFigureNode(schema: Schema, result: ImageUploadResult) {
