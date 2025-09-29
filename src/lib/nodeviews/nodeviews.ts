@@ -44,10 +44,10 @@ export function getNodeViews(config: Config): NodeViewsType {
 			return new TableNodeView(node, view, getPos);
 		},
 		image(node, view, getPos) {
-			return new ImageView(node, view, getPos, config.imageUploader);
+			return new ImageView(node, view, getPos, config.fileUploader, config.fileMaxSizeInMB);
 		},
 		audio(node, view, getPos) {
-			return new AudioView(node, view, getPos, config.audioUploader);
+			return new AudioView(node, view, getPos, config.fileUploader, config.fileMaxSizeInMB);
 		},
 		toc(node, view, getPos) {
 			return new TocView(node, view, getPos);

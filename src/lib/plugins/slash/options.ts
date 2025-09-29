@@ -74,13 +74,13 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 		}
 	]
 
-	if (config.imageEnabled && config.imageUploader) {
+	if (config.imageEnabled && config.fileUploader) {
 		options.push({
 			name: 'Image',
 			description: 'Add an image',
 			icon: IconCardImage,
 			keywords: ['image', 'picture', 'upload'],
-			node: () => uploadImageGetFigureNode(schema, config.imageUploader),
+			node: () => uploadImageGetFigureNode(schema, config.fileUploader, config.fileMaxSizeInMB),
 		});
 	}
 
@@ -144,13 +144,13 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 		});
 	}
 
-	if (config.audioEnabled && config.audioUploader) {
+	if (config.audioEnabled && config.fileUploader) {
 		options.push({
 			name: 'Audio',
 			description: 'Add an audio',
 			icon: IconSoundwave,
 			keywords: ['audio', 'sound', 'upload'],
-			node: () => uploadAudioGetAudioNode(schema, config.audioUploader),
+			node: () => uploadAudioGetAudioNode(schema, config.fileUploader, config.fileMaxSizeInMB),
 		});
 	}
 

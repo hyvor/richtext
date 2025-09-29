@@ -24,12 +24,16 @@ export interface Config {
     // Image block
     // default: true
     imageEnabled: boolean;
-    imageUploader?: () => Promise<ImageUploadResult | null>;
 
     // Audio
     // default: true
     audioEnabled: boolean;
-    audioUploader?: () => Promise<AudioUploadResult | null>;
+
+    // File uploader config (from HDS)
+    // This will be used when the user uploads an image or audio.
+    // fileUploader must be provided if imageEnabled or audioEnabled is true
+    fileUploader?: (file: Blob, name: string | null, type: 'image' | 'audio') => Promise<{ url: string } | null>;
+    fileMaxSizeInMB?: number; // default: 10
 
     // Bookmark block
     // default: true
@@ -57,9 +61,8 @@ export const defaultConfig: Config = {
     customHtmlEnabled: true,
     embedEnabled: true,
     imageEnabled: true,
-    imageUploader: undefined,
     audioEnabled: true,
-    audioUploader: undefined,
+    fileUploader: undefined,
     bookmarkEnabled: true,
     tocEnabled: true,
     tableEnabled: true,
@@ -70,8 +73,4 @@ export interface ImageUploadResult {
     src: string;
     alt?: string;
     caption?: string; // HTML supported
-}
-
-export interface AudioUploadResult {
-    src: string;
 }

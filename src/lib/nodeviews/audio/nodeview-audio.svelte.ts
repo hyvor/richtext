@@ -15,14 +15,16 @@ export default class AudioView implements NodeView {
 		src: string;
 		getPos: () => number | undefined;
 		view: EditorView;
-		audioUploader: Config['audioUploader'];
+		fileUploader: Config['fileUploader'];
+		fileMaxSizeInMB?: number;
 	} = $state({} as any);
 
 	constructor(
 		node: Node,
 		view: EditorView,
 		getPos: () => number | undefined,
-		audioUploader: Config['audioUploader']
+		fileUploader: Config['fileUploader'],
+		fileMaxSizeInMB: number | undefined
 	) {
 		this.node = node;
 		this.view = view;
@@ -34,7 +36,8 @@ export default class AudioView implements NodeView {
 			getPos: this.getPos,
 			view: this.view,
 			src: node.attrs.src,
-			audioUploader: audioUploader
+			fileUploader: fileUploader,
+			fileMaxSizeInMB: fileMaxSizeInMB
 		};
 
 		mount(AudioNodeView, {

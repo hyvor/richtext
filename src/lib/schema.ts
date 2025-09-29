@@ -4,8 +4,15 @@ import { tableNodes } from "prosemirror-tables"
 import type { Config } from "./config";
 
 // mostly from https://github.com/ProseMirror/prosemirror-schema-basic
-
 function getNodes(config: Config): Record<string, NodeSpec> {
+
+    // validate fileUploader
+    if (
+        (config.imageEnabled || config.audioEnabled) &&
+        config.fileUploader === undefined
+    ) {
+        throw new Error("fileUploader must be provided if imageEnabled or audioEnabled is true");
+    }
 
     const nodes: Record<string, NodeSpec> = {
 
@@ -130,7 +137,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    const imageEnabled = config.imageEnabled && config.imageUploader;
+    const imageEnabled = config.imageEnabled;
     const embedEnabled = config.embedEnabled;
 
     if (imageEnabled || embedEnabled) {
