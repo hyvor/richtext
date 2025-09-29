@@ -3,20 +3,20 @@
 	import type { EditorView } from 'prosemirror-view';
 	import IconPencil from '@hyvor/icons/IconPencil';
 	import IconTrash from '@hyvor/icons/IconTrash';
-	import { onMount } from 'svelte';
 	import type { Config } from '$lib/config';
+	import { uploadAudio } from './audio-upload';
 
 	interface Props {
 		src: string;
 		getPos: () => number | undefined;
 		view: EditorView;
-		audioUploader: Config['audioUploader'];
+		fileUploader: Config['fileUploader'];
+		fileMaxSizeInMB?: number;
 	}
 
-	let { src, getPos, view, audioUploader }: Props = $props();
+	let { src, getPos, view, fileUploader, fileMaxSizeInMB }: Props = $props();
 
 	let audioEl: HTMLAudioElement | undefined = $state();
-	//let fileInputEl: HTMLInputElement;
 
 	let loading = false;
 
@@ -39,18 +39,14 @@
 	}
 
 	async function handleChangeClick() {
-		if (!audioUploader) {
-			return;
-		}
-
-		const audio = await audioUploader();
+		const audio = await uploadAudio(fileUploader, fileMaxSizeInMB);
 
 		if (audio === null) {
 			return;
 		}
 
 		updateProps({
-			src: audio.src
+			src: audio.url
 		});
 
 		return;
@@ -77,12 +73,6 @@
 		view.dispatch(tr);
 		view.focus();
 	}
-
-	onMount(() => {
-		if (!src) {
-			// fileInputEl.click(); // Trigger the file input if no audio is selected initially
-		}
-	});
 </script>
 
 <div class="audio-wrap">
