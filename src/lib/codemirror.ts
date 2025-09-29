@@ -2,6 +2,9 @@ let loaded = false;
 
 export async function importCodemirrorAll() {
 
+    if (typeof window === 'undefined')
+        return;
+
     if (loaded)
         return;
 
@@ -11,7 +14,7 @@ export async function importCodemirrorAll() {
     (window as any).CodeMirror = CodeMirror.default;
 
     // @ts-ignore
-    await import('codemirror/addon/display/autorefresh'); 
+    await import('codemirror/addon/display/autorefresh');
     // @ts-ignore
     await import('codemirror/addon/comment/comment');
     // @ts-ignore
@@ -28,8 +31,8 @@ export async function importCodemirrorAll() {
     await import('codemirror/lib/codemirror.css');
     // @ts-ignore
     await import('codemirror/theme/solarized.css');
-    
-    
+
+
     // default languages
 
     // @ts-ignore
