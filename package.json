@@ -30,7 +30,7 @@
     "vite": "^6.1.0"
   },
   "peerDependencies": {
-    "@hyvor/design": "^1.1.19-beta-file-uploader.1",
+    "@hyvor/design": "^1.1.19",
     "@hyvor/icons": "^1.1.0",
     "svelte": ">=5"
   },
