@@ -1,5 +1,4 @@
 // @ts-nocheck
-import CodeMirror from 'codemirror'; // eslint-disable-line
 import { exitCode, joinBackward } from 'prosemirror-commands';
 import { undo, redo } from 'prosemirror-history';
 import { TextSelection, Selection } from 'prosemirror-state';
@@ -31,7 +30,7 @@ export default class CodeBlockNodeView implements NodeView {
 		this.dom.appendChild(codemirrorWrap);
 
 		// Create a CodeMirror instance
-		this.cm = new CodeMirror(codemirrorWrap, {
+		this.cm = new (window as any).CodeMirror(codemirrorWrap, {
 			value: this.node.textContent,
 			lineNumbers: true,
 			lineWrapping: true,

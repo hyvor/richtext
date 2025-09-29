@@ -1,5 +1,3 @@
-// @ts-ignore
-import CodeMirror from 'codemirror';
 import { exitCode } from 'prosemirror-commands';
 import { undo, redo } from 'prosemirror-history';
 import { TextSelection, Selection } from 'prosemirror-state';
@@ -8,7 +6,7 @@ import { Node } from 'prosemirror-model';
 import { EditorView } from 'prosemirror-view';
 
 export default class CustomHtmlNodeView {
-	private cm: CodeMirror.Editor;
+	private cm: any;
 
 	private node: Node;
 	private view: EditorView;
@@ -37,7 +35,7 @@ export default class CustomHtmlNodeView {
 		this.dom.appendChild(codemirrorWrap);
 
 		// Create a CodeMirror instance
-		this.cm = CodeMirror(codemirrorWrap, {
+		this.cm = (window as any).CodeMirror(codemirrorWrap, {
 			value: this.node.textContent,
 			lineNumbers: true,
 			lineWrapping: true,
@@ -137,7 +135,7 @@ export default class CustomHtmlNodeView {
 			if (exitCode(view.state, view.dispatch)) view.focus();
 		}
 
-		return CodeMirror.normalizeKeyMap({
+		return (window as any).CodeMirror.normalizeKeyMap({
 			Up: () => this.maybeEscape('line', -1),
 			Left: () => this.maybeEscape('char', -1),
 			Down: () => this.maybeEscape('line', 1),
@@ -155,7 +153,7 @@ export default class CustomHtmlNodeView {
 					view.focus();
 					return;
 				}
-				return CodeMirror.Pass;
+				return (window as any).CodeMirror.Pass;
 			}
 		});
 	}
@@ -167,7 +165,7 @@ export default class CustomHtmlNodeView {
 			pos.line != (dir < 0 ? this.cm.firstLine() : this.cm.lastLine()) ||
 			(unit == 'char' && pos.ch != (dir < 0 ? 0 : this.cm.getLine(pos.line).length))
 		)
-			return CodeMirror.Pass;
+			return (window as any).CodeMirror.Pass;
 		this.view.focus();
 		let targetPos = this.getPos() + (dir < 0 ? 0 : this.node.nodeSize);
 		let selection = Selection.near(this.view.state.doc.resolve(targetPos), dir);
