@@ -212,7 +212,7 @@
 		background: var(--box-background);
 		box-shadow: 0 0 20px 2px rgba(0, 0, 0, 0.2);
 		border-radius: var(--box-radius);
-		z-index: 1000000;
+		z-index: 1000;
 	}
 
 	.option {
