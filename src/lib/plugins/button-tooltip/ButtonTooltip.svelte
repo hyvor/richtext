@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Node } from 'prosemirror-model';
 	import type { EditorView } from 'prosemirror-view';
-	import { tick } from 'svelte';
+	import { tick, onMount } from 'svelte';
 
 	interface Props {
 		view: EditorView;
@@ -22,17 +22,30 @@
 		}
 	});
 
+	onMount(() => {
+		const handleScroll = () => {
+			if (show && tooltip) {
+				updatePosition();
+			}
+		};
+
+		window.addEventListener('scroll', handleScroll, true);
+		return () => {
+			window.removeEventListener('scroll', handleScroll, true);
+		};
+	});
+
 	function updatePosition() {
 		if (!tooltip) return;
 
 		const { from } = view.state.selection;
-		const top = view.coordsAtPos(from).top;
-
-		let box = tooltip.offsetParent!.getBoundingClientRect();
+		const coords = view.coordsAtPos(from);
+		const editorRect = view.dom.getBoundingClientRect();
 
 		tooltip.style.display = '';
-		tooltip.style.bottom = box.bottom - top + 10 + 'px';
-		tooltip.style.left = box.width / 2 - tooltip.getBoundingClientRect().width / 2 + 'px';
+		// Position tooltip above the cursor with fixed positioning
+		tooltip.style.top = coords.top - tooltip.getBoundingClientRect().height - 10 + 'px';
+		tooltip.style.left = editorRect.left + editorRect.width / 2 - tooltip.getBoundingClientRect().width / 2 + 'px';
 	}
 
 	function getCurrentButton(): Node | null {
@@ -88,12 +101,11 @@
 
 <style>
 	.tooltip {
-		position: absolute;
+		position: fixed;
 		background: var(--box-background);
 		box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 		border-radius: 20px;
-		margin-bottom: 10px;
-		z-index: 100;
+		z-index: 1000;
 	}
 
 	.tooltip:after {
