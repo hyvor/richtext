@@ -1,4 +1,6 @@
 <script lang="ts">
+
+
 	import { EditorView } from 'prosemirror-view';
 	import { Editor } from '../src/lib';
 	import { Base } from '@hyvor/design/components';
@@ -41,6 +43,18 @@
 
 					return {
 						src
+					};
+				},
+				bookmarkGetter: async () => {
+					if (!confirm('Simulate an bookmark?')) {
+						return null;
+					}
+
+					return {
+						url: 'https://www.google.com',
+						title: 'Google',
+						description: 'Google is a search engine',
+						image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR28Yb6U3AlNA5vIusLWEahuo87-kpKkkZefA&s'
 					};
 				}
 			}}

@@ -34,6 +34,7 @@ export interface Config {
     // Bookmark block
     // default: true
     bookmarkEnabled: boolean;
+    bookmarkGetter?: (url: string) => Promise<BookmarkResult | null>;
 
     // TOC: Table of Contents
     // default: true
@@ -61,6 +62,7 @@ export const defaultConfig: Config = {
     audioEnabled: true,
     audioUploader: undefined,
     bookmarkEnabled: true,
+    bookmarkGetter: undefined,
     tocEnabled: true,
     tableEnabled: true,
     buttonEnabled: true,
@@ -74,4 +76,11 @@ export interface ImageUploadResult {
 
 export interface AudioUploadResult {
     src: string;
+}
+
+export interface BookmarkResult {
+    url: string;
+    title?: string;
+    description?: string;
+    image?: string;
 }

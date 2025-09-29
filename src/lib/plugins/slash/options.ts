@@ -20,6 +20,7 @@ import type { EditorView } from 'prosemirror-view';
 import IconHandIndexThumb from '@hyvor/icons/IconHandIndexThumb';
 import { uploadImageGetFigureNode } from '../../nodeviews/image/image-upload'
 import { uploadAudioGetAudioNode } from '../../nodeviews/audio/audio-upload';
+import { createBookmarkGetFigureNode } from '../../nodeviews/bookmark/bookmark-create';
 
 export interface SlashOption {
 	name: string;
@@ -140,7 +141,9 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 			description: 'Link preview as a bookmark',
 			icon: IconBookmark,
 			keywords: ['bookmark', 'link'],
-			node: () => null // TODO:
+			node: () => config.bookmarkGetter 
+				? createBookmarkGetFigureNode(schema, config.bookmarkGetter)
+				: createBookmarkWithModal(schema),
 		});
 	}
 
@@ -170,7 +173,7 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 			description: 'Add a table',
 			icon: IconTable,
 			keywords: ['table', 'spreadsheet'],
-			node: () => null, // TODO:
+			node: () => createTable(schema),
 		});
 	}
 
@@ -255,47 +258,54 @@ function createQuote(schema: Schema) {
 // 	});
 // }
 
-// function createBookmark(url: string = '') {
-// 	return new Promise<Node | null>((resolve) => {
-// 		const div = document.createElement('div');
-// 		document.body.appendChild(div);
 
-// 		const creator = mount(BookmarkCreator, {
-// 			target: div,
-// 			props: {
-// 				url,
-// 				onclose: () => {
-// 					destroy();
-// 					resolve(null);
-// 				},
-// 				oncreate: (url: string) => {
-// 					destroy();
-// 					resolve(
-// 						schema.nodes.figure!.create({}, [
-// 							schema.nodes.bookmark!.create({ url }),
-// 							schema.nodes.figcaption!.create()
-// 						])
-// 					);
-// 				}
-// 			}
-// 		});
+function createBookmarkWithModal(schema: Schema, url: string = '') {
+	return new Promise<Node | null>((resolve) => {
+		const div = document.createElement('div');
+		document.body.appendChild(div);
 
-// 		function destroy() {
-// 			unmount(creator);
-// 			div.remove();
-// 		}
-// 	});
-// }
+		// Default bookmark getter that just returns the URL
+		const defaultBookmarkGetter = async (inputUrl: string) => {
+			return { url: inputUrl };
+		};
 
-// function createTable() {
-// 	const rows = [];
-// 	for (let i = 0; i < 3; i++) {
-// 		const cells = [];
-// 		for (let j = 0; j < 3; j++) {
-// 			cells.push(schema.nodes.table_cell!.create({}, [schema.nodes.paragraph!.create()]));
-// 		}
-// 		rows.push(schema.nodes.table_row!.create({}, cells));
-// 	}
+		const creator = mount(BookmarkCreator, {
+			target: div,
+			props: {
+				url,
+				bookmarkGetter: defaultBookmarkGetter,
+				onclose: () => {
+					destroy();
+					resolve(null);
+				},
+				oncreate: (url: string) => {
+					destroy();
+					resolve(
+						schema.nodes.figure!.create({}, [
+							schema.nodes.bookmark!.create({ url }),
+							schema.nodes.figcaption!.create()
+						])
+					);
+				}
+			}
+		});
 
-// 	return Promise.resolve(schema.nodes.table!.create({}, [...rows]));
-// }
+		function destroy() {
+			unmount(creator);
+			div.remove();
+		}
+	});
+}
+
+function createTable(schema: Schema) {
+	const rows = [];
+	for (let i = 0; i < 3; i++) {
+		const cells = [];
+		for (let j = 0; j < 3; j++) {
+			cells.push(schema.nodes.table_cell!.create({}, [schema.nodes.paragraph!.create()]));
+		}
+		rows.push(schema.nodes.table_row!.create({}, cells));
+	}
+
+	return Promise.resolve(schema.nodes.table!.create({}, [...rows]));
+}

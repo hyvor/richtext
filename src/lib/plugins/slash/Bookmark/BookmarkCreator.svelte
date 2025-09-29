@@ -9,6 +9,7 @@
   import { onMount } from "svelte";
   import IconArrowReturnLeft from "@hyvor/icons/IconArrowReturnLeft";
   import BookmarkDisplay from "./BookmarkDisplay.svelte";
+	import { isValidUrl } from "../../../helpers";
 
   let show = $state(true);
 
@@ -16,9 +17,10 @@
     url?: string;
     onclose: () => void;
     oncreate: (url: string) => void;
+    bookmarkGetter: (url: string) => Promise<{url: string, title?: string, description?: string, image?: string} | null>;
   }
 
-  let { url = $bindable(""), onclose, oncreate }: Props = $props();
+  let { url = $bindable(""), onclose, oncreate, bookmarkGetter }: Props = $props();
 
   let inputEl: HTMLInputElement | undefined = $state();
   let inputStarted = $state(false);
@@ -35,9 +37,7 @@
   let urlData: null | any = $state(null);
 
   function handleFetch() {
-    return;
-
-    /* if (!inputStarted) {
+    if (!inputStarted) {
       return;
     }
 
@@ -58,7 +58,7 @@
 
     isFetching = true;
 
-    getUnfold(url, "link")
+    bookmarkGetter(url)
       .then((data) => {
         urlData = data;
       })
@@ -67,7 +67,7 @@
       })
       .finally(() => {
         isFetching = false;
-      }); */
+      });
   }
 
   function handleCreate() {

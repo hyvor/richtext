@@ -98,3 +98,12 @@ export function appendHtml(view: EditorView, html: string) {
     view.focus();
 
 }
+
+export function isValidUrl(url: string) {
+    try {
+        new URL(url);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
