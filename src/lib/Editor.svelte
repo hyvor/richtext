@@ -39,7 +39,12 @@
 		});
 
 		function getDomEvents() {
-			const events: (keyof HTMLElementEventMap)[] = ['blur', 'focus'];
+			const events: (keyof HTMLElementEventMap)[] = [
+				'blur', 'focus',
+				'keydown', 'keyup', 'keypress',
+				'click', 'dblclick',
+				'paste', 'cut', 'copy',
+			];
 			return events.reduce(
 				(obj, e) => {
 					return {
