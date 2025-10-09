@@ -175,7 +175,7 @@ Note: `config.audioUploader` must be provided to upload audio files.
 The following marks are supported:
 
 - `code`
-- `highlight`
+<!-- - `highlight` -->
 - `link` (attributes: `href`)
 - `em`
 - `strong`

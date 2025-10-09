@@ -12,6 +12,13 @@ export interface Config {
     // code block
     // default: true
     codeBlockEnabled: boolean;
+    codeBlockConfig: {
+        language: boolean;
+        annotations: boolean;
+        annotationsUrl: string | null;
+        fileName: boolean;
+    }
+
 
     // custom HTML/Twig block
     // default: true
@@ -58,6 +65,13 @@ export const defaultConfig: Config = {
     colorButtonText: '#fff',
 
     codeBlockEnabled: true,
+    codeBlockConfig: {
+        language: true,
+        annotations: true,
+        annotationsUrl: null,
+        fileName: true,
+    },
+
     customHtmlEnabled: true,
     embedEnabled: true,
     imageEnabled: true,
