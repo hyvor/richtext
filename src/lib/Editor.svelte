@@ -443,6 +443,10 @@
 		background-color: var(--input);
 	}
 
+	.pm-editor :global(.code-wrap .CodeMirror-gutters) {
+		background-color: transparent;
+	}
+
 	.pm-editor :global(.code-wrap.no-toolbar .CodeMirror) {
 		border-radius: 20px;
 	}

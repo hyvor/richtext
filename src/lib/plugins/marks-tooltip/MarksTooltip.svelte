@@ -195,7 +195,7 @@
 {/key}
 
 {#if linkSelectorOpen}
-	<LinkSelector bind:show={linkSelectorOpen} {view} edit={link ? link.attrs.href : null} />
+	<LinkSelector bind:show={linkSelectorOpen} {view} edit={link ? link.attrs.href : undefined} />
 {/if}
 
 <style>

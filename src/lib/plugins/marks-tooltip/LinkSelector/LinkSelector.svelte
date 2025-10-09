@@ -2,10 +2,7 @@
 	import { Modal, TabNav, TabNavItem } from '@hyvor/design/components';
 	import IconHash from '@hyvor/icons/IconHash';
 	import IconLink45deg from '@hyvor/icons/IconLink45deg';
-	import IconSearch from '@hyvor/icons/IconSearch';
-
 	import Paste from './Paste.svelte';
-	import SearchPosts from './SearchPosts.svelte';
 	import type { EditorView } from 'prosemirror-view';
 	import { toggleMark } from 'prosemirror-commands';
 	import { TextSelection } from 'prosemirror-state';
@@ -14,15 +11,18 @@
 	interface Props {
 		show: boolean;
 		view: EditorView;
-		edit?: null | string;
+		edit?: string;
 	}
 
-	let { show = $bindable(), view, edit = null }: Props = $props();
+	let { show = $bindable(), view, edit }: Props = $props();
+
+	let inputValue = $state(edit ?? '');
+	let isEditing = !!edit;
 
 	let activeTab: 'paste' | 'anchors' | 'posts' = $state('paste');
 
 	function handleAdd(e: CustomEvent<string>) {
-		if (edit) {
+		if (isEditing) {
 			// remove the link
 			toggleMark(view.state.schema.marks.link!)(view.state, view.dispatch);
 		}
@@ -30,8 +30,8 @@
 		toggleMark(view.state.schema.marks.link!, { href: e.detail })(view.state, view.dispatch);
 		show = false;
 		view.focus();
-
-		if (!edit) focusAtLinkEnd();
+0
+		if (!isEditing) focusAtLinkEnd();
 	}
 
 	function focusAtLinkEnd() {
@@ -57,20 +57,20 @@
 				{/snippet}
 				Anchors
 			</TabNavItem>
-			<TabNavItem name="posts">
+			<!-- <TabNavItem name="posts">
 				{#snippet start()}
 					<IconSearch size={13} />
 				{/snippet}
 				Posts
-			</TabNavItem>
+			</TabNavItem> -->
 		</TabNav>
 	{/snippet}
 
 	{#if activeTab === 'paste'}
-		<Paste on:add={handleAdd} input={edit || ''} />
+		<Paste on:add={handleAdd} bind:input={inputValue} />
 	{:else if activeTab === 'anchors'}
 		<Anchors on:add={handleAdd} />
-	{:else if activeTab === 'posts'}
-		<SearchPosts on:add={handleAdd} />
+	<!-- {:else if activeTab === 'posts'}
+		<SearchPosts on:add={handleAdd} /> -->
 	{/if}
 </Modal>
