@@ -32,7 +32,12 @@ export function getNodeViews(config: Config): NodeViewsType {
 			return new CalloutNodeView(node, view, getPos);
 		},
 		code_block(node, view, getPos) {
-			return new CodeBlockNodeView(node, view, getPos);
+			return new CodeBlockNodeView(
+				node, 
+				view, 
+				getPos,
+				config.codeBlockConfig
+			);
 		},
 		custom_html(node, view, getPos) {
 			return new CustomHtmlNodeView(node, view, getPos);

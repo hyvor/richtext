@@ -1,8 +1,9 @@
-// @ts-nocheck
+import type { Config } from '$lib/config';
 import { exitCode, joinBackward } from 'prosemirror-commands';
 import { undo, redo } from 'prosemirror-history';
+import type { Node } from 'prosemirror-model';
 import { TextSelection, Selection } from 'prosemirror-state';
-import type { NodeView } from 'prosemirror-view';
+import type { EditorView, NodeView } from 'prosemirror-view';
 
 // https://prosemirror.net/examples/codemirror/
 
@@ -10,7 +11,19 @@ export default class CodeBlockNodeView implements NodeView {
 	dom: HTMLElement;
 	contentDOM: HTMLElement;
 
-	constructor(node, view, getPos) {
+	private node: Node;
+	private view: EditorView;
+	private getPos: () => number;
+
+	private incomingChanges: boolean;
+	private updating: boolean;
+	private cm: any
+
+	private inputLang: HTMLInputElement | null = null;
+	private inputAno: HTMLInputElement | null = null
+	private inputName: HTMLInputElement | null = null
+
+	constructor(node, view, getPos, private config: Config['codeBlockConfig']) {
 		// Store for later
 		this.node = node;
 		this.view = view;
@@ -50,15 +63,15 @@ export default class CodeBlockNodeView implements NodeView {
 		const message = document.createElement('div');
 		message.className = 'code-toolbar-quit-message';
 		message.innerHTML = '<p>SHIFT + Enter to exit</p>';
-		message.style.opacity = 0;
+		message.style.opacity = "0";
 		this.cm.getWrapperElement().appendChild(message);
 
 		this.cm.on('focus', () => {
-			message.style.opacity = 1;
+			message.style.opacity = "1";
 		});
 
 		this.cm.on('blur', () => {
-			message.style.opacity = 0;
+			message.style.opacity = "0";
 		});
 
 		//this.createLanguageSelector();
@@ -130,7 +143,7 @@ export default class CodeBlockNodeView implements NodeView {
 			if (exitCode(view.state, view.dispatch)) view.focus();
 		}
 
-		return CodeMirror.normalizeKeyMap({
+		return (window as any).CodeMirror.normalizeKeyMap({
 			Up: () => this.maybeEscape('line', -1, this.view),
 			Left: () => this.maybeEscape('char', -1, this.view),
 			Down: () => this.maybeEscape('line', 1, this.view),
@@ -148,7 +161,7 @@ export default class CodeBlockNodeView implements NodeView {
 					view.focus();
 					return;
 				}
-				return CodeMirror.Pass;
+				return (window as any).CodeMirror.Pass;
 			}
 		});
 	}
@@ -165,7 +178,7 @@ export default class CodeBlockNodeView implements NodeView {
 			pos.line != (dir < 0 ? this.cm.firstLine() : this.cm.lastLine()) ||
 			(unit == 'char' && pos.ch != (dir < 0 ? 0 : this.cm.getLine(pos.line).length))
 		)
-			return CodeMirror.Pass;
+			return (window as any).CodeMirror.Pass;
 		this.view.focus();
 		let targetPos = this.getPos() + (dir < 0 ? 0 : this.node.nodeSize);
 		let selection = Selection.near(this.view.state.doc.resolve(targetPos), dir);
@@ -209,23 +222,41 @@ export default class CodeBlockNodeView implements NodeView {
 		return true;
 	}
 
-	createToolbar() {
+	private noToolbar() {
+		return this.config.language === false && this.config.annotations === false && this.config.fileName === false;
+	}
+
+	private createToolbar() {
+
+		if (this.noToolbar()) {
+			this.dom.classList.add('no-toolbar');
+			return;
+		}
+
 		const _self = this;
 		const toolbar = document.createElement('div');
 		toolbar.className = 'code-toolbar';
 
 		const labels = document.createElement('div');
-		labels.innerHTML = `
-            <div>Language</div>
-            <div>Annotations <a 
-                href="/docs/syntax-highlighting#annotations" 
-                target="_blank"
-            ><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16">
+
+		let labelHtml = '';
+
+		if (this.config.language) {
+			labelHtml += '<div>Language</div>';
+		}
+		if (this.config.annotations) {
+			const annotationAnchor = this.config.annotationsUrl ?
+				`<a href="${this.config.annotationsUrl}" target="_blank"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16">
   <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
   <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
-</svg></a></div>
-            <div>File Name</div>
-        `;
+</svg></a>` : '';
+			labelHtml += `<div>Annotations ${annotationAnchor}</div>`;
+		}
+		if (this.config.fileName) {
+			labelHtml += '<div>File Name</div>';
+		}
+
+		labels.innerHTML = labelHtml;
 		labels.className = 'code-toolbar-labels';
 		toolbar.appendChild(labels);
 
@@ -241,24 +272,24 @@ export default class CodeBlockNodeView implements NodeView {
 				_self.view.dispatch(
 					_self.view.state.tr.setNodeMarkup(_self.getPos(), null, {
 						..._self.node.attrs,
-						[type]: e.target.value
+						[type]: (e.target as HTMLInputElement).value
 					})
 				);
 			};
 			return inputs.appendChild(input);
 		}
 
-		this.inputLang = createInput('language');
-		this.inputAno = createInput('annotations');
-		this.inputName = createInput('name');
+		if (this.config.language) this.inputLang = createInput('language');
+		if (this.config.annotations) this.inputAno = createInput('annotations');
+		if (this.config.fileName) this.inputName = createInput('name');
 
 		this.dom.appendChild(toolbar);
 	}
 
 	updateFromAttrs() {
-		this.inputLang.value = this.node.attrs.language;
-		this.inputAno.value = this.node.attrs.annotations;
-		this.inputName.value = this.node.attrs.name;
+		if (this.inputLang) this.inputLang.value = this.node.attrs.language;
+		if (this.inputAno) this.inputAno.value = this.node.attrs.annotations;
+		if (this.inputName) this.inputName.value = this.node.attrs.name;
 	}
 }
 

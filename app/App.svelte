@@ -13,6 +13,12 @@
 			value={localStorage.getItem('doc')}
 			onvaluechange={(val) => localStorage.setItem('doc', val)}
 			config={{
+				codeBlockConfig: {
+					language: true,
+					annotations: true,
+					annotationsUrl: null,
+					fileName: true,
+				},
 				embedEnabled: true,
 				tableEnabled: true,
 				colorButtonBackground: '#585895',

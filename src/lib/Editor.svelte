@@ -443,6 +443,10 @@
 		background-color: var(--input);
 	}
 
+	.pm-editor :global(.code-wrap.no-toolbar .CodeMirror) {
+		border-radius: 20px;
+	}
+
 	.pm-editor :global(.code-wrap .topbar) {
 		background: var(--input);
 		border-radius: 20px 20px 0 0;
