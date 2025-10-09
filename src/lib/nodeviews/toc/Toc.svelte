@@ -5,6 +5,8 @@
 	import TocChildren from './TocChildren.svelte';
 	import TocLevels from './TocLevels.svelte';
 	import { IconMessage } from '@hyvor/design/components';
+	import { editorContent } from '../../store';
+	import { getDocFromContent } from '../../helpers';
 
 	interface Props {
 		view: EditorView;
@@ -18,16 +20,16 @@
 
 	let toc = $derived(generateToc(doc, levels));
 
-	function handleTransaction(e: any) {
-		doc = e.detail.doc;
-	}
+	// Subscribe to editor content changes to update the document
+	$effect(() => {
+		const unsubscribe = editorContent.subscribe((content) => {
+			if (content && view) {
+				// Parse the document from the content store to get the latest changes
+				doc = getDocFromContent(content);
+			}
+		});
 
-	onMount(() => {
-		// TODO: change this without prosemirror:transaction
-		// document.addEventListener('prosemirror:transaction', handleTransaction);
-		return () => {
-			// document.removeEventListener('prosemirror:transaction', handleTransaction);
-		};
+		return unsubscribe;
 	});
 
 	function handleLevelsChange(e: CustomEvent<number[]>) {
