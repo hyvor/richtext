@@ -1,6 +1,6 @@
 import { Plugin, PluginKey, TextSelection, type Transaction } from "prosemirror-state";
 import { AddMarkStep, Mapping, RemoveMarkStep, ReplaceStep } from "prosemirror-transform";
-import { Fragment, type Mark, type MarkType, type Node, type Slice } from "prosemirror-model";
+import { Fragment, Slice, type Mark, type MarkType, type Node } from "prosemirror-model";
 
 export interface SuggestionUser {
     id: string;
@@ -42,6 +42,52 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
                 const meta = tr.getMeta(suggestionsPluginKey);
                 if (meta) return { ...value, ...meta };
                 return value;
+            }
+        },
+
+        props: {
+            // Collapsed-cursor Backspace/Delete within plain text isn't handled by any
+            // ProseMirror command (deleteSelection requires a selection, joinBackward/
+            // Forward only apply at block boundaries), so it normally falls through to
+            // the browser's native contenteditable edit, which we then have to diff back
+            // into a transaction. When the caret sits next to marked (struck-through)
+            // suggestion text, that native DOM mutation can span much more than the one
+            // character the user meant to delete, corrupting existing suggestion marks.
+            // Intercept these two keys ourselves while suggesting and dispatch a precise
+            // single-character replace, bypassing the native edit entirely.
+            handleKeyDown(view, event) {
+                if (event.key !== "Backspace" && event.key !== "Delete") return false;
+
+                const state = view.state;
+                const suggestionState = suggestionsPluginKey.getState(state);
+                if (!suggestionState || suggestionState.mode !== "suggesting") return false;
+
+                const { selection } = state;
+                if (!selection.empty) return false;
+
+                const insertType = state.schema.marks.suggestion_insert;
+                const deleteType = state.schema.marks.suggestion_delete;
+                if (!insertType || !deleteType) return false;
+
+                const $pos = selection.$from;
+                let from: number, to: number;
+                if (event.key === "Backspace") {
+                    if ($pos.parentOffset === 0) return false;
+                    from = $pos.pos - 1;
+                    to = $pos.pos;
+                } else {
+                    if ($pos.parentOffset === $pos.parent.content.size) return false;
+                    from = $pos.pos;
+                    to = $pos.pos + 1;
+                }
+
+                if (!isPlainTextReplace(state.doc, from, to, Slice.empty)) return false;
+
+                const tr = state.tr;
+                handleReplaceStep(tr, new ReplaceStep(from, to, Slice.empty), suggestionState.user);
+                tr.setMeta(REWRITTEN_META, true);
+                view.dispatch(tr);
+                return true;
             }
         },
 
@@ -187,20 +233,65 @@ function findReuseId(
     }
     if (foundInRange) return foundInRange;
 
-    // if this is a collapsed edit (typing or backspacing) right at the edge of
-    // an existing suggestion by this user, extend it instead of starting a new one
-    if (to === from && from > 0) {
-        const nodeBefore = doc.nodeAt(from - 1);
-        if (nodeBefore) {
-            const insertMark = insertType.isInSet(nodeBefore.marks);
-            if (insertMark && insertMark.attrs.userId === user.id) return insertMark.attrs.id;
+    // if this edit is adjacent to an existing unresolved suggestion by this user
+    // (typing right after your own pending insert, or backspacing into text you
+    // already marked as deleted), extend it instead of starting a new one
+    const ownMarkId = (node: Node | null): string | null => {
+        if (!node) return null;
+        const insertMark = insertType.isInSet(node.marks);
+        if (insertMark && insertMark.attrs.userId === user.id) return insertMark.attrs.id;
+        const deleteMark = deleteType.isInSet(node.marks);
+        if (deleteMark && deleteMark.attrs.userId === user.id) return deleteMark.attrs.id;
+        return null;
+    };
 
-            const deleteMark = deleteType.isInSet(nodeBefore.marks);
-            if (deleteMark && deleteMark.attrs.userId === user.id) return deleteMark.attrs.id;
-        }
+    if (from > 0) {
+        const id = ownMarkId(doc.nodeAt(from - 1));
+        if (id) return id;
+    }
+
+    if (to < doc.content.size) {
+        const id = ownMarkId(doc.nodeAt(to));
+        if (id) return id;
     }
 
     return null;
+}
+
+interface DeletionSegment {
+    from: number;
+    to: number;
+    // true if this segment is this user's own unresolved insertion - deleting it
+    // should cancel the insertion outright rather than mark it as deleted
+    cancel: boolean;
+}
+
+function computeDeletionSegments(
+    doc: Node,
+    from: number,
+    to: number,
+    user: SuggestionUser,
+    insertType: MarkType
+): DeletionSegment[] {
+    const segments: DeletionSegment[] = [];
+    doc.nodesBetween(from, to, (node, pos) => {
+        if (!node.isInline) return true;
+        const segFrom = Math.max(pos, from);
+        const segTo = Math.min(pos + node.nodeSize, to);
+        if (segTo <= segFrom) return true;
+
+        const mark = insertType.isInSet(node.marks);
+        const cancel = !!mark && mark.attrs.userId === user.id;
+
+        const last = segments[segments.length - 1];
+        if (last && last.cancel === cancel && last.to === segFrom) {
+            last.to = segTo;
+        } else {
+            segments.push({ from: segFrom, to: segTo, cancel });
+        }
+        return true;
+    });
+    return segments;
 }
 
 function handleReplaceStep(tr: Transaction, step: ReplaceStep, user: SuggestionUser) {
@@ -221,16 +312,35 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, user: SuggestionU
     const id = findReuseId(tr.doc, from, to, user, insertType, deleteType) ?? generateSuggestionId();
     const attrs = { id, userId: user.id, userName: user.name };
 
+    let insertAt = to;
+
     if (to > from) {
-        tr.addMark(from, to, deleteType.create(attrs));
+        // deleting your own not-yet-resolved insertion should just remove it (cancel
+        // the suggestion) rather than mark it as deleted on top of an insert mark;
+        // only content that isn't your own pending insertion gets a delete mark
+        const mapStart = tr.mapping.maps.length;
+        const segments = computeDeletionSegments(tr.doc, from, to, user, insertType);
+        for (let i = segments.length - 1; i >= 0; i--) {
+            const seg = segments[i];
+            if (seg.cancel) {
+                tr.delete(seg.from, seg.to);
+            } else {
+                tr.addMark(seg.from, seg.to, deleteType.create(attrs));
+            }
+        }
+        insertAt = subMapping(tr.mapping, mapStart, tr.mapping.maps.length).map(to, -1);
     }
 
     if (slice.size > 0) {
         const markedContent = addMarkToFragment(slice.content, insertType.create(attrs));
-        tr.insert(to, markedContent);
+        tr.insert(insertAt, markedContent);
+        tr.setSelection(TextSelection.create(tr.doc, insertAt + slice.size));
+    } else {
+        // nothing was inserted: place the cursor before the (possibly still-present,
+        // delete-marked) range rather than after it, so repeated backspaces keep
+        // walking left instead of re-targeting the same already-marked text
+        tr.setSelection(TextSelection.create(tr.doc, from));
     }
-
-    tr.setSelection(TextSelection.create(tr.doc, to + slice.size));
 }
 
 function handleAddMarkStep(tr: Transaction, step: AddMarkStep, user: SuggestionUser) {
