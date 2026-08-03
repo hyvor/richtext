@@ -14,10 +14,15 @@ import tableMenuPlugin from './table/plugin-table-menu.svelte.js';
 import type { Schema } from 'prosemirror-model';
 import type { Config } from '../config';
 import buttonTooltipPlugin from './button-tooltip/plugin-button-tooltip.svelte';
+import suggestionsPlugin, { type SuggestionMode, type SuggestionUser } from './suggestions/plugin-suggestions';
 // import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
 // import { completionPlugin } from './completion/plugin-completion';
 
-export function getPlugins(schema: Schema, config: Config) {
+export function getPlugins(
+	schema: Schema,
+	config: Config,
+	suggestions?: { user: SuggestionUser; mode?: SuggestionMode }
+) {
 	const plugins = [
 		inputRulesPlugin(schema),
 		...keymapPlugins(schema),
@@ -51,6 +56,15 @@ export function getPlugins(schema: Schema, config: Config) {
 			columnResizing({ cellMinWidth: 20 }),
 			tableEditing(),
 			tableMenuPlugin(),
+		);
+	}
+
+	if (config.suggestionsEnabled) {
+		plugins.push(
+			suggestionsPlugin({
+				user: suggestions?.user ?? { id: 'anonymous', name: 'Anonymous' },
+				mode: suggestions?.mode
+			})
 		);
 	}
 

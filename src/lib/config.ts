@@ -58,6 +58,10 @@ export interface Config {
     // default: true
     buttonEnabled: boolean;
 
+    // Suggestion mode (track changes)
+    // default: true
+    suggestionsEnabled: boolean;
+
 }
 
 export const defaultConfig: Config = {
@@ -81,6 +85,7 @@ export const defaultConfig: Config = {
     tocEnabled: true,
     tableEnabled: true,
     buttonEnabled: true,
+    suggestionsEnabled: true,
 };
 
 export interface ImageUploadResult {

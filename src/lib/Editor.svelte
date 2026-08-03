@@ -34,7 +34,10 @@
 
 		let state = EditorState.create({
 			schema: schema,
-			plugins: getPlugins(schema, config),
+			plugins: getPlugins(schema, config, {
+				user: props.suggestionUser ?? { id: 'anonymous', name: 'Anonymous' },
+				mode: props.suggestionMode
+			}),
 			doc: props.value ? schema.nodeFromJSON(jsonParsedValue) : undefined
 		});
 
@@ -556,6 +559,27 @@
 	.pm-editor :global(.user-comment) {
 		border-bottom: 3px solid #e0d32e;
 		cursor: pointer;
+	}
+
+	.pm-editor :global(ins.suggestion-insert) {
+		text-decoration: underline;
+		text-decoration-color: #2e9e5b;
+		background-color: rgba(46, 158, 91, 0.15);
+		color: inherit;
+	}
+
+	.pm-editor :global(del.suggestion-delete) {
+		text-decoration: line-through;
+		text-decoration-color: #d64545;
+		background-color: rgba(214, 69, 69, 0.12);
+		color: inherit;
+		opacity: 0.75;
+	}
+
+	.pm-editor :global(span.suggestion-format) {
+		text-decoration: underline wavy;
+		text-decoration-color: #b5892e;
+		text-underline-offset: 3px;
 	}
 
 	.pm-editor :global(.comment-tick) {

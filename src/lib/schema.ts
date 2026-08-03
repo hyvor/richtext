@@ -405,17 +405,91 @@ export const marks = {
          parseDOM: [{tag: "comment"}],
          toDOM() { return ["comment", 0] }
      } as MarkSpec, */
+
+    // :: MarkSpec Wraps text that was inserted while in suggestion mode.
+    // The text is part of the document, but is pending review (accept/reject).
+    suggestion_insert: {
+        attrs: {
+            id: { default: "" },
+            userId: { default: "" },
+            userName: { default: "" },
+        },
+        inclusive: true,
+        excludes: "",
+        toDOM(mark: Mark) {
+            const { id, userName } = mark.attrs;
+            return ["ins", {
+                class: "suggestion-insert",
+                "data-suggestion-id": id,
+                title: userName ? `Suggested insertion by ${userName}` : "Suggested insertion"
+            }, 0];
+        }
+    } as MarkSpec,
+
+    // :: MarkSpec Wraps text that was "deleted" while in suggestion mode.
+    // The text is kept in the document (struck through) until the
+    // suggestion is accepted (removes the text) or rejected (restores it).
+    suggestion_delete: {
+        attrs: {
+            id: { default: "" },
+            userId: { default: "" },
+            userName: { default: "" },
+        },
+        inclusive: false,
+        excludes: "",
+        toDOM(mark: Mark) {
+            const { id, userName } = mark.attrs;
+            return ["del", {
+                class: "suggestion-delete",
+                "data-suggestion-id": id,
+                title: userName ? `Suggested deletion by ${userName}` : "Suggested deletion"
+            }, 0];
+        }
+    } as MarkSpec,
+
+    // :: MarkSpec Marks a range whose formatting (marks) were changed
+    // while in suggestion mode. `add` holds the mark type names that were
+    // added, `remove` holds the {type, attrs} of marks that were removed,
+    // so the change can be reverted if the suggestion is rejected.
+    suggestion_format: {
+        attrs: {
+            id: { default: "" },
+            userId: { default: "" },
+            userName: { default: "" },
+            add: { default: [] },
+            remove: { default: [] },
+        },
+        inclusive: false,
+        excludes: "",
+        toDOM(mark: Mark) {
+            const { id, userName } = mark.attrs;
+            return ["span", {
+                class: "suggestion-format",
+                "data-suggestion-id": id,
+                title: userName ? `Suggested formatting by ${userName}` : "Suggested formatting"
+            }, 0];
+        }
+    } as MarkSpec,
+}
+
+function getMarks(config: Config): typeof marks {
+    if (config.suggestionsEnabled) return marks;
+
+    const { suggestion_insert, suggestion_delete, suggestion_format, ...rest } = marks;
+    return rest as typeof marks;
 }
 
 export function getSchema(config: Config): Schema {
 
+    const schemaMarks = getMarks(config);
+
     const schemaWithoutList = new Schema({
         nodes: getNodes(config),
-        marks
+        marks: schemaMarks
     });
 
     return new Schema({
         nodes: addListNodes(schemaWithoutList.spec.nodes, "block+", "block"),
-        marks
+        marks: schemaMarks
     });
 }

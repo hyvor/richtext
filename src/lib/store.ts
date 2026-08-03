@@ -1,6 +1,7 @@
 import type { EditorView } from "prosemirror-view";
 import { writable } from "svelte/store";
 import type { Config } from "./config";
+import type { SuggestionMode, SuggestionUser } from "./plugins/suggestions/plugin-suggestions";
 
 export interface Props {
 
@@ -32,7 +33,17 @@ export interface Props {
      * The configuration for the editor.
      */
     config?: Partial<Config>;
-    
+
+    /**
+     * The user attributed to any new suggestions made in suggestion mode.
+     */
+    suggestionUser?: SuggestionUser;
+
+    /**
+     * The initial suggestion mode ('editing' or 'suggesting'). Defaults to 'editing'.
+     * Use setSuggestionMode(view, mode) to change it at runtime.
+     */
+    suggestionMode?: SuggestionMode;
 
 }
 
