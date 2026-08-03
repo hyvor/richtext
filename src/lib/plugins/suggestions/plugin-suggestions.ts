@@ -63,7 +63,25 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
             }
 
             try {
-                const tr = oldState.tr;
+                // appendTransaction must return a transaction starting from newState.doc,
+                // so we build it from newState.tr, first undo the original edits in exact
+                // reverse order (restoring oldState.doc), then replay them with suggestion
+                // marks applied on top of that restored content.
+                const tr = newState.tr;
+
+                for (let ti = transactions.length - 1; ti >= 0; ti--) {
+                    const origTr = transactions[ti];
+                    if (!origTr.docChanged) continue;
+                    for (let si = origTr.steps.length - 1; si >= 0; si--) {
+                        const invertedStep = origTr.steps[si].invert(origTr.docs[si]);
+                        tr.step(invertedStep);
+                    }
+                }
+
+                // tr.doc now matches oldState.doc; remember where the undo maps end so we
+                // can build a mapping that only spans the replay steps added below
+                const replayCheckpoint = tr.mapping.maps.length;
+
                 let changed = false;
 
                 // maps positions from oldState.doc space into the "real" (unrewritten)
@@ -77,9 +95,9 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
                         const step = origTr.steps[i];
 
                         const combined = new Mapping();
-                        combined.appendMapping(origTr.mapping.slice(0, i).invert());
-                        combined.appendMapping(priorMapping);
-                        combined.appendMapping(tr.mapping);
+                        combined.appendMapping(subMapping(origTr.mapping, 0, i).invert());
+                        combined.appendMapping(priorMapping.invert());
+                        combined.appendMapping(subMapping(tr.mapping, replayCheckpoint, tr.mapping.maps.length));
 
                         const mapped = step.map(combined);
                         if (!mapped) continue;
@@ -110,6 +128,13 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
         }
 
     });
+}
+
+// Mapping.slice() only restricts .map()/.mapResult(); .invert() and .appendMapping()
+// ignore the slice bounds and operate on the full underlying maps array. Build a real
+// (independently-backed) sub-mapping when the result needs to be inverted or composed.
+function subMapping(mapping: Mapping, from: number, to: number): Mapping {
+    return new Mapping(mapping.maps.slice(from, to));
 }
 
 function isPlainTextReplace(doc: Node, from: number, to: number, slice: Slice): boolean {
