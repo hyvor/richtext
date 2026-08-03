@@ -71,10 +71,13 @@
 				const docJson = JSON.stringify(tr.doc.toJSON());
 				editorContent.set(docJson);
 
-				props.onvaluechange?.(docJson);
-
 				const state = view!.state.apply(tr);
 				view!.updateState(state);
+
+				// fire after the view's state is updated, so listeners (e.g. a
+				// suggestions panel calling back into editorView.state) see the
+				// latest doc rather than the one before this transaction
+				props.onvaluechange?.(docJson);
 			}
 		});
 
@@ -580,6 +583,12 @@
 		text-decoration: underline wavy;
 		text-decoration-color: #b5892e;
 		text-underline-offset: 3px;
+	}
+
+	.pm-editor :global(.suggestion-node-delete) {
+		opacity: 0.5;
+		outline: 2px dashed #d64545;
+		outline-offset: 2px;
 	}
 
 	.pm-editor :global(.comment-tick) {

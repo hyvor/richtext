@@ -73,6 +73,7 @@
 
 	function suggestionLabel(item: SuggestionItem): string {
 		const parts: string[] = [];
+		if (item.deletedNodeType) parts.push(`- [${item.deletedNodeType}]`);
 		if (item.insertedText) parts.push(`+ "${item.insertedText}"`);
 		if (item.deletedText) parts.push(`- "${item.deletedText}"`);
 		if (item.formatAdd.length) parts.push(`format: +${item.formatAdd.join(', +')}`);

@@ -1,6 +1,7 @@
 import { Mark, type MarkSpec, Node, type NodeSpec, Schema } from "prosemirror-model"
 import { addListNodes } from "prosemirror-schema-list"
 import { tableNodes } from "prosemirror-tables"
+import type OrderedMap from "orderedmap"
 import type { Config } from "./config";
 
 // mostly from https://github.com/ProseMirror/prosemirror-schema-basic
@@ -479,6 +480,23 @@ function getMarks(config: Config): typeof marks {
     return rest as typeof marks;
 }
 
+// Marks only apply to inline content, so a whole block/atom node (an image, a
+// blockquote, a table, ...) can't carry a suggestion_delete mark the way text
+// can. Instead, every node except doc/text gets a `suggestionDelete` attr that
+// records {id, userId, userName} when the node is a pending delete suggestion,
+// so it round-trips through JSON like any other attribute.
+function withSuggestionDeleteAttr(nodes: OrderedMap<NodeSpec>): OrderedMap<NodeSpec> {
+    let result = nodes;
+    nodes.forEach((name, spec) => {
+        if (name === "doc" || name === "text") return;
+        result = result.update(name, {
+            ...spec,
+            attrs: { ...(spec.attrs ?? {}), suggestionDelete: { default: null } }
+        });
+    });
+    return result;
+}
+
 export function getSchema(config: Config): Schema {
 
     const schemaMarks = getMarks(config);
@@ -488,8 +506,10 @@ export function getSchema(config: Config): Schema {
         marks: schemaMarks
     });
 
+    const nodesWithLists = addListNodes(schemaWithoutList.spec.nodes, "block+", "block");
+
     return new Schema({
-        nodes: addListNodes(schemaWithoutList.spec.nodes, "block+", "block"),
+        nodes: config.suggestionsEnabled ? withSuggestionDeleteAttr(nodesWithLists) : nodesWithLists,
         marks: schemaMarks
     });
 }

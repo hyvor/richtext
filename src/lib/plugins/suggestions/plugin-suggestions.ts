@@ -1,6 +1,14 @@
-import { Plugin, PluginKey, TextSelection, type Transaction } from "prosemirror-state";
+import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from "prosemirror-state";
 import { AddMarkStep, Mapping, RemoveMarkStep, ReplaceStep } from "prosemirror-transform";
 import { Fragment, Slice, type Mark, type MarkType, type Node } from "prosemirror-model";
+import { Decoration, DecorationSet } from "prosemirror-view";
+import { isHistoryTransaction } from "prosemirror-history";
+
+export interface SuggestionDeleteAttrs {
+    id: string;
+    userId: string;
+    userName: string;
+}
 
 export interface SuggestionUser {
     id: string;
@@ -84,10 +92,40 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
                 if (!isPlainTextReplace(state.doc, from, to, Slice.empty)) return false;
 
                 const tr = state.tr;
-                handleReplaceStep(tr, new ReplaceStep(from, to, Slice.empty), suggestionState.user);
+                const id = handleReplaceStep(tr, new ReplaceStep(from, to, Slice.empty), suggestionState.user);
                 tr.setMeta(REWRITTEN_META, true);
+                // Because this dispatches a single mark-only transaction directly
+                // (bypassing the root+appended pair the normal flow produces),
+                // prosemirror-history's default adjacency check - which looks at real
+                // position-shifting steps - can't tell that consecutive backspaces
+                // belong together, and would file each one as its own undo step.
+                // Tagging them with the (stable, reused) suggestion id as the
+                // "composition" keeps history grouping them into one.
+                if (id) tr.setMeta("composition", id);
                 view.dispatch(tr);
                 return true;
+            },
+
+            // Marks only apply to inline content, so a deleted block/atom node is
+            // tracked via a `suggestionDelete` node attr (see schema.ts) instead of a
+            // mark. Render that attr as a visual decoration here rather than baking it
+            // into every node type's toDOM, and independent of suggesting/editing mode
+            // (like text suggestion marks, it stays visible until accepted/rejected).
+            decorations(state) {
+                const decorations: Decoration[] = [];
+                state.doc.descendants((node, pos) => {
+                    const del = node.attrs.suggestionDelete as SuggestionDeleteAttrs | null | undefined;
+                    if (del && del.id) {
+                        decorations.push(Decoration.node(pos, pos + node.nodeSize, {
+                            class: "suggestion-node-delete",
+                            "data-suggestion-id": del.id,
+                            title: del.userName ? `Suggested deletion by ${del.userName}` : "Suggested deletion"
+                        }));
+                        return false;
+                    }
+                    return true;
+                });
+                return decorations.length ? DecorationSet.create(state.doc, decorations) : null;
             }
         },
 
@@ -96,7 +134,13 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
             const suggestionState = suggestionsPluginKey.getState(oldState);
             if (!suggestionState || suggestionState.mode !== "suggesting") return null;
 
-            if (transactions.some(tr => tr.getMeta(REWRITTEN_META) || tr.getMeta(SUGGESTIONS_SKIP_META))) {
+            if (transactions.some(tr =>
+                tr.getMeta(REWRITTEN_META) || tr.getMeta(SUGGESTIONS_SKIP_META) || isHistoryTransaction(tr)
+            )) {
+                // undo/redo transactions are already the exact inverse of a previous,
+                // already-rewritten transaction (or a plain edit from before suggestion
+                // marks existed) - reprocessing them here would wrap that inverse in
+                // suggestion marks too, so let them apply untouched
                 return null;
             }
 
@@ -109,6 +153,18 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
             }
 
             try {
+                // Fast path for the common case: a single plain-text insertion (i.e.
+                // ordinary typing). The typed content is already sitting correctly in
+                // newState.doc, so just mark it in place - no need for the undo+replay
+                // round trip below. This isn't just an optimization: undoing then
+                // reinserting at the same position produces a transaction whose mapping
+                // "crosses" (its reported start ends up after its end), which
+                // prosemirror-history's adjacency check silently can't use, so it would
+                // otherwise file every keystroke as its own undo step instead of
+                // grouping consecutive typing into one.
+                const fast = tryFastPureInsert(transactions, newState, suggestionState.user);
+                if (fast) return fast;
+
                 // appendTransaction must return a transaction starting from newState.doc,
                 // so we build it from newState.tr, first undo the original edits in exact
                 // reverse order (restoring oldState.doc), then replay them with suggestion
@@ -174,6 +230,44 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
         }
 
     });
+}
+
+// Handles a lone plain-text insertion (from === to, one step, one transaction) by
+// marking the already-inserted text in place instead of going through the general
+// undo+replay path. Returns null for anything else, so the caller falls back.
+function tryFastPureInsert(
+    transactions: readonly Transaction[],
+    newState: EditorState,
+    user: SuggestionUser
+): Transaction | null {
+    const changed = transactions.filter(tr => tr.docChanged);
+    if (changed.length !== 1 || changed[0].steps.length !== 1) return null;
+
+    const step = changed[0].steps[0];
+    if (!(step instanceof ReplaceStep)) return null;
+    if (step.from !== step.to || step.slice.size === 0) return null;
+    if (step.slice.openStart > 0 || step.slice.openEnd > 0) return null;
+
+    let onlyText = true;
+    step.slice.content.forEach(node => { if (!node.isText) onlyText = false; });
+    if (!onlyText) return null;
+
+    const from = step.from;
+    const to = from + step.slice.size;
+    if (!isPlainTextReplace(newState.doc, from, to, step.slice)) return null;
+
+    const schema = newState.schema;
+    const insertType = schema.marks.suggestion_insert!;
+    const deleteType = schema.marks.suggestion_delete!;
+
+    const id = findReuseId(newState.doc, from, to, user, insertType, deleteType) ?? generateSuggestionId();
+    const attrs = { id, userId: user.id, userName: user.name };
+
+    const tr = newState.tr;
+    tr.addMark(from, to, insertType.create(attrs));
+    tr.setSelection(TextSelection.create(tr.doc, to));
+    tr.setMeta(REWRITTEN_META, true);
+    return tr;
 }
 
 // Mapping.slice() only restricts .map()/.mapResult(); .invert() and .appendMapping()
@@ -294,19 +388,83 @@ function computeDeletionSegments(
     return segments;
 }
 
-function handleReplaceStep(tr: Transaction, step: ReplaceStep, user: SuggestionUser) {
+// Finds a contiguous run of complete sibling nodes exactly spanning [from, to)
+// under a common parent (no partial/split node at either edge). Returns null if
+// the range doesn't line up with whole-node boundaries, or includes text nodes
+// (plain text deletion is handled separately via marks).
+function findWholeNodeRange(doc: Node, from: number, to: number): { node: Node; pos: number }[] | null {
+    if (to <= from) return null;
+
+    const $from = doc.resolve(from);
+    const $to = doc.resolve(to);
+    if ($from.parent !== $to.parent) return null;
+
+    const parent = $from.parent;
+    const result: { node: Node; pos: number }[] = [];
+    let pos = $from.start();
+    let collecting = false;
+
+    for (let i = 0; i < parent.childCount; i++) {
+        const child = parent.child(i);
+        const childStart = pos;
+        const childEnd = pos + child.nodeSize;
+
+        if (!collecting && childStart === from) collecting = true;
+
+        if (collecting) {
+            if (child.isText || childStart < from || childEnd > to) return null;
+            result.push({ node: child, pos: childStart });
+            if (childEnd === to) return result;
+        }
+
+        pos = childEnd;
+    }
+
+    return null;
+}
+
+// Marks whole nodes as pending-delete suggestions via their `suggestionDelete`
+// attr instead of removing them, so they can later be accepted (removed) or
+// rejected (attr cleared). Nodes already marked deleted are left untouched.
+function markNodesDeleted(tr: Transaction, nodes: { node: Node; pos: number }[], user: SuggestionUser): string | null {
+    const toMark = nodes.filter(({ node }) =>
+        "suggestionDelete" in (node.type.spec.attrs ?? {}) && !node.attrs.suggestionDelete
+    );
+    if (!toMark.length) {
+        // everything in range is already marked deleted; surface that shared id
+        return (nodes[0]?.node.attrs.suggestionDelete as SuggestionDeleteAttrs | undefined)?.id ?? null;
+    }
+
+    const attrs: SuggestionDeleteAttrs = { id: generateSuggestionId(), userId: user.id, userName: user.name };
+    for (const { pos } of toMark) {
+        tr.setNodeAttribute(pos, "suggestionDelete", attrs);
+    }
+    return attrs.id;
+}
+
+// Returns the suggestion id involved (for callers that need it, e.g. to group
+// consecutive edits in the undo history), or null if this step didn't result
+// in a tracked suggestion change (structural passthrough, no-op, etc).
+function handleReplaceStep(tr: Transaction, step: ReplaceStep, user: SuggestionUser): string | null {
     const { from, to, slice } = step;
     const schema = tr.doc.type.schema;
     const insertType = schema.marks.suggestion_insert!;
     const deleteType = schema.marks.suggestion_delete!;
 
-    if (from === to && slice.size === 0) return;
+    if (from === to && slice.size === 0) return null;
+
+    if (slice.size === 0) {
+        const wholeNodes = findWholeNodeRange(tr.doc, from, to);
+        if (wholeNodes) {
+            return markNodesDeleted(tr, wholeNodes, user);
+        }
+    }
 
     if (!isPlainTextReplace(tr.doc, from, to, slice)) {
         // structural change (node add/remove, block split/join, etc.) -
         // out of scope for suggestion tracking, apply directly
         tr.step(step);
-        return;
+        return null;
     }
 
     const id = findReuseId(tr.doc, from, to, user, insertType, deleteType) ?? generateSuggestionId();
@@ -341,6 +499,8 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, user: SuggestionU
         // walking left instead of re-targeting the same already-marked text
         tr.setSelection(TextSelection.create(tr.doc, from));
     }
+
+    return id;
 }
 
 function handleAddMarkStep(tr: Transaction, step: AddMarkStep, user: SuggestionUser) {

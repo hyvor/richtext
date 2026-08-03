@@ -1,5 +1,6 @@
 import type { EditorState } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
+import { closeHistory } from "prosemirror-history";
 import {
     suggestionsPluginKey,
     SUGGESTIONS_SKIP_META,
@@ -18,6 +19,9 @@ export interface SuggestionItem {
     deletedText: string;
     formatAdd: string[];
     formatRemove: string[];
+    // set instead of deletedText when this suggestion is a whole deleted node
+    // (an image, a blockquote, ...) rather than deleted text
+    deletedNodeType?: string;
 }
 
 export function getSuggestionMode(state: EditorState): SuggestionMode {
@@ -29,7 +33,10 @@ export function getSuggestionUser(state: EditorState): SuggestionUser {
 }
 
 export function setSuggestionMode(view: EditorView, mode: SuggestionMode) {
-    view.dispatch(view.state.tr.setMeta(suggestionsPluginKey, { mode }));
+    // editing before/after a mode switch shouldn't be undoable as one step -
+    // e.g. undoing a suggestion-mode edit shouldn't reach back into edits made
+    // while still in plain editing mode
+    view.dispatch(closeHistory(view.state.tr).setMeta(suggestionsPluginKey, { mode }));
 }
 
 export function setSuggestionUser(view: EditorView, user: SuggestionUser) {
@@ -58,6 +65,18 @@ export function getSuggestions(state: EditorState): SuggestionItem[] {
     }
 
     state.doc.descendants((node, pos) => {
+        const nodeDelete = node.attrs.suggestionDelete as
+            { id: string; userId: string; userName: string } | null | undefined;
+        if (nodeDelete && nodeDelete.id) {
+            const item = ensure(
+                nodeDelete.id,
+                { id: nodeDelete.userId, name: nodeDelete.userName },
+                pos, pos + node.nodeSize
+            );
+            item.deletedNodeType = node.type.name;
+            return false;
+        }
+
         if (!node.isInline) return true;
         const from = pos, to = pos + node.nodeSize;
 
@@ -126,6 +145,16 @@ function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "r
     const deleteRanges: { from: number; to: number }[] = [];
 
     state.doc.descendants((node, pos) => {
+        const nodeDelete = node.attrs.suggestionDelete as { id: string } | null | undefined;
+        if (nodeDelete && nodeDelete.id === id) {
+            if (decision === "accept") {
+                deleteRanges.push({ from: pos, to: pos + node.nodeSize });
+            } else {
+                tr.setNodeAttribute(pos, "suggestionDelete", null);
+            }
+            return false;
+        }
+
         if (!node.isInline) return true;
         const from = pos, to = pos + node.nodeSize;
 
