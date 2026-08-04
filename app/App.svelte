@@ -1,15 +1,33 @@
 <script lang="ts">
-	import { EditorView } from 'prosemirror-view';
 	import { Editor } from '../src/lib';
 	import { Base } from '@hyvor/design/components';
 
-	let editorView: EditorView = $state({} as EditorView);
+	let editor: Editor;
+
+	let editable = $state(true);
+	
+	function setContent() {
+		editor.setContent(JSON.stringify({
+			type: 'doc',
+			content: [
+				{
+					type: 'paragraph',
+					content: [
+						{
+							type: 'text',
+							text: 'This is a new content set programmatically.'
+						}
+					]
+				}
+			]
+		}));
+	}
 </script>
 
 <Base>
 	<div class="container">
 		<Editor
-			bind:editorView
+			bind:this={editor}
 			value={localStorage.getItem('doc')}
 			onvaluechange={(val) => localStorage.setItem('doc', val)}
 			config={{
@@ -33,7 +51,14 @@
 </Base>
 
 <div class="focus">
-	<button onclick={() => editorView.focus()}>Focus</button>
+	<button onclick={() => editor.focus()}>Focus</button>
+	<button onclick={setContent}>Set content</button>
+	<button onclick={() => {
+		editable = !editable;
+		editor.setEditable(editable);
+	}}>
+		{editable ? 'Set Readonly' : 'Set Editable'}
+	</button>
 </div>
 
 <style>

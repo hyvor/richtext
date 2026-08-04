@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { EditorState } from 'prosemirror-state';
-	import { getSchema } from './schema';
+	import { getSchema as getSchemaBase } from './schema';
 	import { EditorView, type DOMEventMap } from 'prosemirror-view';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { getNodeViews } from './nodeviews/nodeviews';
 	import { getPlugins } from './plugins/plugins';
 	import { Loader } from '@hyvor/design/components';
@@ -11,16 +11,19 @@
 	import { getMarkViews } from './markviews/markviews';
 	import { defaultConfig } from './config';
 
-	let { editorView = $bindable({} as EditorView), ...props }: Props = $props();
-	let config = $derived({
+	let props: Props = $props();
+
+	let config = {
 		...defaultConfig,
 		...props.config
-	});
+	};
 
 	let wrap: HTMLDivElement | undefined = $state();
 
 	let isLoading = $state(true);
 	let view: EditorView | undefined;
+
+	const schema = getSchemaBase(config);
 
 	async function createEditor() {
 		isLoading = true;
@@ -30,12 +33,10 @@
 		const jsonParsedValue = props.value ? JSON.parse(props.value) : null;
 		wrap!.innerHTML = '';
 
-		const schema = getSchema(config);
-
 		let state = EditorState.create({
 			schema: schema,
 			plugins: [...getPlugins(schema, config), ...(props.plugins ?? [])],
-			doc: props.value ? schema.nodeFromJSON(jsonParsedValue) : undefined
+			doc: props.value ? schema.nodeFromJSON(jsonParsedValue) : undefined,
 		});
 
 		function getDomEvents() {
@@ -59,6 +60,7 @@
 
 		view = new EditorView(wrap!, {
 			state: state,
+			editable: () => props.editable ?? true,
 			nodeViews: getNodeViews(config),
 			markViews: getMarkViews(),
 			handleDOMEvents: getDomEvents(),
@@ -76,7 +78,6 @@
 		});
 
 		editorStore.set({ view, props });
-		editorView = view;
 
 		return view;
 	}
@@ -88,6 +89,60 @@
 	function handleWrapClick(e: MouseEvent | KeyboardEvent) {
 		if (e.target === wrap) view?.focus();
 	}
+
+	export function getSchema() {
+		return schema;
+	}
+
+	/**
+	 * @param content JSON string or object for the document
+	 */
+	export function setContent(content: string|object) {
+		if (!view) return;
+		const doc = schema.nodeFromJSON(typeof content === 'string' ? JSON.parse(content) : content);
+		const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, doc.content);
+		view.dispatch(tr);
+	}
+
+	export function getContent(): object {
+		return view?.state.doc.toJSON();
+	}
+
+	export function clearContent() {
+		setContent({
+			type: 'doc',
+			content: [
+				{
+					type: 'paragraph',
+					content: []
+				}
+			]
+		});
+	}
+
+	export function getView() {
+		return view;
+	}
+
+	export function focus() {
+		view?.focus();
+	}
+
+	export function setEditable(editable: boolean) {
+		view?.setProps({
+			editable: () => editable
+		});
+	}
+
+	export function isEditable(): boolean {
+		if (!view) return false;
+		return view.editable;
+	}
+
+	onDestroy(() => {
+		view?.destroy();
+	});
+
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->

@@ -13,6 +13,17 @@ export interface Props {
     value?: string | null;
 
     /**
+     * called when the editor is initialized. The editorView is passed as an argument.
+     */
+    oninit?: (editorView: EditorView) => void;
+
+    /**
+     * whether the editor is initially editable or not (default true).
+     * call setEditable() to change the readonly state after initialization.
+     */
+    editable?: boolean;
+
+    /**
      * Listen to DOM events of the Prosemirror editor.
      * Only focus and blur are supported.
      */
