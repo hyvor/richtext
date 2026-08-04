@@ -1,4 +1,5 @@
 import type { EditorView } from "prosemirror-view";
+import type { Plugin } from "prosemirror-state";
 import { writable } from "svelte/store";
 import type { Config } from "./config";
 
@@ -32,7 +33,11 @@ export interface Props {
      * The configuration for the editor.
      */
     config?: Partial<Config>;
-    
+
+    /**
+     * Additional ProseMirror plugins to use, on top of the built-in ones.
+     */
+    plugins?: Plugin[];
 
 }
 
