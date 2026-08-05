@@ -641,4 +641,28 @@
 		content: 'Your text here';
 		color: var(--text-light);
 	}
+
+	.pm-editor :global(.diff-mark-insert) {
+		background-color: rgba(40, 167, 69, 0.15);
+		color: #1a7431;
+		text-decoration: none;
+	}
+
+	.pm-editor :global(.diff-mark-delete) {
+		background-color: rgba(220, 53, 69, 0.15);
+		color: #a51c2c;
+		text-decoration: line-through;
+	}
+
+	.pm-editor :global(.diff-mark-format) {
+		background-color: rgba(255, 193, 7, 0.2);
+		border-bottom: 2px dashed #b8860b;
+	}
+
+	.pm-editor :global(div.diff-mark-insert),
+	.pm-editor :global(div.diff-mark-delete),
+	.pm-editor :global(div.diff-mark-format) {
+		border-radius: 6px;
+		padding: 2px 4px;
+	}
 </style>

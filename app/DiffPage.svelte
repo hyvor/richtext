@@ -2,7 +2,7 @@
 	import { Editor } from '../src/lib';
 	import { getSchema } from '../src/lib/schema';
 	import { defaultConfig } from '../src/lib/config';
-	import { diffDoc, type Diff } from '../src/lib/diff';
+	import { diffDoc, buildDiffDoc, type Diff } from '../src/lib/diff';
 	import { Base } from '@hyvor/design/components';
 
 	const STORAGE_KEY_A = 'diff-doc-a';
@@ -41,13 +41,14 @@
 		fileUploader: async (blob: Blob) => ({ url: URL.createObjectURL(blob) })
 	};
 
-	// Both docs must be parsed with the same Schema instance for the diff to
-	// work: node types are compared by reference, and each Editor otherwise
-	// builds its own schema internally.
+	// Both docs (and the merged diff doc below) must be parsed with the same
+	// Schema instance for the diff to work: node types are compared by
+	// reference, and each Editor otherwise builds its own schema internally.
 	const schema = getSchema(config);
 
 	let valueA = $state(readStored(STORAGE_KEY_A, defaultDocA));
 	let valueB = $state(readStored(STORAGE_KEY_B, defaultDocB));
+	let mode: 'display' | 'json' = $state('display');
 
 	let diffResult: Diff[] | { error: string } = $derived.by(() => {
 		try {
@@ -60,6 +61,25 @@
 	});
 
 	let diffJson = $derived(JSON.stringify(diffResult, null, 2));
+
+	// The merged doc is rebuilt from the diff and re-parsed through JSON so it
+	// can be handed to the diff-display Editor below, which builds its own
+	// (separate) schema instance internally.
+	let diffDocJson: object | null = $derived.by(() => {
+		if (!Array.isArray(diffResult)) return null;
+		try {
+			return buildDiffDoc(diffResult, schema).toJSON();
+		} catch (e) {
+			return null;
+		}
+	});
+
+	let diffEditor: Editor;
+	$effect(() => {
+		if (diffDocJson) {
+			diffEditor?.setContent(diffDocJson);
+		}
+	});
 </script>
 
 <Base>
@@ -87,8 +107,19 @@
 			/>
 		</div>
 		<div class="column diff-output">
-			<h3>Diff</h3>
-			<pre>{diffJson}</pre>
+			<h3>
+				Diff
+				<div class="mode-switch">
+					<button class:active={mode === 'display'} onclick={() => (mode = 'display')}>Display</button>
+					<button class:active={mode === 'json'} onclick={() => (mode = 'json')}>JSON</button>
+				</div>
+			</h3>
+			<div class="diff-display" class:hidden={mode !== 'display'}>
+				<Editor bind:this={diffEditor} value={JSON.stringify(diffDocJson ?? defaultDocA)} editable={false} config={config} />
+			</div>
+			{#if mode === 'json'}
+				<pre>{diffJson}</pre>
+			{/if}
 		</div>
 	</div>
 </Base>
@@ -114,6 +145,30 @@
 		position: sticky;
 		top: 0;
 		background: #fff;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+	.mode-switch {
+		display: flex;
+		gap: 4px;
+	}
+	.mode-switch button {
+		font-size: 11px;
+		font-weight: normal;
+		padding: 4px 8px;
+		border: 1px solid #ccc;
+		border-radius: 4px;
+		background: #fff;
+		cursor: pointer;
+	}
+	.mode-switch button.active {
+		background: #333;
+		color: #fff;
+		border-color: #333;
+	}
+	.diff-display.hidden {
+		display: none;
 	}
 	.diff-output pre {
 		margin: 0;

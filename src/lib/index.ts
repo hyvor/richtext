@@ -1,3 +1,3 @@
 export { default as Editor } from './Editor.svelte';
-export { diffDoc } from './diff';
+export { diffDoc, buildDiffDoc } from './diff';
 export type { Diff, TextOp } from './diff';
