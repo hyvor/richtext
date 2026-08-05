@@ -43,6 +43,17 @@ export type Diff =
 			operations: TextOp[];
 			marksChanged: boolean;
 	  }
+	// same-type leaf/atom node (image, audio, embed, ...) whose attrs differ -
+	// e.g. image src/width/height. No content to recurse into.
+	| {
+			type: 'attrs';
+			oldNode: PMNode;
+			newNode: PMNode;
+			oldFrom: number;
+			oldTo: number;
+			newFrom: number;
+			newTo: number;
+	  }
 	| {
 			type: 'container';
 			oldNode: PMNode;
@@ -51,5 +62,7 @@ export type Diff =
 			oldTo: number;
 			newFrom: number;
 			newTo: number;
+			// e.g. heading level/id, callout emoji/colors, code_block language - independent of any content/children changes
+			attrsChanged: boolean;
 			children: Diff[];
 	  };

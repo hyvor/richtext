@@ -13,6 +13,10 @@ function sameMarks(a: PMNode, b: PMNode): boolean {
 	return a.marks.length === b.marks.length && a.marks.every((mark, i) => mark.eq(b.marks[i]));
 }
 
+function sameAttrs(a: PMNode, b: PMNode): boolean {
+	return JSON.stringify(a.attrs) === JSON.stringify(b.attrs);
+}
+
 // oldFrom/newFrom are this node's own position (right before it) in the old/new doc.
 export function diffMatchedNode(oldNode: PMNode, newNode: PMNode, oldFrom: number, newFrom: number): Diff {
 	const oldTo = oldFrom + oldNode.nodeSize;
@@ -42,9 +46,9 @@ export function diffMatchedNode(oldNode: PMNode, newNode: PMNode, oldFrom: numbe
 		return { type: 'replace', oldNode, newNode, oldFrom, oldTo, newFrom, newTo };
 	}
 
-	// same type, but a leaf/atom (image, audio, toc, ...) - attrs differ, nothing to recurse into
+	// same type, but a leaf/atom (image, audio, toc, ...) - only their attrs can differ, nothing to recurse into
 	if (oldNode.isLeaf || oldNode.isAtom) {
-		return { type: 'replace', oldNode, newNode, oldFrom, oldTo, newFrom, newTo };
+		return { type: 'attrs', oldNode, newNode, oldFrom, oldTo, newFrom, newTo };
 	}
 
 	// same type container (paragraph, blockquote, table cell, etc) - recurse into children.
@@ -57,6 +61,7 @@ export function diffMatchedNode(oldNode: PMNode, newNode: PMNode, oldFrom: numbe
 		oldTo,
 		newFrom,
 		newTo,
+		attrsChanged: !sameAttrs(oldNode, newNode),
 		children: diffChildren(oldNode, newNode, oldFrom + 1, newFrom + 1)
 	};
 }

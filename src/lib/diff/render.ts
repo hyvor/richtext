@@ -1,7 +1,7 @@
 import { Fragment, type Node as PMNode, type Schema } from 'prosemirror-model';
 import type { Diff, TextOp } from './types';
 
-function withDiffMark(node: PMNode, schema: Schema, diffType: 'insert' | 'delete'): PMNode {
+function withDiffMark(node: PMNode, schema: Schema, diffType: 'insert' | 'delete' | 'format'): PMNode {
 	const mark = schema.marks.diff.create({ diffType });
 	return node.mark(mark.addToSet(node.marks));
 }
@@ -58,15 +58,19 @@ function mergeDiffs(diffs: Diff[], schema: Schema): PMNode[] {
 					result.push(...textOpNodes(op, diff.oldNode, diff.newNode, diff.marksChanged, schema));
 				}
 				break;
-			case 'container':
-				result.push(
-					diff.newNode.type.create(
-						diff.newNode.attrs,
-						Fragment.from(mergeDiffs(diff.children, schema)),
-						diff.newNode.marks
-					)
-				);
+			case 'attrs':
+				// e.g. image src/width/height, heading level on a leaf-ish node - flag it, show the new state
+				result.push(withDiffMark(diff.newNode, schema, 'format'));
 				break;
+			case 'container': {
+				const merged = diff.newNode.type.create(
+					diff.newNode.attrs,
+					Fragment.from(mergeDiffs(diff.children, schema)),
+					diff.newNode.marks
+				);
+				result.push(diff.attrsChanged ? withDiffMark(merged, schema, 'format') : merged);
+				break;
+			}
 		}
 	}
 
