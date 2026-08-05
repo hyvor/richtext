@@ -1,26 +1,80 @@
 import type { TextOp } from './types';
-import { diffSequence } from './sequence';
+import { levenshteinDiff } from './levenshtein';
 
 // Split into words and whitespace runs, keeping every character so tokens rejoin losslessly.
 function tokenize(text: string): string[] {
 	return text.split(/(\s+)/).filter((token) => token.length > 0);
 }
 
-export function diffText(oldText: string, newText: string): TextOp[] {
-	if (oldText === newText) {
-		return oldText ? [{ type: 'equal', text: oldText }] : [];
-	}
-
-	const ops = diffSequence(tokenize(oldText), tokenize(newText), (x, y) => x === y);
+/**
+ * Word-level diff of two text runs, positioned against oldFrom/newFrom (the
+ * position of the first character of oldText/newText in their respective
+ * docs). Uses Levenshtein edit distance, so a changed word becomes a single
+ * "replace" op instead of an unrelated delete + insert pair.
+ */
+export function diffText(oldText: string, newText: string, oldFrom: number, newFrom: number): TextOp[] {
+	const ops = levenshteinDiff(tokenize(oldText), tokenize(newText), {
+		equal: (a, b) => a === b
+	});
 
 	const result: TextOp[] = [];
+	let oldPos = oldFrom;
+	let newPos = newFrom;
+
 	for (const op of ops) {
-		const text = op.type === 'insert' ? op.b : op.a;
 		const last = result[result.length - 1];
-		if (last && last.type === op.type) {
-			last.text += text;
+
+		if (op.type === 'equal') {
+			const oldTo = oldPos + op.a.length;
+			const newTo = newPos + op.b.length;
+			if (last && last.type === 'equal') {
+				last.text += op.a;
+				last.oldTo = oldTo;
+				last.newTo = newTo;
+			} else {
+				result.push({ type: 'equal', text: op.a, oldFrom: oldPos, oldTo, newFrom: newPos, newTo });
+			}
+			oldPos = oldTo;
+			newPos = newTo;
+		} else if (op.type === 'replace') {
+			const oldTo = oldPos + op.a.length;
+			const newTo = newPos + op.b.length;
+			if (last && last.type === 'replace') {
+				last.oldText += op.a;
+				last.newText += op.b;
+				last.oldTo = oldTo;
+				last.newTo = newTo;
+			} else {
+				result.push({
+					type: 'replace',
+					oldText: op.a,
+					newText: op.b,
+					oldFrom: oldPos,
+					oldTo,
+					newFrom: newPos,
+					newTo
+				});
+			}
+			oldPos = oldTo;
+			newPos = newTo;
+		} else if (op.type === 'delete') {
+			const oldTo = oldPos + op.a.length;
+			if (last && last.type === 'delete') {
+				last.text += op.a;
+				last.oldTo = oldTo;
+			} else {
+				result.push({ type: 'delete', text: op.a, oldFrom: oldPos, oldTo });
+			}
+			oldPos = oldTo;
 		} else {
-			result.push({ type: op.type, text });
+			const newTo = newPos + op.b.length;
+			if (last && last.type === 'insert') {
+				last.text += op.b;
+				last.newTo = newTo;
+			} else {
+				result.push({ type: 'insert', text: op.b, newFrom: newPos, newTo });
+			}
+			newPos = newTo;
 		}
 	}
 
