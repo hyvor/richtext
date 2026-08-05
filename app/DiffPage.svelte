@@ -1,0 +1,126 @@
+<script lang="ts">
+	import { Editor } from '../src/lib';
+	import { getSchema } from '../src/lib/schema';
+	import { defaultConfig } from '../src/lib/config';
+	import { diffDoc, type Diff } from '../src/lib/diff';
+	import { Base } from '@hyvor/design/components';
+
+	const STORAGE_KEY_A = 'diff-doc-a';
+	const STORAGE_KEY_B = 'diff-doc-b';
+
+	const defaultDocA = {
+		type: 'doc',
+		content: [
+			{ type: 'paragraph', content: [{ type: 'text', text: 'Hello world' }] },
+			{ type: 'paragraph', content: [{ type: 'text', text: 'This is a test paragraph.' }] }
+		]
+	};
+
+	const defaultDocB = {
+		type: 'doc',
+		content: [
+			{ type: 'paragraph', content: [{ type: 'text', text: 'Hello beautiful world' }] },
+			{ type: 'paragraph', content: [{ type: 'text', text: 'This is a new paragraph.' }] },
+			{ type: 'paragraph', content: [{ type: 'text', text: 'This is a test paragraph.' }] }
+		]
+	};
+
+	function readStored(key: string, fallback: object): string {
+		const raw = localStorage.getItem(key);
+		if (!raw) return JSON.stringify(fallback);
+		try {
+			JSON.parse(raw);
+			return raw;
+		} catch {
+			return JSON.stringify(fallback);
+		}
+	}
+
+	const config = {
+		...defaultConfig,
+		fileUploader: async (blob: Blob) => ({ url: URL.createObjectURL(blob) })
+	};
+
+	// Both docs must be parsed with the same Schema instance for the diff to
+	// work: node types are compared by reference, and each Editor otherwise
+	// builds its own schema internally.
+	const schema = getSchema(config);
+
+	let valueA = $state(readStored(STORAGE_KEY_A, defaultDocA));
+	let valueB = $state(readStored(STORAGE_KEY_B, defaultDocB));
+
+	let diffResult: Diff[] | { error: string } = $derived.by(() => {
+		try {
+			const docA = schema.nodeFromJSON(JSON.parse(valueA));
+			const docB = schema.nodeFromJSON(JSON.parse(valueB));
+			return diffDoc(docA, docB);
+		} catch (e) {
+			return { error: e instanceof Error ? e.message : String(e) };
+		}
+	});
+
+	let diffJson = $derived(JSON.stringify(diffResult, null, 2));
+</script>
+
+<Base>
+	<div class="diff-page">
+		<div class="column">
+			<h3>Document A</h3>
+			<Editor
+				value={valueA}
+				config={config}
+				onvaluechange={(val) => {
+					valueA = val;
+					localStorage.setItem(STORAGE_KEY_A, val);
+				}}
+			/>
+		</div>
+		<div class="column">
+			<h3>Document B</h3>
+			<Editor
+				value={valueB}
+				config={config}
+				onvaluechange={(val) => {
+					valueB = val;
+					localStorage.setItem(STORAGE_KEY_B, val);
+				}}
+			/>
+		</div>
+		<div class="column diff-output">
+			<h3>Diff</h3>
+			<pre>{diffJson}</pre>
+		</div>
+	</div>
+</Base>
+
+<style>
+	.diff-page {
+		display: flex;
+		align-items: flex-start;
+		height: 100vh;
+	}
+	.column {
+		flex: 1;
+		min-width: 0;
+		height: 100%;
+		overflow: auto;
+		border-right: 1px solid #ccc;
+		box-sizing: border-box;
+	}
+	.column h3 {
+		margin: 0;
+		padding: 10px 15px;
+		border-bottom: 1px solid #ccc;
+		position: sticky;
+		top: 0;
+		background: #fff;
+	}
+	.diff-output pre {
+		margin: 0;
+		padding: 15px;
+		white-space: pre-wrap;
+		word-break: break-word;
+		font-size: 12px;
+		font-family: monospace;
+	}
+</style>
