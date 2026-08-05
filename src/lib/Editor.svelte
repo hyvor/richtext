@@ -8,7 +8,7 @@
 	import { editorContent, editorStore, type Props } from './store';
 	import { importCodemirrorAll } from './codemirror';
 	import { getMarkViews } from './markviews/markviews';
-	import { defaultEditorConfig } from './config';
+	import { defaultEditorConfig, type EditorConfig } from './config';
 
 	let props: Props = $props();
 
@@ -17,10 +17,7 @@
 	let isLoading = $state(true);
 	let view: EditorView | undefined;
 
-	const editorConfig = $derived({
-		...(defaultEditorConfig || {}),
-		...props.editorConfig
-	});
+	const editorConfig: EditorConfig = $derived(Object.assign({}, defaultEditorConfig, props.editorConfig));
 
 	async function createEditor() {
 		isLoading = true;

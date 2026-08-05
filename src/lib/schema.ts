@@ -440,10 +440,7 @@ function allowDiffMarkOnBlockContent(nodes: ReturnType<typeof addListNodes>) {
 
 export function getSchema(config?: Partial<SchemaConfig>): Schema {
 
-    const mergedConfig: SchemaConfig = {
-        ...(defaultSchemaConfig || {}),
-        ...config
-    };
+    const mergedConfig: SchemaConfig = Object.assign({}, defaultSchemaConfig, config);
 
     const schemaWithoutList = new Schema({
         nodes: getNodes(mergedConfig),
