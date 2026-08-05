@@ -1,37 +1,39 @@
 import { Fragment, type Node as PMNode, type Schema } from 'prosemirror-model';
-import type { Diff, TextOp } from './types';
+import type { Diff, InlineOp } from './types';
 
 function withDiffMark(node: PMNode, schema: Schema, diffType: 'insert' | 'delete' | 'format'): PMNode {
 	const mark = schema.marks.diff.create({ diffType });
 	return node.mark(mark.addToSet(node.marks));
 }
 
-function textOpNodes(
-	op: TextOp,
-	oldNode: PMNode,
-	newNode: PMNode,
-	marksChanged: boolean,
-	schema: Schema
-): PMNode[] {
+function inlineOpNodes(op: InlineOp, schema: Schema): PMNode[] {
 	switch (op.type) {
 		case 'equal':
 			// text itself didn't change, but formatting (bold, italic, ...) did -
 			// flag it without duplicating the (identical) text
-			if (marksChanged) {
-				return [schema.text(op.text, schema.marks.diff.create({ diffType: 'format' }).addToSet(newNode.marks))];
+			if (op.marksChanged) {
+				return [schema.text(op.text, schema.marks.diff.create({ diffType: 'format' }).addToSet(op.newMarks))];
 			}
-			return [schema.text(op.text, newNode.marks)];
+			return op.text ? [schema.text(op.text, op.newMarks)] : [];
 		case 'insert':
-			return [schema.text(op.text, schema.marks.diff.create({ diffType: 'insert' }).addToSet(newNode.marks))];
+			return [schema.text(op.text, schema.marks.diff.create({ diffType: 'insert' }).addToSet(op.marks))];
 		case 'delete':
-			return [schema.text(op.text, schema.marks.diff.create({ diffType: 'delete' }).addToSet(oldNode.marks))];
+			return [schema.text(op.text, schema.marks.diff.create({ diffType: 'delete' }).addToSet(op.marks))];
 		case 'replace':
 			// unmarked space between old/new so they don't visually run together
 			return [
-				schema.text(op.oldText, schema.marks.diff.create({ diffType: 'delete' }).addToSet(oldNode.marks)),
+				schema.text(op.oldText, schema.marks.diff.create({ diffType: 'delete' }).addToSet(op.oldMarks)),
 				schema.text(' '),
-				schema.text(op.newText, schema.marks.diff.create({ diffType: 'insert' }).addToSet(newNode.marks))
+				schema.text(op.newText, schema.marks.diff.create({ diffType: 'insert' }).addToSet(op.newMarks))
 			];
+		case 'equalAtom':
+			return [op.marksChanged ? withDiffMark(op.newNode, schema, 'format') : op.newNode];
+		case 'insertAtom':
+			return [withDiffMark(op.node, schema, 'insert')];
+		case 'deleteAtom':
+			return [withDiffMark(op.node, schema, 'delete')];
+		case 'replaceAtom':
+			return [withDiffMark(op.oldNode, schema, 'delete'), withDiffMark(op.newNode, schema, 'insert')];
 	}
 }
 
@@ -53,15 +55,16 @@ function mergeDiffs(diffs: Diff[], schema: Schema): PMNode[] {
 				result.push(withDiffMark(diff.oldNode, schema, 'delete'));
 				result.push(withDiffMark(diff.newNode, schema, 'insert'));
 				break;
-			case 'text':
-				for (const op of diff.operations) {
-					result.push(...textOpNodes(op, diff.oldNode, diff.newNode, diff.marksChanged, schema));
-				}
-				break;
 			case 'attrs':
 				// e.g. image src/width/height, heading level on a leaf-ish node - flag it, show the new state
 				result.push(withDiffMark(diff.newNode, schema, 'format'));
 				break;
+			case 'inline': {
+				const content = diff.operations.flatMap((op) => inlineOpNodes(op, schema));
+				const merged = diff.newNode.type.create(diff.newNode.attrs, Fragment.from(content), diff.newNode.marks);
+				result.push(diff.attrsChanged ? withDiffMark(merged, schema, 'format') : merged);
+				break;
+			}
 			case 'container': {
 				const merged = diff.newNode.type.create(
 					diff.newNode.attrs,

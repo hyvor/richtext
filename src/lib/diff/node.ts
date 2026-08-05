@@ -1,16 +1,12 @@
 import type { Node as PMNode } from 'prosemirror-model';
 import type { Diff } from './types';
 import { alignNodes } from './align';
-import { diffText } from './text';
+import { diffInline } from './inline';
 
 function children(node: PMNode): PMNode[] {
 	const result: PMNode[] = [];
 	node.forEach((child) => result.push(child));
 	return result;
-}
-
-function sameMarks(a: PMNode, b: PMNode): boolean {
-	return a.marks.length === b.marks.length && a.marks.every((mark, i) => mark.eq(b.marks[i]));
 }
 
 function sameAttrs(a: PMNode, b: PMNode): boolean {
@@ -26,24 +22,29 @@ export function diffMatchedNode(oldNode: PMNode, newNode: PMNode, oldFrom: numbe
 		return { type: 'equal', oldNode, newNode, oldFrom, oldTo, newFrom, newTo };
 	}
 
-	if (oldNode.isText && newNode.isText) {
-		// text content starts right where the text node itself starts - no opening token
+	// different node types can't be meaningfully compared further
+	if (oldNode.type !== newNode.type) {
+		return { type: 'replace', oldNode, newNode, oldFrom, oldTo, newFrom, newTo };
+	}
+
+	// paragraph, heading, callout, figcaption, button, ... - diff inline content as one
+	// flattened word/atom token stream rather than as discrete children, since ProseMirror
+	// splits text into runs at mark boundaries and that split shifts whenever formatting
+	// changes, independent of whether the actual text content changed. Checked before the
+	// isLeaf/isAtom test below since an *empty* inline-content node (e.g. an empty
+	// paragraph) is technically also "leaf" (content.size === 0).
+	if (oldNode.inlineContent) {
 		return {
-			type: 'text',
+			type: 'inline',
 			oldNode,
 			newNode,
 			oldFrom,
 			oldTo,
 			newFrom,
 			newTo,
-			operations: diffText(oldNode.text ?? '', newNode.text ?? '', oldFrom, newFrom),
-			marksChanged: !sameMarks(oldNode, newNode)
+			attrsChanged: !sameAttrs(oldNode, newNode),
+			operations: diffInline(oldNode, newNode, oldFrom + 1, newFrom + 1)
 		};
-	}
-
-	// different node types (or one text/one not) can't be meaningfully compared further
-	if (oldNode.type !== newNode.type) {
-		return { type: 'replace', oldNode, newNode, oldFrom, oldTo, newFrom, newTo };
 	}
 
 	// same type, but a leaf/atom (image, audio, toc, ...) - only their attrs can differ, nothing to recurse into
@@ -51,8 +52,8 @@ export function diffMatchedNode(oldNode: PMNode, newNode: PMNode, oldFrom: numbe
 		return { type: 'attrs', oldNode, newNode, oldFrom, oldTo, newFrom, newTo };
 	}
 
-	// same type container (paragraph, blockquote, table cell, etc) - recurse into children.
-	// content starts 1 position in, past this node's own opening token.
+	// same type container with block content (blockquote, list item, table cell, etc) -
+	// recurse into children. content starts 1 position in, past this node's own opening token.
 	return {
 		type: 'container',
 		oldNode,
@@ -102,8 +103,9 @@ export function diffChildren(
 /**
  * Diffs two ProseMirror documents, tree-first: block-level children are
  * aligned and matched, then diffed recursively (containers recurse into
- * children, text nodes get a word-level diff, leaf/atom nodes are
- * replaced wholesale). Both docs must come from the same Schema instance.
+ * children, inline-content nodes get a word-level diff of their flattened
+ * content, leaf/atom nodes are compared by attrs). Both docs must come from
+ * the same Schema instance.
  *
  * Every op carries positions: fields prefixed "old" are valid against the
  * old doc, fields prefixed "new" are valid against the new doc (not each
