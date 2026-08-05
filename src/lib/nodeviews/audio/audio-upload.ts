@@ -1,8 +1,8 @@
-import type { Config } from "$lib/config";
+import type { EditorConfig } from "$lib/config";
 import { uploadFile } from "@hyvor/design/components";
 import { type Schema } from "prosemirror-model";
 
-export async function uploadAudio(fileUploader: Config['fileUploader'], fileMaxSizeInMB: Config['fileMaxSizeInMB']) {
+export async function uploadAudio(fileUploader: EditorConfig['fileUploader'], fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB']) {
     return await uploadFile({
         type: 'audio',
         uploader: (blob, name) => fileUploader(blob, name, 'audio'),
@@ -12,8 +12,8 @@ export async function uploadAudio(fileUploader: Config['fileUploader'], fileMaxS
 
 export async function uploadAudioGetAudioNode(
     schema: Schema,
-    fileUploader: Config['fileUploader'],
-    fileMaxSizeInMB: Config['fileMaxSizeInMB']
+    fileUploader: EditorConfig['fileUploader'],
+    fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB']
 ) {
     const audio = await uploadAudio(fileUploader, fileMaxSizeInMB);
 

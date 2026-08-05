@@ -1,17 +1,35 @@
+// all defaults to true
+export interface SchemaConfig {
+    codeBlock: boolean;
+    customHtml: boolean;
+    embed: boolean;
+    image: boolean;
+    audio: boolean;
+    bookmark: boolean;
+    toc: boolean;
+    table: boolean;
+    button: boolean;
+}
 
-export interface Config {
+export const defaultSchemaConfig: SchemaConfig = {
+    codeBlock: true,
+    customHtml: true,
+    embed: true,
+    image: true,
+    audio: true,
+    bookmark: true,
+    toc: true,
+    table: true,
+    button: true,
+};
+
+export interface EditorConfig {
 
     // Colors
-    // ======
     colorButtonBackground: string;
     colorButtonText: string;
 
-    // Schema
-    // ======
-
-    // code block
-    // default: true
-    codeBlockEnabled: boolean;
+    // Code block
     codeBlockConfig: {
         language: boolean;
         annotations: boolean;
@@ -19,68 +37,24 @@ export interface Config {
         fileName: boolean;
     }
 
-
-    // custom HTML/Twig block
-    // default: true
-    customHtmlEnabled: boolean;
-
-    // Embed block
-    // default: true
-    embedEnabled: boolean;
-
-    // Image block
-    // default: true
-    imageEnabled: boolean;
-
-    // Audio
-    // default: true
-    audioEnabled: boolean;
-
     // File uploader config (from HDS)
     // This will be used when the user uploads an image or audio.
     // fileUploader must be provided if imageEnabled or audioEnabled is true
     fileUploader?: (file: Blob, name: string | null, type: 'image' | 'audio') => Promise<{ url: string } | null>;
     fileMaxSizeInMB?: number; // default: 10
 
-    // Bookmark block
-    // default: true
-    bookmarkEnabled: boolean;
-
-    // TOC: Table of Contents
-    // default: true
-    tocEnabled: boolean;
-
-    // Table
-    // default: true
-    tableEnabled: boolean;
-
-    // Button
-    // default: true
-    buttonEnabled: boolean;
-
 }
 
-export const defaultConfig: Config = {
+export const defaultEditorConfig: EditorConfig = {
     colorButtonBackground: '#000',
     colorButtonText: '#fff',
 
-    codeBlockEnabled: true,
     codeBlockConfig: {
         language: true,
         annotations: true,
         annotationsUrl: null,
         fileName: true,
     },
-
-    customHtmlEnabled: true,
-    embedEnabled: true,
-    imageEnabled: true,
-    audioEnabled: true,
-    fileUploader: undefined,
-    bookmarkEnabled: true,
-    tocEnabled: true,
-    tableEnabled: true,
-    buttonEnabled: true,
 };
 
 export interface ImageUploadResult {

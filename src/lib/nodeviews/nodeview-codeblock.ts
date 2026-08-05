@@ -1,4 +1,4 @@
-import type { Config } from '$lib/config';
+import type { EditorConfig } from '$lib/config';
 import { exitCode, joinBackward } from 'prosemirror-commands';
 import { undo, redo } from 'prosemirror-history';
 import type { Node } from 'prosemirror-model';
@@ -23,7 +23,7 @@ export default class CodeBlockNodeView implements NodeView {
 	private inputAno: HTMLInputElement | null = null
 	private inputName: HTMLInputElement | null = null
 
-	constructor(node, view, getPos, private config: Config['codeBlockConfig']) {
+	constructor(node, view, getPos, private config: EditorConfig['codeBlockConfig']) {
 		// Store for later
 		this.node = node;
 		this.view = view;

@@ -1,18 +1,10 @@
 import { Mark, type MarkSpec, Node, type NodeSpec, Schema } from "prosemirror-model"
 import { addListNodes } from "prosemirror-schema-list"
 import { tableNodes } from "prosemirror-tables"
-import type { Config } from "./config";
+import { defaultSchemaConfig,  type SchemaConfig } from "./config";
 
 // mostly from https://github.com/ProseMirror/prosemirror-schema-basic
-function getNodes(config: Config): Record<string, NodeSpec> {
-
-    // validate fileUploader
-    if (
-        (config.imageEnabled || config.audioEnabled) &&
-        config.fileUploader === undefined
-    ) {
-        throw new Error("fileUploader must be provided if imageEnabled or audioEnabled is true");
-    }
+function getNodes(config: SchemaConfig): Record<string, NodeSpec> {
 
     const nodes: Record<string, NodeSpec> = {
 
@@ -106,7 +98,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     };
 
-    if (config.codeBlockEnabled) {
+    if (config.codeBlock) {
         nodes.code_block = {
             attrs: {
                 language: { default: null },
@@ -124,7 +116,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (config.customHtmlEnabled) {
+    if (config.customHtml) {
         nodes.custom_html = {
             content: "text*",
             marks: "",
@@ -137,8 +129,8 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    const imageEnabled = config.imageEnabled;
-    const embedEnabled = config.embedEnabled;
+    const imageEnabled = config.image;
+    const embedEnabled = config.embed;
 
     if (imageEnabled || embedEnabled) {
 
@@ -219,7 +211,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
 
     }
 
-    if (config.audioEnabled) {
+    if (config.audio) {
         nodes.audio = {
             attrs: {
                 src: { default: null }
@@ -242,7 +234,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (config.bookmarkEnabled) {
+    if (config.bookmark) {
         nodes.bookmark = {
             attrs: {
                 url: { default: null }
@@ -267,7 +259,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (config.tocEnabled) {
+    if (config.toc) {
         nodes.toc = {
             attrs: {
                 levels: { default: [1, 2, 3, 4, 5, 6] }
@@ -280,7 +272,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (config.tableEnabled) {
+    if (config.table) {
         const tableNodess = tableNodes({
             tableGroup: "block",
             cellContent: "block+",
@@ -289,7 +281,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         Object.assign(nodes, tableNodess);
     }
 
-    if (config.buttonEnabled) {
+    if (config.button) {
         nodes.button = {
             attrs: {
                 href: { default: null },
@@ -446,10 +438,15 @@ function allowDiffMarkOnBlockContent(nodes: ReturnType<typeof addListNodes>) {
     return result;
 }
 
-export function getSchema(config: Config): Schema {
+export function getSchema(config?: Partial<SchemaConfig>): Schema {
+
+    const mergedConfig: SchemaConfig = {
+        ...(defaultSchemaConfig || {}),
+        ...config
+    };
 
     const schemaWithoutList = new Schema({
-        nodes: getNodes(config),
+        nodes: getNodes(mergedConfig),
         marks
     });
 

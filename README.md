@@ -5,20 +5,31 @@ Used in Hyvor Blogs and Hyvor Post.
 ## Usage
 
 ```svelte
-import { Editor } from '@hyvor/richtext';
+<script lang="ts">
+  import { Editor, getSchema } from '@hyvor/richtext';
+
+  // get the schema, which you can share across multiple editors
+  const schema = getSchema({
+    codeBlock: true,
+    customHtml: true,
+    embed: true,
+    image: false,
+    audio: false,
+    bookmark: true,
+    toc: true,
+    table: true,
+    button: true,
+  });
+</script>
 
 
 <Editor
 
     bind:editorView
     content={content}
+    schema={schema}
     onvaluechange={handleValueChange}
     rtl={false}
-
-    config={{
-        embedEnabled: false,
-        // see config.ts for more options
-    }}
 
 />
 ```

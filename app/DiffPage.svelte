@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { Editor } from '../src/lib';
 	import { getSchema } from '../src/lib/schema';
-	import { defaultConfig } from '../src/lib/config';
 	import { diffDoc, buildDiffDoc, type Diff } from '../src/lib/diff';
 	import { Base } from '@hyvor/design/components';
 
@@ -36,15 +35,11 @@
 		}
 	}
 
-	const config = {
-		...defaultConfig,
+	const editorConfig = {
 		fileUploader: async (blob: Blob) => ({ url: URL.createObjectURL(blob) })
 	};
 
-	// Both docs (and the merged diff doc below) must be parsed with the same
-	// Schema instance for the diff to work: node types are compared by
-	// reference, and each Editor otherwise builds its own schema internally.
-	const schema = getSchema(config);
+	const schema = getSchema();
 
 	let valueA = $state(readStored(STORAGE_KEY_A, defaultDocA));
 	let valueB = $state(readStored(STORAGE_KEY_B, defaultDocB));
@@ -88,7 +83,8 @@
 			<h3>Document A</h3>
 			<Editor
 				value={valueA}
-				config={config}
+				{schema}
+				editorConfig={editorConfig}
 				onvaluechange={(val) => {
 					valueA = val;
 					localStorage.setItem(STORAGE_KEY_A, val);
@@ -99,7 +95,8 @@
 			<h3>Document B</h3>
 			<Editor
 				value={valueB}
-				config={config}
+				{schema}
+				editorConfig={editorConfig}
 				onvaluechange={(val) => {
 					valueB = val;
 					localStorage.setItem(STORAGE_KEY_B, val);
@@ -115,7 +112,7 @@
 				</div>
 			</h3>
 			<div class="diff-display" class:hidden={mode !== 'display'}>
-				<Editor bind:this={diffEditor} value={JSON.stringify(diffDocJson ?? defaultDocA)} editable={false} config={config} />
+				<Editor bind:this={diffEditor} value={JSON.stringify(diffDocJson ?? defaultDocA)} editable={false} {schema} editorConfig={editorConfig} />
 			</div>
 			{#if mode === 'json'}
 				<pre>{diffJson}</pre>

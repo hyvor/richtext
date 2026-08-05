@@ -1,10 +1,12 @@
 <script lang="ts">
-	import { Editor } from '../src/lib';
+	import { Editor, getSchema } from '../src/lib';
 	import { Base } from '@hyvor/design/components';
 
 	let editor: Editor;
 
 	let editable = $state(true);
+
+	const schema = getSchema();
 	
 	function setContent() {
 		editor.setContent(JSON.stringify({
@@ -30,15 +32,14 @@
 			bind:this={editor}
 			value={localStorage.getItem('doc')}
 			onvaluechange={(val) => localStorage.setItem('doc', val)}
-			config={{
+			{schema}
+			editorConfig={{
 				codeBlockConfig: {
 					language: true,
 					annotations: true,
 					annotationsUrl: null,
 					fileName: true,
 				},
-				embedEnabled: true,
-				tableEnabled: true,
 				colorButtonBackground: '#585895',
 				fileUploader: async (blob, name, type) => {
 					return {

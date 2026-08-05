@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { EditorState } from 'prosemirror-state';
-	import { getSchema as getSchemaBase } from './schema';
 	import { EditorView, type DOMEventMap } from 'prosemirror-view';
 	import { onDestroy, onMount } from 'svelte';
 	import { getNodeViews } from './nodeviews/nodeviews';
@@ -9,21 +8,19 @@
 	import { editorContent, editorStore, type Props } from './store';
 	import { importCodemirrorAll } from './codemirror';
 	import { getMarkViews } from './markviews/markviews';
-	import { defaultConfig } from './config';
+	import { defaultEditorConfig } from './config';
 
 	let props: Props = $props();
-
-	let config = {
-		...defaultConfig,
-		...props.config
-	};
 
 	let wrap: HTMLDivElement | undefined = $state();
 
 	let isLoading = $state(true);
 	let view: EditorView | undefined;
 
-	const schema = getSchemaBase(config);
+	const editorConfig = $derived({
+		...(defaultEditorConfig || {}),
+		...props.editorConfig
+	});
 
 	async function createEditor() {
 		isLoading = true;
@@ -34,9 +31,9 @@
 		wrap!.innerHTML = '';
 
 		let state = EditorState.create({
-			schema: schema,
-			plugins: [...getPlugins(schema, config), ...(props.plugins ?? [])],
-			doc: props.value ? schema.nodeFromJSON(jsonParsedValue) : undefined,
+			schema: props.schema,
+			plugins: [...getPlugins(props.schema, editorConfig), ...(props.plugins ?? [])],
+			doc: props.value ? props.schema.nodeFromJSON(jsonParsedValue) : undefined,
 		});
 
 		function getDomEvents() {
@@ -61,7 +58,7 @@
 		view = new EditorView(wrap!, {
 			state: state,
 			editable: () => props.editable ?? true,
-			nodeViews: getNodeViews(config),
+			nodeViews: getNodeViews(editorConfig),
 			markViews: getMarkViews(),
 			handleDOMEvents: getDomEvents(),
 			// handleClickOn,
@@ -91,7 +88,7 @@
 	}
 
 	export function getSchema() {
-		return schema;
+		return props.schema;
 	}
 
 	/**
@@ -99,7 +96,7 @@
 	 */
 	export function setContent(content: string|object) {
 		if (!view) return;
-		const doc = schema.nodeFromJSON(typeof content === 'string' ? JSON.parse(content) : content);
+		const doc = props.schema.nodeFromJSON(typeof content === 'string' ? JSON.parse(content) : content);
 		const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, doc.content);
 		view.dispatch(tr);
 	}
@@ -152,8 +149,8 @@
 	onclick={handleWrapClick}
 	onkeyup={(e) => e.key === 'Enter' && handleWrapClick(e)}
 	class:loaded={!isLoading}
-	style:--button-background={config.colorButtonBackground}
-	style:--button-text={config.colorButtonText}
+	style:--button-background={editorConfig.colorButtonBackground}
+	style:--button-text={editorConfig.colorButtonText}
 >
 	{#if isLoading}
 		<Loader block padding={250} />
