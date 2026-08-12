@@ -37,7 +37,14 @@ export class SuggestionsPanelView implements PluginView {
     }
 
     update(view: EditorView, lastState: EditorState) {
-        if (lastState && lastState.doc.eq(view.state.doc)) return;
+        // re-render on doc changes (suggestions list) and on selection-only
+        // changes too (moving the cursor around should re-focus the nearest
+        // suggestion in the panel, even without editing anything)
+        if (
+            lastState &&
+            lastState.doc.eq(view.state.doc) &&
+            lastState.selection.eq(view.state.selection)
+        ) return;
         this.props.updateId++;
     }
 

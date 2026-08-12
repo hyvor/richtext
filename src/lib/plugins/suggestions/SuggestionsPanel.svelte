@@ -17,11 +17,35 @@
 
 	let { view, updateId }: Props = $props();
 	let panel: HTMLDivElement | undefined = $state();
+	let itemEls: Record<string, HTMLLIElement> = {};
 
 	let suggestions: SuggestionItem[] = $derived.by(() => {
 		updateId;
 		return getSuggestions(view.state);
 	});
+
+	// the suggestion whose range is closest to the current selection - kept in
+	// sync as the user clicks/moves the cursor around the editor (not just
+	// while editing), so the panel always highlights whatever's relevant
+	let activeId: string | null = $derived.by(() => {
+		if (suggestions.length === 0) return null;
+		const pos = view.state.selection.head;
+		let best = suggestions[0];
+		let bestDistance = distanceToItem(pos, best);
+		for (const item of suggestions) {
+			const distance = distanceToItem(pos, item);
+			if (distance < bestDistance) {
+				best = item;
+				bestDistance = distance;
+			}
+		}
+		return best.id;
+	});
+
+	function distanceToItem(pos: number, item: SuggestionItem): number {
+		if (pos >= item.from && pos <= item.to) return 0;
+		return pos < item.from ? item.from - pos : pos - item.to;
+	}
 
 	$effect(() => {
 		// depend on the list (and therefore visibility) so position is
@@ -30,6 +54,14 @@
 		(async () => {
 			await tick();
 			updatePosition();
+		})();
+	});
+
+	$effect(() => {
+		const id = activeId;
+		(async () => {
+			await tick();
+			itemEls[id ?? '']?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 		})();
 	});
 
@@ -77,7 +109,7 @@
 		</div>
 		<ul>
 			{#each suggestions as item (item.id)}
-				<li>
+				<li bind:this={itemEls[item.id]} class:active={item.id === activeId}>
 					<div class="meta">
 						{#if item.user.name}<strong>{item.user.name}</strong>{/if}
 						<span class="change">{label(item)}</span>
@@ -137,6 +169,12 @@
 		padding: 8px 10px;
 		background: var(--gray-light);
 		border-radius: calc(var(--box-radius) - 4px);
+		box-shadow: 0 0 0 0 transparent;
+		transition: box-shadow 0.15s ease;
+	}
+
+	li.active {
+		box-shadow: 0 0 0 2px var(--link);
 	}
 
 	.meta {
