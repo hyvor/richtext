@@ -6,8 +6,6 @@ interface InlineToken {
 	text: string; // '' for an atom token
 	marks: readonly Mark[];
 	atom?: PMNode; // set for non-text inline nodes (hard_break, ...)
-	from: number;
-	to: number;
 }
 
 // Split into word / punctuation / whitespace runs (keeping every character so
@@ -27,18 +25,15 @@ function tokenizeText(text: string): string[] {
 // discarding the mark-boundary run structure ProseMirror splits text nodes
 // into - that structure changes whenever formatting changes (even mid-word),
 // and diffing at that granularity mistakes reformatting for content edits.
-function flattenInline(node: PMNode, contentPos: number): InlineToken[] {
+function flattenInline(node: PMNode): InlineToken[] {
 	const tokens: InlineToken[] = [];
-	node.forEach((child, offset) => {
-		const from = contentPos + offset;
+	node.forEach((child) => {
 		if (child.isText) {
-			let pos = from;
 			for (const word of tokenizeText(child.text ?? '')) {
-				tokens.push({ text: word, marks: child.marks, from: pos, to: pos + word.length });
-				pos += word.length;
+				tokens.push({ text: word, marks: child.marks });
 			}
 		} else {
-			tokens.push({ text: '', marks: child.marks, atom: child, from, to: from + child.nodeSize });
+			tokens.push({ text: '', marks: child.marks, atom: child });
 		}
 	});
 	return tokens;
@@ -58,16 +53,15 @@ function tokenContentEqual(a: InlineToken, b: InlineToken): boolean {
 }
 
 /**
- * Word-level diff of a container's inline content (paragraph, heading, ...),
- * positioned against oldContentPos/newContentPos (the position right before
- * the container's first child). Uses Levenshtein edit distance so a changed
- * word becomes a single "replace" instead of an unrelated delete + insert,
- * and reports mark-only changes (bold/italic/... added with no text change)
- * as `marksChanged` on otherwise-equal tokens instead of as content edits.
+ * Word-level diff of a container's inline content (paragraph, heading, ...).
+ * Uses Levenshtein edit distance so a changed word becomes a single "replace"
+ * instead of an unrelated delete + insert, and reports mark-only changes
+ * (bold/italic/... added with no text change) as `marksChanged` on otherwise-
+ * equal tokens instead of as content edits.
  */
-export function diffInline(oldNode: PMNode, newNode: PMNode, oldContentPos: number, newContentPos: number): InlineOp[] {
-	const oldTokens = flattenInline(oldNode, oldContentPos);
-	const newTokens = flattenInline(newNode, newContentPos);
+export function diffInline(oldNode: PMNode, newNode: PMNode): InlineOp[] {
+	const oldTokens = flattenInline(oldNode);
+	const newTokens = flattenInline(newNode);
 
 	const edits = levenshteinDiff(oldTokens, newTokens, {
 		equal: tokenContentEqual,
@@ -85,90 +79,64 @@ export function diffInline(oldNode: PMNode, newNode: PMNode, oldContentPos: numb
 					type: 'equalAtom',
 					oldNode: a.atom,
 					newNode: b.atom,
-					marksChanged: !sameMarkSet(a.marks, b.marks),
-					oldFrom: a.from,
-					oldTo: a.to,
-					newFrom: b.from,
-					newTo: b.to
+					marksChanged: !sameMarkSet(a.marks, b.marks)
 				});
 				continue;
 			}
 			const marksChanged = !sameMarkSet(a.marks, b.marks);
 			const last = result[result.length - 1];
-			if (last?.type === 'equal' && last.marksChanged === marksChanged && last.oldTo === a.from && last.newTo === b.from) {
+			if (last?.type === 'equal' && last.marksChanged === marksChanged) {
 				last.text += a.text;
-				last.oldTo = a.to;
-				last.newTo = b.to;
 			} else {
 				result.push({
 					type: 'equal',
 					text: a.text,
 					marksChanged,
 					oldMarks: a.marks,
-					newMarks: b.marks,
-					oldFrom: a.from,
-					oldTo: a.to,
-					newFrom: b.from,
-					newTo: b.to
+					newMarks: b.marks
 				});
 			}
 		} else if (edit.type === 'insert') {
 			const b = edit.b;
 			if (b.atom) {
-				result.push({ type: 'insertAtom', node: b.atom, newFrom: b.from, newTo: b.to });
+				result.push({ type: 'insertAtom', node: b.atom });
 				continue;
 			}
 			const last = result[result.length - 1];
-			if (last?.type === 'insert' && last.newTo === b.from) {
+			if (last?.type === 'insert') {
 				last.text += b.text;
-				last.newTo = b.to;
 			} else {
-				result.push({ type: 'insert', text: b.text, marks: b.marks, newFrom: b.from, newTo: b.to });
+				result.push({ type: 'insert', text: b.text, marks: b.marks });
 			}
 		} else if (edit.type === 'delete') {
 			const a = edit.a;
 			if (a.atom) {
-				result.push({ type: 'deleteAtom', node: a.atom, oldFrom: a.from, oldTo: a.to });
+				result.push({ type: 'deleteAtom', node: a.atom });
 				continue;
 			}
 			const last = result[result.length - 1];
-			if (last?.type === 'delete' && last.oldTo === a.from) {
+			if (last?.type === 'delete') {
 				last.text += a.text;
-				last.oldTo = a.to;
 			} else {
-				result.push({ type: 'delete', text: a.text, marks: a.marks, oldFrom: a.from, oldTo: a.to });
+				result.push({ type: 'delete', text: a.text, marks: a.marks });
 			}
 		} else {
 			const { a, b } = edit;
 			if (a.atom && b.atom) {
-				result.push({
-					type: 'replaceAtom',
-					oldNode: a.atom,
-					newNode: b.atom,
-					oldFrom: a.from,
-					oldTo: a.to,
-					newFrom: b.from,
-					newTo: b.to
-				});
+				result.push({ type: 'replaceAtom', oldNode: a.atom, newNode: b.atom });
 				continue;
 			}
 			const last = result[result.length - 1];
-			if (last?.type === 'replace' && last.oldTo === a.from && last.newTo === b.from) {
+			if (last?.type === 'replace') {
 				last.oldText += a.text;
 				last.newText += b.text;
-				last.oldTo = a.to;
-				last.newTo = b.to;
 			} else {
 				result.push({
 					type: 'replace',
 					oldText: a.text,
 					newText: b.text,
 					oldMarks: a.marks,
-					newMarks: b.marks,
-					oldFrom: a.from,
-					oldTo: a.to,
-					newFrom: b.from,
-					newTo: b.to
+					newMarks: b.marks
 				});
 			}
 		}

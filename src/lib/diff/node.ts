@@ -21,18 +21,14 @@ function sameAttrs(a: PMNode, b: PMNode): boolean {
 	return JSON.stringify(a.attrs) === JSON.stringify(b.attrs);
 }
 
-// oldFrom/newFrom are this node's own position (right before it) in the old/new doc.
-function diffMatchedNode(oldNode: PMNode, newNode: PMNode, oldFrom: number, newFrom: number): Diff {
-	const oldTo = oldFrom + oldNode.nodeSize;
-	const newTo = newFrom + newNode.nodeSize;
-
+function diffMatchedNode(oldNode: PMNode, newNode: PMNode): Diff {
 	if (oldNode.eq(newNode)) {
-		return { type: 'equal', oldNode, newNode, oldFrom, oldTo, newFrom, newTo };
+		return { type: 'equal', oldNode, newNode };
 	}
 
 	// different node types can't be meaningfully compared further
 	if (oldNode.type !== newNode.type) {
-		return { type: 'replace', oldNode, newNode, oldFrom, oldTo, newFrom, newTo };
+		return { type: 'replace', oldNode, newNode };
 	}
 
 	// paragraph, heading, callout, figcaption, button, ... - diff inline content as one
@@ -43,70 +39,45 @@ function diffMatchedNode(oldNode: PMNode, newNode: PMNode, oldFrom: number, newF
 	// paragraph) is technically also "leaf" (content.size === 0).
 	if (oldNode.inlineContent) {
 		if (jaccardDistance(oldNode.textContent, newNode.textContent) > REWRITE_THRESHOLD) {
-			return { type: 'replace', oldNode, newNode, oldFrom, oldTo, newFrom, newTo };
+			return { type: 'replace', oldNode, newNode };
 		}
 
 		return {
 			type: 'inline',
 			oldNode,
 			newNode,
-			oldFrom,
-			oldTo,
-			newFrom,
-			newTo,
 			attrsChanged: !sameAttrs(oldNode, newNode),
-			operations: diffInline(oldNode, newNode, oldFrom + 1, newFrom + 1)
+			operations: diffInline(oldNode, newNode)
 		};
 	}
 
 	// same type, but a leaf/atom (image, audio, toc, ...) - only their attrs can differ, nothing to recurse into
 	if (oldNode.isLeaf || oldNode.isAtom) {
-		return { type: 'attrs', oldNode, newNode, oldFrom, oldTo, newFrom, newTo };
+		return { type: 'attrs', oldNode, newNode };
 	}
 
-	// same type container with block content (blockquote, list item, table cell, etc) -
-	// recurse into children. content starts 1 position in, past this node's own opening token.
+	// same type container with block content (blockquote, list item, table cell, etc) - recurse into children
 	return {
 		type: 'container',
 		oldNode,
 		newNode,
-		oldFrom,
-		oldTo,
-		newFrom,
-		newTo,
 		attrsChanged: !sameAttrs(oldNode, newNode),
-		children: diffChildren(oldNode, newNode, oldFrom + 1, newFrom + 1)
+		children: diffChildren(oldNode, newNode)
 	};
 }
 
-// oldContentPos/newContentPos are the position right before oldNode's/newNode's first child.
-function diffChildren(
-	oldNode: PMNode,
-	newNode: PMNode,
-	oldContentPos: number,
-	newContentPos: number
-): Diff[] {
+function diffChildren(oldNode: PMNode, newNode: PMNode): Diff[] {
 	const alignment = alignNodes(children(oldNode), children(newNode));
 
 	const result: Diff[] = [];
-	let oldPos = oldContentPos;
-	let newPos = newContentPos;
 
 	for (const item of alignment) {
 		if (item.oldNode && item.newNode) {
-			result.push(diffMatchedNode(item.oldNode, item.newNode, oldPos, newPos));
-			oldPos += item.oldNode.nodeSize;
-			newPos += item.newNode.nodeSize;
+			result.push(diffMatchedNode(item.oldNode, item.newNode));
 		} else if (item.newNode) {
-			const newFrom = newPos;
-			const newTo = newFrom + item.newNode.nodeSize;
-			result.push({ type: 'insert', node: item.newNode, newFrom, newTo });
-			newPos = newTo;
+			result.push({ type: 'insert', node: item.newNode });
 		} else if (item.oldNode) {
-			const oldFrom = oldPos;
-			const oldTo = oldFrom + item.oldNode.nodeSize;
-			result.push({ type: 'delete', node: item.oldNode, oldFrom, oldTo });
-			oldPos = oldTo;
+			result.push({ type: 'delete', node: item.oldNode });
 		}
 	}
 	return result;
@@ -118,12 +89,7 @@ function diffChildren(
  * children, inline-content nodes get a word-level diff of their flattened
  * content, leaf/atom nodes are compared by attrs). Both docs must come from
  * the same Schema instance.
- *
- * Every op carries positions: fields prefixed "old" are valid against the
- * old doc, fields prefixed "new" are valid against the new doc (not each
- * other), the same way ProseMirror itself addresses positions. A doc's
- * content starts at position 0.
  */
 export function diffDoc(oldDoc: PMNode, newDoc: PMNode): Diff[] {
-	return diffChildren(oldDoc, newDoc, 0, 0);
+	return diffChildren(oldDoc, newDoc);
 }
