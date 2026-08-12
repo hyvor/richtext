@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { Editor } from '../src/lib';
 	import { getSchema } from '../src/lib/schema';
-	import { diffDoc, buildDiffDoc, type Diff } from '../src/lib/diff';
+	import { diffDoc, diffDecorationsPlugin, renderDiff, type Diff } from '../src/lib/diff';
 	import { Base } from '@hyvor/design/components';
+	import type { EditorView } from 'prosemirror-view';
 
 	const STORAGE_KEY_A = 'diff-doc-a';
 	const STORAGE_KEY_B = 'diff-doc-b';
@@ -57,22 +58,13 @@
 
 	let diffJson = $derived(JSON.stringify(diffResult, null, 2));
 
-	// The merged doc is rebuilt from the diff and re-parsed through JSON so it
-	// can be handed to the diff-display Editor below, which builds its own
-	// (separate) schema instance internally.
-	let diffDocJson: object | null = $derived.by(() => {
-		if (!Array.isArray(diffResult)) return null;
-		try {
-			return buildDiffDoc(diffResult, schema).toJSON();
-		} catch (e) {
-			return null;
-		}
-	});
+	let diffEditorView: EditorView | undefined = $state();
 
-	let diffEditor: Editor;
+	// Rebuilds the merged doc from the diff and applies it - together with
+	// its diff decorations - directly onto the diff-display editor's view.
 	$effect(() => {
-		if (diffDocJson) {
-			diffEditor?.setContent(diffDocJson);
+		if (diffEditorView && Array.isArray(diffResult)) {
+			renderDiff(diffEditorView, diffResult, schema);
 		}
 	});
 </script>
@@ -112,7 +104,17 @@
 				</div>
 			</h3>
 			<div class="diff-display" class:hidden={mode !== 'display'}>
-				<Editor bind:this={diffEditor} value={JSON.stringify(diffDocJson ?? defaultDocA)} editable={false} {schema} editorConfig={editorConfig} />
+				<Editor
+					value={JSON.stringify(defaultDocA)}
+					editable={true}
+					{schema}
+					{editorConfig}
+					plugins={[diffDecorationsPlugin()]}
+					oninit={(view) => (diffEditorView = view)}
+					onvaluechange={val => {
+						console.log(val)
+					}}
+				/>
 			</div>
 			{#if mode === 'json'}
 				<pre>{diffJson}</pre>

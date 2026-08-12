@@ -33,11 +33,12 @@
     "vite": "^6.1.0"
   },
   "peerDependencies": {
-    "@hyvor/design": "^2.1.2",
+    "@hyvor/design": "2.0.1",
     "@hyvor/icons": "^1.1.0",
     "svelte": ">=5"
   },
   "dependencies": {
+    "@fontsource/source-serif-4": "^5.3.0",
     "@sveltejs/package": "^2.4.0",
     "codemirror": "^5.0.0",
     "prosemirror-codemark": "^0.4.2",

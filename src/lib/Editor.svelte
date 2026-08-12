@@ -72,6 +72,7 @@
 		});
 
 		editorStore.set({ view, props });
+		props.oninit?.(view);
 
 		return view;
 	}
@@ -654,9 +655,12 @@
 		border-bottom: 2px dashed #b8860b;
 	}
 
-	.pm-editor :global(div.diff-mark-insert),
-	.pm-editor :global(div.diff-mark-delete),
-	.pm-editor :global(div.diff-mark-format) {
+	/* block-level diffs (inserted/deleted/reformatted paragraph, image, table, ...)
+	   get the class straight on their own element via a node decoration -
+	   inline diffs (text ranges) always render as a <span> */
+	.pm-editor :global(.diff-mark-insert:not(span)),
+	.pm-editor :global(.diff-mark-delete:not(span)),
+	.pm-editor :global(.diff-mark-format:not(span)) {
 		border-radius: 6px;
 		padding: 2px 4px;
 	}

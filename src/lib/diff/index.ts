@@ -1,3 +1,4 @@
 export { diffDoc } from './node';
-export { buildDiffDoc } from './render';
+export { buildDiffDoc, type DiffDoc, type DiffType } from './render';
+export { diffDecorationsPlugin, diffDecorationsKey, renderDiff } from './decorations';
 export type { Diff, InlineOp } from './types';

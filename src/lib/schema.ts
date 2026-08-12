@@ -397,45 +397,6 @@ export const marks = {
          parseDOM: [{tag: "comment"}],
          toDOM() { return ["comment", 0] }
      } as MarkSpec, */
-
-    // Marks inserted/deleted content for diff display (see src/lib/diff).
-    // Not meant to be applied by the user - only by diff rendering.
-    diff: {
-        attrs: {
-            diffType: { default: "insert" } // "insert" | "delete" | "format" (marks changed, text didn't)
-        },
-        parseDOM: [{
-            tag: "span[data-diff], div[data-diff]",
-            getAttrs(dom: HTMLElement) {
-                return { diffType: dom.dataset.diff };
-            }
-        }],
-        toDOM(mark: Mark, inline: boolean) {
-            const { diffType } = mark.attrs;
-            // block nodes (e.g. an inserted paragraph) can't be wrapped in an
-            // inline <span> without producing invalid DOM nesting
-            return [inline ? "span" : "div", {
-                "data-diff": diffType,
-                class: `diff-mark diff-mark-${diffType}`
-            }, 0];
-        }
-    } as MarkSpec,
-}
-
-// By default, ProseMirror only allows marks on nodes with inline content -
-// block-level children (of doc, blockquote, list items, table cells, ...)
-// don't accept marks unless explicitly allowed. The diff mark needs to be
-// applicable to whole block nodes too (an inserted/deleted paragraph, image,
-// table, ...), so it's explicitly allowed wherever block content is accepted.
-function allowDiffMarkOnBlockContent(nodes: ReturnType<typeof addListNodes>) {
-    let result = nodes;
-    nodes.forEach((name, spec) => {
-        const isInlineContent = spec.content !== undefined && /^(inline|text)[*+]?$/.test(spec.content.trim());
-        if (spec.content && spec.marks === undefined && !isInlineContent) {
-            result = result.update(name, { ...spec, marks: "diff" });
-        }
-    });
-    return result;
 }
 
 export function getSchema(config?: Partial<SchemaConfig>): Schema {
@@ -448,7 +409,7 @@ export function getSchema(config?: Partial<SchemaConfig>): Schema {
     });
 
     return new Schema({
-        nodes: allowDiffMarkOnBlockContent(addListNodes(schemaWithoutList.spec.nodes, "block+", "block")),
+        nodes: addListNodes(schemaWithoutList.spec.nodes, "block+", "block"),
         marks
     });
 }
