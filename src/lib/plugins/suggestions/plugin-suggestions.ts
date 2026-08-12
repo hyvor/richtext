@@ -3,6 +3,7 @@ import { AddMarkStep, Mapping, RemoveMarkStep, ReplaceStep } from "prosemirror-t
 import { Fragment, Slice, type Mark, type MarkType, type Node } from "prosemirror-model";
 import { Decoration, DecorationSet } from "prosemirror-view";
 import { isHistoryTransaction } from "prosemirror-history";
+import { SuggestionsPanelView } from "./plugin-suggestions-panel.svelte";
 
 // {id, userId, userName} recorded on a node's suggestionInsert/suggestionDelete
 // attr when the whole node (not just some inline content inside it) is itself
@@ -273,6 +274,14 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
                 console.error("suggestions plugin: failed to rewrite transaction, applying edit as-is", e);
                 return null;
             }
+        },
+
+        // floating accept/dismiss panel - shown whenever there's at least one
+        // pending suggestion, so reviewing suggestions is part of the editor
+        // itself rather than something every app has to build (see
+        // ./plugin-suggestions-panel.svelte.ts and ./SuggestionsPanel.svelte)
+        view(editorView) {
+            return new SuggestionsPanelView(editorView);
         }
 
     });

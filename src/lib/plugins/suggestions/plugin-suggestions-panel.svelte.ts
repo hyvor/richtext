@@ -1,0 +1,49 @@
+import type { EditorState, PluginView } from "prosemirror-state";
+import type { EditorView } from "prosemirror-view";
+import { mount, unmount } from "svelte";
+import SuggestionsPanel from "./SuggestionsPanel.svelte";
+
+// Mounted as the suggestions plugin's PluginView (see plugin-suggestions.ts),
+// so any editor with that plugin attached automatically gets a floating
+// accept/dismiss panel whenever there's at least one pending suggestion -
+// review is part of the editor itself, not something each app has to build.
+export class SuggestionsPanelView implements PluginView {
+
+    view: EditorView;
+    private wrap: HTMLElement;
+    private panel: Record<string, any> | null = null;
+
+    private props: {
+        view: EditorView;
+        updateId: number;
+    } = $state({} as any);
+
+    constructor(view: EditorView) {
+        this.view = view;
+
+        this.wrap = document.createElement("div");
+        this.wrap.className = "pm-suggestions-panel-wrap";
+        view.dom!.parentNode!.appendChild(this.wrap);
+
+        this.props = {
+            view: this.view,
+            updateId: 0
+        };
+
+        this.panel = mount(SuggestionsPanel, {
+            target: this.wrap,
+            props: this.props
+        });
+    }
+
+    update(view: EditorView, lastState: EditorState) {
+        if (lastState && lastState.doc.eq(view.state.doc)) return;
+        this.props.updateId++;
+    }
+
+    destroy() {
+        this.panel && unmount(this.panel);
+        this.wrap.remove();
+    }
+
+}
