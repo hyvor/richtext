@@ -93,6 +93,11 @@ function getNodes(config: SchemaConfig): Record<string, NodeSpec> {
             inline: true,
             group: "inline",
             selectable: false,
+            // hard_break has no inline *content*, so ProseMirror doesn't allow it to
+            // carry marks by default - grant the suggestion marks explicitly so a
+            // line break can be part of a tracked insert/delete/format run (see
+            // src/lib/plugins/suggestions and src/lib/diff).
+            marks: "suggestion_insert suggestion_delete suggestion_format",
             parseDOM: [{ tag: "br" }],
             toDOM() { return ['br'] }
         }
@@ -398,42 +403,100 @@ export const marks = {
          toDOM() { return ["comment", 0] }
      } as MarkSpec, */
 
-    // Marks inserted/deleted content for diff display (see src/lib/diff).
-    // Not meant to be applied by the user - only by diff rendering.
-    diff: {
+    // :: MarkSpec Wraps inline content that was inserted while in suggestion
+    // mode (track changes). The content is part of the document, but is
+    // pending review (accept/reject). Not meant to be applied by the user -
+    // only by the suggestions plugin and the diff renderer. See
+    // src/lib/plugins/suggestions and src/lib/diff.
+    suggestion_insert: {
         attrs: {
-            diffType: { default: "insert" } // "insert" | "delete" | "format" (marks changed, text didn't)
+            id: { default: "" },
+            userId: { default: "" },
+            userName: { default: "" },
         },
-        parseDOM: [{
-            tag: "span[data-diff], div[data-diff]",
-            getAttrs(dom: HTMLElement) {
-                return { diffType: dom.dataset.diff };
-            }
-        }],
-        toDOM(mark: Mark, inline: boolean) {
-            const { diffType } = mark.attrs;
-            // block nodes (e.g. an inserted paragraph) can't be wrapped in an
-            // inline <span> without producing invalid DOM nesting
-            return [inline ? "span" : "div", {
-                "data-diff": diffType,
-                class: `diff-mark diff-mark-${diffType}`
+        inclusive: true,
+        excludes: "",
+        toDOM(mark: Mark) {
+            const { id, userName } = mark.attrs;
+            return ["ins", {
+                class: "suggestion-insert",
+                "data-suggestion-id": id,
+                title: userName ? `Suggested insertion by ${userName}` : "Suggested insertion"
+            }, 0];
+        }
+    } as MarkSpec,
+
+    // :: MarkSpec Wraps inline content "deleted" while in suggestion mode.
+    // Kept in the document (struck through) until the suggestion is accepted
+    // (removes the content) or rejected (restores it).
+    suggestion_delete: {
+        attrs: {
+            id: { default: "" },
+            userId: { default: "" },
+            userName: { default: "" },
+        },
+        inclusive: false,
+        excludes: "",
+        toDOM(mark: Mark) {
+            const { id, userName } = mark.attrs;
+            return ["del", {
+                class: "suggestion-delete",
+                "data-suggestion-id": id,
+                title: userName ? `Suggested deletion by ${userName}` : "Suggested deletion"
+            }, 0];
+        }
+    } as MarkSpec,
+
+    // :: MarkSpec Marks a range of inline content whose formatting (marks)
+    // changed while in suggestion mode. `add` holds the mark type names that
+    // were added, `remove` holds the {type, attrs} of marks that were
+    // removed, so the change can be reverted if the suggestion is rejected.
+    suggestion_format: {
+        attrs: {
+            id: { default: "" },
+            userId: { default: "" },
+            userName: { default: "" },
+            add: { default: [] },
+            remove: { default: [] },
+        },
+        inclusive: false,
+        excludes: "",
+        toDOM(mark: Mark) {
+            const { id, userName } = mark.attrs;
+            return ["span", {
+                class: "suggestion-format",
+                "data-suggestion-id": id,
+                title: userName ? `Suggested formatting by ${userName}` : "Suggested formatting"
             }, 0];
         }
     } as MarkSpec,
 }
 
-// By default, ProseMirror only allows marks on nodes with inline content -
-// block-level children (of doc, blockquote, list items, table cells, ...)
-// don't accept marks unless explicitly allowed. The diff mark needs to be
-// applicable to whole block nodes too (an inserted/deleted paragraph, image,
-// table, ...), so it's explicitly allowed wherever block content is accepted.
-function allowDiffMarkOnBlockContent(nodes: ReturnType<typeof addListNodes>) {
+// The three marks above only apply to inline content (by default, ProseMirror
+// doesn't allow marks on nodes with block content, and leaf/atom nodes like
+// image have no content to carry a mark's range at all). So a whole non-inline
+// node that is itself a pending suggestion - an inserted/deleted blockquote,
+// an image whose src changed, a table whose attrs changed, ... - can't be
+// wrapped in one of the marks. Instead every node except doc/text gets three
+// attrs recording {id, userId, userName} (plus, for suggestionFormat, a
+// snapshot of the node's previous attrs so a reject can restore them) when the
+// node itself - independent of any suggestion marks its own inline content
+// may carry - is a pending insert/delete/format suggestion. These round-trip
+// through JSON like any other attribute. See src/lib/plugins/suggestions and
+// src/lib/diff.
+function withSuggestionAttrs(nodes: ReturnType<typeof addListNodes>): ReturnType<typeof addListNodes> {
     let result = nodes;
     nodes.forEach((name, spec) => {
-        const isInlineContent = spec.content !== undefined && /^(inline|text)[*+]?$/.test(spec.content.trim());
-        if (spec.content && spec.marks === undefined && !isInlineContent) {
-            result = result.update(name, { ...spec, marks: "diff" });
-        }
+        if (name === "doc" || name === "text") return;
+        result = result.update(name, {
+            ...spec,
+            attrs: {
+                ...(spec.attrs ?? {}),
+                suggestionInsert: { default: null },
+                suggestionDelete: { default: null },
+                suggestionFormat: { default: null },
+            }
+        });
     });
     return result;
 }
@@ -448,7 +511,7 @@ export function getSchema(config?: Partial<SchemaConfig>): Schema {
     });
 
     return new Schema({
-        nodes: allowDiffMarkOnBlockContent(addListNodes(schemaWithoutList.spec.nodes, "block+", "block")),
+        nodes: withSuggestionAttrs(addListNodes(schemaWithoutList.spec.nodes, "block+", "block")),
         marks
     });
 }

@@ -64,14 +64,22 @@
 				const docJson = JSON.stringify(tr.doc.toJSON());
 				editorContent.set(docJson);
 
-				props.onvaluechange?.(docJson);
-
 				const state = view!.state.apply(tr);
 				view!.updateState(state);
+
+				// fire after the view's state is updated, so listeners (e.g. a
+				// suggestions panel calling back into editorView.state) see the
+				// latest doc rather than the one before this transaction - a
+				// plugin's appendTransaction (see src/lib/plugins/suggestions) can
+				// add further changes on top of tr that view.state already
+				// reflects at this point, but tr.doc/docJson above do not
+				props.onvaluechange?.(docJson);
 			}
 		});
 
 		editorStore.set({ view, props });
+
+		props.oninit?.(view);
 
 		return view;
 	}
@@ -637,27 +645,50 @@
 		color: var(--text-light);
 	}
 
-	.pm-editor :global(.diff-mark-insert) {
-		background-color: rgba(40, 167, 69, 0.15);
-		color: #1a7431;
-		text-decoration: none;
+	/* inline suggestion marks - see schema.ts and src/lib/plugins/suggestions */
+
+	.pm-editor :global(ins.suggestion-insert) {
+		text-decoration: underline;
+		text-decoration-color: #2e9e5b;
+		background-color: rgba(46, 158, 91, 0.15);
+		color: inherit;
 	}
 
-	.pm-editor :global(.diff-mark-delete) {
-		background-color: rgba(220, 53, 69, 0.15);
-		color: #a51c2c;
+	.pm-editor :global(del.suggestion-delete) {
 		text-decoration: line-through;
+		text-decoration-color: #d64545;
+		background-color: rgba(214, 69, 69, 0.12);
+		color: inherit;
+		opacity: 0.75;
 	}
 
-	.pm-editor :global(.diff-mark-format) {
-		background-color: rgba(255, 193, 7, 0.2);
-		border-bottom: 2px dashed #b8860b;
+	.pm-editor :global(span.suggestion-format) {
+		text-decoration: underline wavy;
+		text-decoration-color: #b5892e;
+		text-underline-offset: 3px;
 	}
 
-	.pm-editor :global(div.diff-mark-insert),
-	.pm-editor :global(div.diff-mark-delete),
-	.pm-editor :global(div.diff-mark-format) {
+	/* whole-node suggestions (a deleted/inserted/reformatted block or atom node
+	   that can't carry an inline mark) - rendered as decorations from the
+	   suggestionInsert/suggestionDelete/suggestionFormat node attrs, see
+	   plugin-suggestions.ts */
+
+	.pm-editor :global(.suggestion-node-insert) {
+		outline: 2px dashed #2e9e5b;
+		outline-offset: 2px;
 		border-radius: 6px;
-		padding: 2px 4px;
+		background-color: rgba(46, 158, 91, 0.08);
+	}
+
+	.pm-editor :global(.suggestion-node-delete) {
+		opacity: 0.5;
+		outline: 2px dashed #d64545;
+		outline-offset: 2px;
+	}
+
+	.pm-editor :global(.suggestion-node-format) {
+		outline: 2px dashed #b5892e;
+		outline-offset: 2px;
+		border-radius: 6px;
 	}
 </style>
