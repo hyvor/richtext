@@ -16,6 +16,7 @@ const MIN_SUBSTITUTE_COST = 1;
 // pair the alignment DP considers. Also reused by node.ts to decide whether
 // an already-matched pair is similar enough to be worth diffing word-by-word.
 export function jaccardDistance(a: string, b: string): number {
+	// Note: won't work well with languages with no whitespace between words.
 	const wordsA = new Set(a.toLowerCase().split(/\s+/).filter(Boolean));
 	const wordsB = new Set(b.toLowerCase().split(/\s+/).filter(Boolean));
 	if (wordsA.size === 0 && wordsB.size === 0) return 0;
@@ -31,7 +32,7 @@ export function jaccardDistance(a: string, b: string): number {
 /**
  * Cost of pairing two non-equal, same-type nodes as a "substitution" rather
  * than an unrelated delete + insert. Scaled by how similar their text
- * content actually is - a lightly-edited paragraph should align with its old
+ * content actually is. a lightly-edited paragraph should align with its old
  * version even when other paragraphs are inserted/deleted around it, rather
  * than tying with (and possibly losing to) an unrelated node at the same
  * cost. A flat cost here can't tell those apart and picks arbitrarily.
@@ -54,7 +55,7 @@ function substitutionCost(a: PMNode, b: PMNode): number {
  */
 export function alignNodes(oldNodes: PMNode[], newNodes: PMNode[]): AlignItem[] {
 	const ops = levenshteinDiff(oldNodes, newNodes, {
-		equal: (a, b) => a.eq(b),
+		equal: (a, b) => a.eq(b), // same if node type, attrs, children are the same
 		substitutionCost,
 		insertCost: INSERT_COST,
 		deleteCost: DELETE_COST

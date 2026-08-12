@@ -22,7 +22,7 @@ function sameAttrs(a: PMNode, b: PMNode): boolean {
 }
 
 // oldFrom/newFrom are this node's own position (right before it) in the old/new doc.
-export function diffMatchedNode(oldNode: PMNode, newNode: PMNode, oldFrom: number, newFrom: number): Diff {
+function diffMatchedNode(oldNode: PMNode, newNode: PMNode, oldFrom: number, newFrom: number): Diff {
 	const oldTo = oldFrom + oldNode.nodeSize;
 	const newTo = newFrom + newNode.nodeSize;
 
@@ -80,7 +80,7 @@ export function diffMatchedNode(oldNode: PMNode, newNode: PMNode, oldFrom: numbe
 }
 
 // oldContentPos/newContentPos are the position right before oldNode's/newNode's first child.
-export function diffChildren(
+function diffChildren(
 	oldNode: PMNode,
 	newNode: PMNode,
 	oldContentPos: number,
