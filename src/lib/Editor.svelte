@@ -701,4 +701,43 @@
 		outline-offset: 2px;
 		border-radius: 6px;
 	}
+
+	/* a whole-node replace (diff/render.ts's 'replace' case, or diff/node.ts
+	   falling back to one for a heavily-rewritten paragraph/heading) - a
+	   deleted node immediately followed by its replacement, sharing one
+	   suggestion id. Flush their outlines together into one continuous card
+	   with the connector label below in between, so the pair reads as one
+	   "this became that" change instead of two unrelated edits. */
+	.pm-editor :global(.suggestion-node-replace-delete) {
+		outline-offset: 0;
+		border-radius: 6px 6px 0 0;
+	}
+
+	.pm-editor :global(.suggestion-node-replace-insert) {
+		outline-offset: 0;
+		border-radius: 0 0 6px 6px;
+		margin-top: 0 !important;
+	}
+
+	.pm-editor :global(.suggestion-replace-connector) {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 3px 10px;
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: #8a5fd6;
+		user-select: none;
+	}
+
+	.pm-editor :global(.suggestion-replace-connector::before),
+	.pm-editor :global(.suggestion-replace-connector::after) {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: currentColor;
+		opacity: 0.35;
+	}
 </style>

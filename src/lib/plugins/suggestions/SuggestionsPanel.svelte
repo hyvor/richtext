@@ -85,8 +85,18 @@
 
 	function label(item: SuggestionItem): string {
 		const parts: string[] = [];
-		if (item.deletedNodeType) parts.push(`Deleted ${item.deletedNodeType}`);
-		if (item.insertedNodeType) parts.push(`Inserted ${item.insertedNodeType}`);
+		if (item.deletedNodeType && item.insertedNodeType) {
+			// a whole-node replace (see diff/render.ts) - one grouped suggestion,
+			// not a separate delete and insert
+			parts.push(
+				item.deletedNodeType === item.insertedNodeType
+					? `Replaced ${item.deletedNodeType}`
+					: `Replaced ${item.deletedNodeType} with ${item.insertedNodeType}`
+			);
+		} else {
+			if (item.deletedNodeType) parts.push(`Deleted ${item.deletedNodeType}`);
+			if (item.insertedNodeType) parts.push(`Inserted ${item.insertedNodeType}`);
+		}
 		if (item.formattedNodeType) parts.push(`Changed ${item.formattedNodeType}`);
 		if (item.insertedText) parts.push(`+ "${item.insertedText}"`);
 		if (item.deletedText) parts.push(`− "${item.deletedText}"`);

@@ -140,23 +140,56 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
             // marks, they stay visible until accepted/rejected).
             decorations(state) {
                 const decorations: Decoration[] = [];
+
+                // A whole-node "replace" (see mergeDiffs's 'replace' case in diff/render.ts)
+                // is a deleted node immediately followed by its replacement, the two sharing
+                // one suggestion id. Collect which ids have both halves up front so those two
+                // nodes can be styled as one connected pair below, instead of looking like two
+                // unrelated changes that happen to sit next to each other.
+                const deleteIds = new Set<string>();
+                const insertIds = new Set<string>();
+                state.doc.descendants((node) => {
+                    const del = node.attrs.suggestionDelete as SuggestionNodeMeta | null | undefined;
+                    if (del && del.id) deleteIds.add(del.id);
+                    const ins = node.attrs.suggestionInsert as SuggestionNodeMeta | null | undefined;
+                    if (ins && ins.id) insertIds.add(ins.id);
+                    return true;
+                });
+
                 state.doc.descendants((node, pos) => {
                     const del = node.attrs.suggestionDelete as SuggestionNodeMeta | null | undefined;
                     if (del && del.id) {
+                        const isReplace = insertIds.has(del.id);
                         decorations.push(Decoration.node(pos, pos + node.nodeSize, {
-                            class: "suggestion-node-delete",
+                            class: isReplace ? "suggestion-node-delete suggestion-node-replace-delete" : "suggestion-node-delete",
                             "data-suggestion-id": del.id,
-                            title: del.userName ? `Suggested deletion by ${del.userName}` : "Suggested deletion"
+                            title: del.userName
+                                ? `Suggested ${isReplace ? "replacement" : "deletion"} by ${del.userName}`
+                                : `Suggested ${isReplace ? "replacement" : "deletion"}`
                         }));
+                        if (isReplace) {
+                            // sits right at the boundary between the deleted node and its
+                            // paired inserted node - a small "replaced" divider connecting them
+                            decorations.push(Decoration.widget(pos + node.nodeSize, () => {
+                                const el = document.createElement("div");
+                                el.className = "suggestion-replace-connector";
+                                el.setAttribute("data-suggestion-id", del.id);
+                                el.textContent = "Replaced with";
+                                return el;
+                            }, { key: `replace-${del.id}` }));
+                        }
                         return false;
                     }
 
                     const ins = node.attrs.suggestionInsert as SuggestionNodeMeta | null | undefined;
                     if (ins && ins.id) {
+                        const isReplace = deleteIds.has(ins.id);
                         decorations.push(Decoration.node(pos, pos + node.nodeSize, {
-                            class: "suggestion-node-insert",
+                            class: isReplace ? "suggestion-node-insert suggestion-node-replace-insert" : "suggestion-node-insert",
                             "data-suggestion-id": ins.id,
-                            title: ins.userName ? `Suggested insertion by ${ins.userName}` : "Suggested insertion"
+                            title: ins.userName
+                                ? `Suggested ${isReplace ? "replacement" : "insertion"} by ${ins.userName}`
+                                : `Suggested ${isReplace ? "replacement" : "insertion"}`
                         }));
                         return false;
                     }
