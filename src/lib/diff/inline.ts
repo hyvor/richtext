@@ -76,10 +76,15 @@ export function diffInline(oldNode: PMNode, newNode: PMNode, oldContentPos: numb
 	});
 
 	const result: InlineOp[] = [];
+	// tracks the old-doc position right after the last old-side token consumed
+	// (by an equal/delete/replace edit) - used as the insertion anchor for
+	// insert/insertAtom edits, which don't otherwise touch the old doc at all
+	let oldAnchor = oldContentPos;
 
 	for (const edit of edits) {
 		if (edit.type === 'equal') {
 			const { a, b } = edit;
+			oldAnchor = a.to;
 			if (a.atom && b.atom) {
 				result.push({
 					type: 'equalAtom',
@@ -115,7 +120,7 @@ export function diffInline(oldNode: PMNode, newNode: PMNode, oldContentPos: numb
 		} else if (edit.type === 'insert') {
 			const b = edit.b;
 			if (b.atom) {
-				result.push({ type: 'insertAtom', node: b.atom, newFrom: b.from, newTo: b.to });
+				result.push({ type: 'insertAtom', node: b.atom, oldFrom: oldAnchor, oldTo: oldAnchor, newFrom: b.from, newTo: b.to });
 				continue;
 			}
 			const last = result[result.length - 1];
@@ -123,10 +128,11 @@ export function diffInline(oldNode: PMNode, newNode: PMNode, oldContentPos: numb
 				last.text += b.text;
 				last.newTo = b.to;
 			} else {
-				result.push({ type: 'insert', text: b.text, marks: b.marks, newFrom: b.from, newTo: b.to });
+				result.push({ type: 'insert', text: b.text, marks: b.marks, oldFrom: oldAnchor, oldTo: oldAnchor, newFrom: b.from, newTo: b.to });
 			}
 		} else if (edit.type === 'delete') {
 			const a = edit.a;
+			oldAnchor = a.to;
 			if (a.atom) {
 				result.push({ type: 'deleteAtom', node: a.atom, oldFrom: a.from, oldTo: a.to });
 				continue;
@@ -140,6 +146,7 @@ export function diffInline(oldNode: PMNode, newNode: PMNode, oldContentPos: numb
 			}
 		} else {
 			const { a, b } = edit;
+			oldAnchor = a.to;
 			if (a.atom && b.atom) {
 				result.push({
 					type: 'replaceAtom',

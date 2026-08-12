@@ -17,7 +17,9 @@ export type InlineOp =
 			newFrom: number;
 			newTo: number;
 	  }
-	| { type: 'insert'; text: string; marks: readonly Mark[]; newFrom: number; newTo: number }
+	// oldFrom/oldTo are a collapsed anchor (oldFrom === oldTo): where this text
+	// would be inserted in the old doc, since none of it exists there
+	| { type: 'insert'; text: string; marks: readonly Mark[]; oldFrom: number; oldTo: number; newFrom: number; newTo: number }
 	| { type: 'delete'; text: string; marks: readonly Mark[]; oldFrom: number; oldTo: number }
 	| {
 			type: 'replace';
@@ -41,7 +43,9 @@ export type InlineOp =
 			newFrom: number;
 			newTo: number;
 	  }
-	| { type: 'insertAtom'; node: PMNode; newFrom: number; newTo: number }
+	// oldFrom/oldTo are a collapsed anchor (oldFrom === oldTo): where this node
+	// would be inserted in the old doc, since it doesn't exist there
+	| { type: 'insertAtom'; node: PMNode; oldFrom: number; oldTo: number; newFrom: number; newTo: number }
 	| { type: 'deleteAtom'; node: PMNode; oldFrom: number; oldTo: number }
 	| {
 			type: 'replaceAtom';
@@ -55,7 +59,9 @@ export type InlineOp =
 
 export type Diff =
 	| { type: 'equal'; oldNode: PMNode; newNode: PMNode; oldFrom: number; oldTo: number; newFrom: number; newTo: number }
-	| { type: 'insert'; node: PMNode; newFrom: number; newTo: number }
+	// oldFrom/oldTo are a collapsed anchor (oldFrom === oldTo): where this node
+	// would be inserted in the old doc, since it doesn't exist there
+	| { type: 'insert'; node: PMNode; oldFrom: number; oldTo: number; newFrom: number; newTo: number }
 	| { type: 'delete'; node: PMNode; oldFrom: number; oldTo: number }
 	| {
 			type: 'replace';

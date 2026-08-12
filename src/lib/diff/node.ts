@@ -88,7 +88,7 @@ export function diffChildren(
 		} else if (item.newNode) {
 			const newFrom = newPos;
 			const newTo = newFrom + item.newNode.nodeSize;
-			result.push({ type: 'insert', node: item.newNode, newFrom, newTo });
+			result.push({ type: 'insert', node: item.newNode, oldFrom: oldPos, oldTo: oldPos, newFrom, newTo });
 			newPos = newTo;
 		} else if (item.oldNode) {
 			const oldFrom = oldPos;
