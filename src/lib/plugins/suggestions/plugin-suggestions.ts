@@ -528,6 +528,48 @@ function markNodesDeleted(tr: Transaction, nodes: { node: Node; pos: number }[],
     return attrs.id;
 }
 
+// Detects a slice made up entirely of complete block-level (non-text,
+// non-inline) nodes with no split ends - the mirror image of
+// findWholeNodeRange, but for content being *inserted* rather than removed.
+// A structural split (e.g. the slice ProseMirror builds for pressing Enter)
+// has open ends, so it never matches this; only a slice that's cleanly a
+// list of whole nodes - a fresh node created via the node menu's drag handle
+// or the slash menu - does.
+function wholeBlockNodesInSlice(slice: Slice): Node[] | null {
+    if (slice.openStart > 0 || slice.openEnd > 0) return null;
+    if (slice.content.childCount === 0) return null;
+
+    const nodes: Node[] = [];
+    let allBlock = true;
+    slice.content.forEach(node => {
+        if (node.isText || node.isInline) allBlock = false;
+        nodes.push(node);
+    });
+    return allBlock ? nodes : null;
+}
+
+// Inserts whole node(s) and marks them as pending-insert suggestions via
+// their `suggestionInsert` attr - the insertion counterpart of
+// markNodesDeleted. `reuseId`, when given, pairs this insertion with an
+// existing deletion (the 'replace' case in handleReplaceStep) so the two
+// render as one connected suggestion instead of two unrelated ones.
+function markNodesInserted(
+    tr: Transaction,
+    from: number,
+    nodes: readonly Node[],
+    user: SuggestionUser,
+    reuseId?: string
+): string {
+    const attrs: SuggestionNodeMeta = { id: reuseId ?? generateSuggestionId(), userId: user.id, userName: user.name };
+    let pos = from;
+    for (const node of nodes) {
+        tr.insert(pos, node);
+        tr.setNodeAttribute(pos, "suggestionInsert", attrs);
+        pos += node.nodeSize;
+    }
+    return attrs.id;
+}
+
 // Returns the suggestion id involved (for callers that need it, e.g. to group
 // consecutive edits in the undo history), or null if this step didn't result
 // in a tracked suggestion change (structural passthrough, no-op, etc).
@@ -543,6 +585,34 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, user: SuggestionU
         const wholeNodes = findWholeNodeRange(tr.doc, from, to);
         if (wholeNodes) {
             return markNodesDeleted(tr, wholeNodes, user);
+        }
+    } else {
+        const insertedNodes = wholeBlockNodesInSlice(slice);
+        if (insertedNodes) {
+            if (from === to) {
+                // pure whole-node insertion, nothing replaced - e.g. a node
+                // dropped here via the node menu's drag handle
+                return markNodesInserted(tr, from, insertedNodes, user);
+            }
+
+            const wholeNodes = findWholeNodeRange(tr.doc, from, to);
+            if (wholeNodes) {
+                // whole node(s) replaced by (a) different whole node(s) -
+                // e.g. turning the paragraph "/image" was typed into into an
+                // actual image via the slash menu (Slash.svelte's handleClick
+                // replaces the whole node in one step). Keep the old node(s)
+                // in place (marked deleted, same as a plain whole-node
+                // delete) and insert the new one right after, pairing them
+                // with a shared id so they render as one connected "replaced
+                // with" suggestion (see the decorations prop above and
+                // diff/render.ts's 'replace' case, which produces the same
+                // shape from a document diff).
+                const deleteId = markNodesDeleted(tr, wholeNodes, user);
+                if (deleteId) {
+                    const last = wholeNodes[wholeNodes.length - 1]!;
+                    return markNodesInserted(tr, last.pos + last.node.nodeSize, insertedNodes, user, deleteId);
+                }
+            }
         }
     }
 

@@ -147,7 +147,13 @@
 		const tr2 = view.state.tr;
 
 		view.dispatch(
-			tr2.setSelection(TextSelection.create(tr.doc, pos + 1)).scrollIntoView()
+			// tr2.doc (i.e. the current view.state.doc), not tr.doc - a
+			// plugin's appendTransaction (e.g. the suggestions plugin, see
+			// plugin-suggestions.ts) can rewrite what actually landed in the
+			// document after the first dispatch, so tr.doc may already be a
+			// stale/different doc than what this second transaction is
+			// building on top of, which setSelection rejects
+			tr2.setSelection(TextSelection.create(tr2.doc, pos + 1)).scrollIntoView()
 			/*  tr2
                 .setSelection(
                     m.focusInput ? NodeSelection.create(tr2.doc, pos + 1) :

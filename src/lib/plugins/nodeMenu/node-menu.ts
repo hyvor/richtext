@@ -1,63 +1,87 @@
-import type { ResolvedPos } from "prosemirror-model";
-import type { NodeSelection } from "prosemirror-state";
+import type { Node, ResolvedPos } from "prosemirror-model";
+import { NodeSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import { get, writable } from "svelte/store";
+import { writable } from "svelte/store";
 
-export const nodeMenuUpdateId = writable(0);
+/**
+ * Position (in the doc) right in front of the top-level block that the
+ * pointer is currently over (or, while dragging, the block being targeted
+ * as the drop location). `null` when the pointer isn't over any block.
+ */
 export const nodeMenuPos = writable<null | number>(null);
 
 /**
- * In an image node, it does not make sense to show the node menu near the caption,
- * we always want to show it near the <figure> element.
- * This function resolves the current position to the most appropriate position to show the node menu.
+ * Resolves any position in the document to the position right in front of
+ * the top-level (depth 1) block that contains it, so hovering/clicking
+ * anywhere inside a node - an image inside a <figure>, text inside a list
+ * or table cell, a figcaption, etc. - resolves to the block that should
+ * actually be shown/dragged as a whole.
  */
-export function resolveNodeMenuPos(current: ResolvedPos): number {
-    if (current.parent.type.name === "figcaption") {
-        return current.before(current.depth - 1);
+export function topLevelBlockPosAt($pos: ResolvedPos): number {
+    if ($pos.depth >= 1) {
+        return $pos.before(1);
     }
-    return current.pos;
+
+    // depth 0 - $pos already sits exactly between two top-level blocks (or
+    // at the very start/end of the doc), since the doc's content is
+    // `block+`, so every depth-0 position is a boundary between blocks.
+    if ($pos.nodeAfter) {
+        return $pos.pos;
+    }
+    if ($pos.nodeBefore) {
+        return $pos.pos - $pos.nodeBefore.nodeSize;
+    }
+    return $pos.pos;
 }
 
 export function deleteNode(view: EditorView, pos: number) {
     const { state, dispatch } = view;
-    const resolvedPos = state.doc.resolve(pos);
-    const tr = state.tr.delete(resolvedPos.before(), resolvedPos.after());
-    dispatch(tr);
+    const node = state.doc.nodeAt(pos);
+    if (!node) return;
+    dispatch(state.tr.delete(pos, pos + node.nodeSize));
     view.focus();
 }
 
-// duplicateNode() {
-//     console.log('duplicateNode');
-//     const { state, dispatch } = this.view;
-//     const { selection } = state;
+/**
+ * Moves the top-level block at `sourcePos` so that it ends up right before
+ * (or, if `insertAfter`, right after) the top-level block at `targetPos`.
+ * Both positions must point directly in front of a top-level block, e.g. as
+ * returned by topLevelBlockPosAt().
+ *
+ * This dispatches a plain delete-then-insert transaction; if the suggestions
+ * plugin is active in "suggesting" mode, it intercepts this (like any other
+ * transaction) and rewrites it into a pending delete/insert suggestion pair -
+ * see plugin-suggestions.ts.
+ */
+export function moveNode(
+    view: EditorView,
+    sourcePos: number,
+    targetPos: number,
+    insertAfter: boolean
+) {
+    const { state } = view;
+    const sourceNode = state.doc.nodeAt(sourcePos);
+    if (!sourceNode) return;
 
-//     if (!(selection instanceof NodeSelection)) {
-//         console.log('selection is not NodeSelection');
-//         return;
-//     }
+    const sourceEnd = sourcePos + sourceNode.nodeSize;
 
-//     const nodeToDuplicate = selection.$from.node();
+    let insertPos = targetPos;
+    if (insertAfter) {
+        const targetNode = state.doc.nodeAt(targetPos);
+        if (!targetNode) return;
+        insertPos = targetPos + targetNode.nodeSize;
+    }
 
-//     if (!nodeToDuplicate) {
-//         console.log('nodeToDuplicate is not found');
-//         return;
-//     }
+    // dropped back right where it started - nothing to do
+    if (insertPos === sourcePos || insertPos === sourceEnd) return;
 
-//     const tr = state.tr;
+    const tr = state.tr;
+    tr.delete(sourcePos, sourceEnd);
 
-//     const duplicatedNode = nodeToDuplicate.type.create(
-//         nodeToDuplicate.attrs,
-//         nodeToDuplicate.content,
-//         nodeToDuplicate.marks
-//     );
+    const mappedInsertPos = tr.mapping.map(insertPos);
+    tr.insert(mappedInsertPos, sourceNode as Node);
+    tr.setSelection(NodeSelection.create(tr.doc, mappedInsertPos));
 
-//     const insertionPos = selection.$from.after();
-//     tr.insert(insertionPos, duplicatedNode);
-
-//     // Set the selection to the duplicated node
-//     const duplicatedNodePos = insertionPos;
-//     const newSelection = NodeSelection.create(tr.doc, duplicatedNodePos);
-//     tr.setSelection(newSelection);
-
-//     dispatch(tr);
-// }
+    view.dispatch(tr.scrollIntoView());
+    view.focus();
+}
