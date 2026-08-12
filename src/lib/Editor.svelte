@@ -668,6 +668,16 @@
 		text-underline-offset: 3px;
 	}
 
+	/* a word-level replace (see diff/render.ts) renders as a delete run right
+	   next to an insert run, with no actual space character between them (an
+	   unmarked space node wouldn't belong to either suggestion, so it would
+	   survive accept/reject and leave a stray space in the final doc) - add
+	   the visual gap in CSS instead, so they don't look glued together */
+	.pm-editor :global(del.suggestion-delete + ins.suggestion-insert),
+	.pm-editor :global(ins.suggestion-insert + del.suggestion-delete) {
+		margin-left: 0.25em;
+	}
+
 	/* whole-node suggestions (a deleted/inserted/reformatted block or atom node
 	   that can't carry an inline mark) - rendered as decorations from the
 	   suggestionInsert/suggestionDelete/suggestionFormat node attrs, see

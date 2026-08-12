@@ -86,14 +86,17 @@ function inlineOpNodes(op: InlineOp, schema: Schema, user: SuggestionUser): PMNo
 			return [schema.text(op.text, mark.addToSet(op.marks))];
 		}
 		case 'replace': {
-			// shared id so accept/reject resolves the old/new pair as one suggestion;
-			// unmarked space between them so they don't visually run together
+			// shared id so accept/reject resolves the old/new pair as one suggestion.
+			// No literal space between old/new text: an unmarked space node would
+			// carry no suggestion mark of its own, so it would survive both accept
+			// and reject untouched and leave a stray/doubled space behind in the
+			// final doc. The visual gap between them is done in CSS instead (see
+			// `del.suggestion-delete + ins.suggestion-insert` in Editor.svelte).
 			const id = generateSuggestionId();
 			const delMark = deleteType.create({ id, userId: user.id, userName: user.name });
 			const insMark = insertType.create({ id, userId: user.id, userName: user.name });
 			return [
 				schema.text(op.oldText, delMark.addToSet(op.oldMarks)),
-				schema.text(' '),
 				schema.text(op.newText, insMark.addToSet(op.newMarks))
 			];
 		}

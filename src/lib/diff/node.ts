@@ -1,6 +1,6 @@
 import type { Node as PMNode } from 'prosemirror-model';
 import type { Diff } from './types';
-import { alignNodes } from './align';
+import { alignNodes, jaccardDistance } from './align';
 import { diffInline } from './inline';
 
 function children(node: PMNode): PMNode[] {
@@ -8,6 +8,14 @@ function children(node: PMNode): PMNode[] {
 	node.forEach((child) => result.push(child));
 	return result;
 }
+
+// Above this much word-overlap distance, a matched pair counts as "rewritten"
+// rather than "edited": a word-by-word diff of two mostly-unrelated sentences
+// reads as noise (an alternating wall of replace/equal runs), so it's shown
+// as a plain whole-node replace instead. Below it, most of the content
+// survived, so a single changed word still gets a precise, minimal inline
+// diff instead of the whole line being flagged as changed.
+const REWRITE_THRESHOLD = 0.6;
 
 function sameAttrs(a: PMNode, b: PMNode): boolean {
 	return JSON.stringify(a.attrs) === JSON.stringify(b.attrs);
@@ -34,6 +42,10 @@ export function diffMatchedNode(oldNode: PMNode, newNode: PMNode, oldFrom: numbe
 	// isLeaf/isAtom test below since an *empty* inline-content node (e.g. an empty
 	// paragraph) is technically also "leaf" (content.size === 0).
 	if (oldNode.inlineContent) {
+		if (jaccardDistance(oldNode.textContent, newNode.textContent) > REWRITE_THRESHOLD) {
+			return { type: 'replace', oldNode, newNode, oldFrom, oldTo, newFrom, newTo };
+		}
+
 		return {
 			type: 'inline',
 			oldNode,

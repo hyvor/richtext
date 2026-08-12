@@ -13,8 +13,9 @@ const MIN_SUBSTITUTE_COST = 1;
 
 // Cheap word-overlap distance (0 = same words, 1 = no overlap). Good enough
 // to rank candidate pairings without paying for a full text diff on every
-// pair the alignment DP considers.
-function jaccardDistance(a: string, b: string): number {
+// pair the alignment DP considers. Also reused by node.ts to decide whether
+// an already-matched pair is similar enough to be worth diffing word-by-word.
+export function jaccardDistance(a: string, b: string): number {
 	const wordsA = new Set(a.toLowerCase().split(/\s+/).filter(Boolean));
 	const wordsB = new Set(b.toLowerCase().split(/\s+/).filter(Boolean));
 	if (wordsA.size === 0 && wordsB.size === 0) return 0;
