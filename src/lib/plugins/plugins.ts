@@ -14,7 +14,7 @@ import tableMenuPlugin from './table/plugin-table-menu.svelte.js';
 import type { Schema } from 'prosemirror-model';
 import buttonTooltipPlugin from './button-tooltip/plugin-button-tooltip.svelte';
 import type { EditorConfig } from '$lib/config';
-// import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
+import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
 // import { completionPlugin } from './completion/plugin-completion';
 
 export function getPlugins(schema: Schema, config: EditorConfig) {
@@ -42,7 +42,7 @@ export function getPlugins(schema: Schema, config: EditorConfig) {
 		// ...codemark({ markType: schema.marks.code }),
 
 
-		// nodeMenuPlugin(),
+		nodeMenuPlugin(),
 		// completionPlugin(),
 	];
 

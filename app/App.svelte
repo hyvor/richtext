@@ -1,13 +1,30 @@
 <script lang="ts">
-	import { Editor, getSchema } from '../src/lib';
-	import { Base } from '@hyvor/design/components';
+	import { Editor, getSchema, suggestionsPlugin, setSuggestionMode, type SuggestionMode } from '../src/lib';
+	import { Base, Button } from '@hyvor/design/components';
 
 	let editor: Editor;
 
 	let editable = $state(true);
 
 	const schema = getSchema();
-	
+
+	// lets the demo page exercise "suggesting" mode (edits get wrapped as
+	// suggestion_insert/suggestion_delete/suggestion_format instead of applied
+	// directly, reviewable via the floating suggestions panel) against the
+	// same editor/document used for everything else on this page, rather than
+	// only being testable through the separate diff demo
+	let suggestionMode: SuggestionMode = $state('editing');
+	const editorSuggestionsPlugin = suggestionsPlugin({
+		user: { id: 'demo-user', name: 'Demo User' },
+		mode: suggestionMode
+	});
+
+	function setMode(newMode: SuggestionMode) {
+		suggestionMode = newMode;
+		const view = editor?.getView();
+		if (view) setSuggestionMode(view, newMode);
+	}
+
 	function setContent() {
 		editor.setContent(JSON.stringify({
 			type: 'doc',
@@ -33,6 +50,7 @@
 			value={localStorage.getItem('doc')}
 			onvaluechange={(val) => localStorage.setItem('doc', val)}
 			{schema}
+			plugins={[editorSuggestionsPlugin]}
 			editorConfig={{
 				codeBlockConfig: {
 					language: true,
@@ -60,6 +78,22 @@
 	}}>
 		{editable ? 'Set Readonly' : 'Set Editable'}
 	</button>
+	<div class="suggestion-mode-switch">
+		<Button
+			size="x-small"
+			color={suggestionMode === 'editing' ? 'accent' : 'gray'}
+			onclick={() => setMode('editing')}
+		>
+			Editing
+		</Button>
+		<Button
+			size="x-small"
+			color={suggestionMode === 'suggesting' ? 'accent' : 'gray'}
+			onclick={() => setMode('suggesting')}
+		>
+			Suggesting
+		</Button>
+	</div>
 </div>
 
 <style>
@@ -75,5 +109,11 @@
 		margin: 20px auto;
 		width: 650px;
 		text-align: center;
+	}
+	.suggestion-mode-switch {
+		display: inline-flex;
+		gap: 4px;
+		margin-left: 8px;
+		vertical-align: middle;
 	}
 </style>

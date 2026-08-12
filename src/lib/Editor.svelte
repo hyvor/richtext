@@ -168,7 +168,6 @@
 		--prosemirror-selected-outline: 3px solid #299af3;
 		position: relative;
 		height: 100%;
-		font-family: var(--font-serif);
 	}
 
 	.pm-editor.loaded {
@@ -247,6 +246,7 @@
 		line-height: 30px;
 		margin-top: 30px;
 		letter-spacing: 0.2px;
+		font-family: var(--font-serif);
 	}
 
 	.pm-editor :global(.heading-wrap) {
