@@ -695,8 +695,7 @@
 
 	/* whole-node suggestions (a deleted/inserted/reformatted block or atom node
 	   that can't carry an inline mark) - rendered as decorations from the
-	   suggestionInsert/suggestionDelete/suggestionFormat node attrs, see
-	   plugin-suggestions.ts */
+	   `suggestion` node attr, see plugin-suggestions.ts */
 
 	.pm-editor :global(.suggestion-node-insert) {
 		outline: 2px dashed #2e9e5b;

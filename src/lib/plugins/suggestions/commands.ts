@@ -4,6 +4,7 @@ import { closeHistory } from "prosemirror-history";
 import {
     suggestionsPluginKey,
     SUGGESTIONS_SKIP_META,
+    findSuggestionMark,
     type SuggestionMode,
     type SuggestionUser,
     type SuggestionNodeMeta,
@@ -50,10 +51,8 @@ export function setSuggestionUser(view: EditorView, user: SuggestionUser) {
 
 export function getSuggestions(state: EditorState): SuggestionItem[] {
     const schema = state.schema;
-    const insertType = schema.marks.suggestion_insert;
-    const deleteType = schema.marks.suggestion_delete;
-    const formatType = schema.marks.suggestion_format;
-    if (!insertType && !deleteType && !formatType) return [];
+    const suggestionType = schema.marks.suggestion;
+    if (!suggestionType) return [];
 
     const items = new Map<string, SuggestionItem>();
 
@@ -75,42 +74,24 @@ export function getSuggestions(state: EditorState): SuggestionItem[] {
         // inserted/deleted node's children looking for more (a reformatted
         // node's children are still walked, since they may carry their own,
         // independent suggestions)
-        const nodeDelete = node.attrs.suggestionDelete as SuggestionNodeMeta | null | undefined;
-        if (nodeDelete && nodeDelete.id) {
+        const nodeSuggestion = node.attrs.suggestion as SuggestionNodeMeta | null | undefined;
+        if (nodeSuggestion && nodeSuggestion.id) {
             const item = ensure(
-                nodeDelete.id,
-                { id: nodeDelete.userId, name: nodeDelete.userName },
+                nodeSuggestion.id,
+                { id: nodeSuggestion.userId, name: nodeSuggestion.userName },
                 pos, pos + node.nodeSize
             );
-            item.deletedNodeType = node.type.name;
-            return false;
-        }
+            if (nodeSuggestion.type === "delete") item.deletedNodeType = node.type.name;
+            else if (nodeSuggestion.type === "insert") item.insertedNodeType = node.type.name;
+            else item.formattedNodeType = node.type.name;
 
-        const nodeInsert = node.attrs.suggestionInsert as SuggestionNodeMeta | null | undefined;
-        if (nodeInsert && nodeInsert.id) {
-            const item = ensure(
-                nodeInsert.id,
-                { id: nodeInsert.userId, name: nodeInsert.userName },
-                pos, pos + node.nodeSize
-            );
-            item.insertedNodeType = node.type.name;
-            return false;
-        }
-
-        const nodeFormat = node.attrs.suggestionFormat as SuggestionFormatNodeMeta | null | undefined;
-        if (nodeFormat && nodeFormat.id) {
-            const item = ensure(
-                nodeFormat.id,
-                { id: nodeFormat.userId, name: nodeFormat.userName },
-                pos, pos + node.nodeSize
-            );
-            item.formattedNodeType = node.type.name;
+            if (nodeSuggestion.type !== "format") return false;
         }
 
         if (!node.isInline) return true;
         const from = pos, to = pos + node.nodeSize;
 
-        const insertMark = insertType?.isInSet(node.marks);
+        const insertMark = findSuggestionMark(node.marks, suggestionType, "insert");
         if (insertMark) {
             const item = ensure(
                 insertMark.attrs.id,
@@ -120,7 +101,7 @@ export function getSuggestions(state: EditorState): SuggestionItem[] {
             if (node.isText) item.insertedText += node.text ?? "";
         }
 
-        const deleteMark = deleteType?.isInSet(node.marks);
+        const deleteMark = findSuggestionMark(node.marks, suggestionType, "delete");
         if (deleteMark) {
             const item = ensure(
                 deleteMark.attrs.id,
@@ -130,7 +111,7 @@ export function getSuggestions(state: EditorState): SuggestionItem[] {
             if (node.isText) item.deletedText += node.text ?? "";
         }
 
-        const formatMark = formatType?.isInSet(node.marks);
+        const formatMark = findSuggestionMark(node.marks, suggestionType, "format");
         if (formatMark) {
             const item = ensure(
                 formatMark.attrs.id,
@@ -166,52 +147,49 @@ export function rejectAllSuggestions(view: EditorView) {
 function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "reject") {
     const { state } = view;
     const schema = state.schema;
-    const insertType = schema.marks.suggestion_insert;
-    const deleteType = schema.marks.suggestion_delete;
-    const formatType = schema.marks.suggestion_format;
-    if (!insertType && !deleteType && !formatType) return;
+    const suggestionType = schema.marks.suggestion;
+    if (!suggestionType) return;
 
     const tr = state.tr;
     const deleteRanges: { from: number; to: number }[] = [];
 
     state.doc.descendants((node, pos) => {
-        const nodeDelete = node.attrs.suggestionDelete as SuggestionNodeMeta | null | undefined;
-        if (nodeDelete && nodeDelete.id === id) {
-            if (decision === "accept") {
-                deleteRanges.push({ from: pos, to: pos + node.nodeSize });
-            } else {
-                tr.setNodeAttribute(pos, "suggestionDelete", null);
+        const nodeSuggestion = node.attrs.suggestion as SuggestionNodeMeta | null | undefined;
+        if (nodeSuggestion && nodeSuggestion.id === id) {
+            if (nodeSuggestion.type === "delete") {
+                if (decision === "accept") {
+                    deleteRanges.push({ from: pos, to: pos + node.nodeSize });
+                } else {
+                    tr.setNodeAttribute(pos, "suggestion", null);
+                }
+                return false;
             }
-            return false;
-        }
 
-        const nodeInsert = node.attrs.suggestionInsert as SuggestionNodeMeta | null | undefined;
-        if (nodeInsert && nodeInsert.id === id) {
-            if (decision === "reject") {
-                deleteRanges.push({ from: pos, to: pos + node.nodeSize });
-            } else {
-                tr.setNodeAttribute(pos, "suggestionInsert", null);
+            if (nodeSuggestion.type === "insert") {
+                if (decision === "reject") {
+                    deleteRanges.push({ from: pos, to: pos + node.nodeSize });
+                } else {
+                    tr.setNodeAttribute(pos, "suggestion", null);
+                }
+                return false;
             }
-            return false;
-        }
 
-        const nodeFormat = node.attrs.suggestionFormat as SuggestionFormatNodeMeta | null | undefined;
-        if (nodeFormat && nodeFormat.id === id) {
+            // type === "format"
             if (decision === "reject") {
                 // fully restore the pre-change attrs (which already have the
-                // suggestion attrs themselves nulled out, since that's how they
-                // were snapshotted - see withFormatFlag in diff/render.ts)
-                tr.setNodeMarkup(pos, undefined, nodeFormat.oldAttrs);
+                // suggestion attr itself nulled out, since that's how it was
+                // snapshotted - see markNodeFormatted in diff/render.ts)
+                tr.setNodeMarkup(pos, undefined, (nodeSuggestion as SuggestionFormatNodeMeta).oldAttrs);
             } else {
-                tr.setNodeAttribute(pos, "suggestionFormat", null);
+                tr.setNodeAttribute(pos, "suggestion", null);
             }
         }
 
         if (!node.isInline) return true;
         const from = pos, to = pos + node.nodeSize;
 
-        const insertMark = insertType?.isInSet(node.marks);
-        const deleteMark = deleteType?.isInSet(node.marks);
+        const insertMark = findSuggestionMark(node.marks, suggestionType, "insert");
+        const deleteMark = findSuggestionMark(node.marks, suggestionType, "delete");
         const hasInsert = insertMark?.attrs.id === id;
         const hasDelete = deleteMark?.attrs.id === id;
 
@@ -224,12 +202,14 @@ function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "r
             if (removeContent) {
                 deleteRanges.push({ from, to });
             } else {
-                if (hasInsert) tr.removeMark(from, to, insertType);
-                if (hasDelete) tr.removeMark(from, to, deleteType);
+                // remove this specific mark instance, not every suggestion mark in
+                // range - insert/delete/format all share the same mark type now
+                if (hasInsert && insertMark) tr.removeMark(from, to, insertMark);
+                if (hasDelete && deleteMark) tr.removeMark(from, to, deleteMark);
             }
         }
 
-        const formatMark = formatType?.isInSet(node.marks);
+        const formatMark = findSuggestionMark(node.marks, suggestionType, "format");
         if (formatMark && formatMark.attrs.id === id) {
             if (decision === "reject") {
                 for (const typeName of formatMark.attrs.add as string[]) {
@@ -241,7 +221,7 @@ function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "r
                     if (mt) tr.addMark(from, to, mt.create(removed.attrs));
                 }
             }
-            tr.removeMark(from, to, formatType);
+            tr.removeMark(from, to, formatMark);
         }
 
         return true;

@@ -16,11 +16,11 @@
 
 	const schema = getSchema();
 
-	// lets the demo page exercise "suggesting" mode (edits get wrapped as
-	// suggestion_insert/suggestion_delete/suggestion_format instead of applied
-	// directly, reviewable via the floating suggestions panel) against the
-	// same editor/document used for everything else on this page, rather than
-	// only being testable through the separate diff demo
+	// lets the demo page exercise "suggesting" mode (edits get wrapped in the
+	// suggestion mark instead of applied directly, reviewable via the floating
+	// suggestions panel) against the same editor/document used for everything
+	// else on this page, rather than only being testable through the separate
+	// diff demo
 	let suggestionMode: SuggestionMode = $state('editing');
 	const editorSuggestionsPlugin = suggestionsPlugin({
 		user: { id: 'demo-user', name: 'Demo User' },

@@ -71,10 +71,10 @@
 	});
 
 	// Attaching the suggestions plugin to the diff-display editor is what makes
-	// it "editable like Google Docs": the suggestion_insert/suggestion_delete/
-	// suggestion_format marks (and node attrs) buildDiffDoc produced above are
-	// reviewable right inside that editor - it shows its own floating
-	// accept/dismiss panel (see src/lib/plugins/suggestions/SuggestionsPanel.svelte)
+	// it "editable like Google Docs": the suggestion mark (and node attr)
+	// buildDiffDoc produced above are reviewable right inside that editor - it
+	// shows its own floating accept/dismiss panel (see
+	// src/lib/plugins/suggestions/SuggestionsPanel.svelte)
 	// whenever there's a pending suggestion - and, while in "suggesting" mode,
 	// further edits made directly in this editor are themselves tracked as new
 	// suggestions rather than silently changing the merged doc.

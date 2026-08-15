@@ -88,7 +88,7 @@ export default function commentsPlugin(config: CommentsPluginConfig) {
             // toDOM/CommentMarkView), the `commentIds` node attr has no DOM
             // representation of its own - a whole commented node (an image,
             // a table, ...) needs a decoration here to be visually flagged
-            // at all, the same way suggestionInsert/Delete/Format do in
+            // at all, the same way the `suggestion` node attr does in
             // plugin-suggestions.ts.
             decorations(state) {
                 const decorations: Decoration[] = [];

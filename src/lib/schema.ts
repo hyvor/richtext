@@ -94,10 +94,10 @@ function getNodes(config: SchemaConfig): Record<string, NodeSpec> {
             group: "inline",
             selectable: false,
             // hard_break has no inline *content*, so ProseMirror doesn't allow it to
-            // carry marks by default - grant the suggestion marks explicitly so a
+            // carry marks by default - grant the suggestion mark explicitly so a
             // line break can be part of a tracked insert/delete/format run (see
             // src/lib/plugins/suggestions and src/lib/diff).
-            marks: "suggestion_insert suggestion_delete suggestion_format",
+            marks: "suggestion",
             parseDOM: [{ tag: "br" }],
             toDOM() { return ['br'] }
         }
@@ -420,56 +420,21 @@ export const marks = {
         }
     } as MarkSpec,
 
-    // :: MarkSpec Wraps inline content that was inserted while in suggestion
-    // mode (track changes). The content is part of the document, but is
-    // pending review (accept/reject). Not meant to be applied by the user -
-    // only by the suggestions plugin and the diff renderer. See
-    // src/lib/plugins/suggestions and src/lib/diff.
-    suggestion_insert: {
+    // :: MarkSpec Wraps inline content that changed while in suggestion mode
+    // (track changes): inserted text, "deleted" text (kept in place, struck
+    // through, until accepted/rejected), or a run whose formatting (marks)
+    // changed. `type` ("insert" | "delete" | "format") picks which of these
+    // this instance represents; `add`/`remove` are only meaningful for
+    // "format" - `add` holds the mark type names that were added, `remove`
+    // holds the {type, attrs} of marks that were removed, so the change can
+    // be reverted if the suggestion is rejected. Not meant to be applied by
+    // the user - only by the suggestions plugin and the diff renderer. See
+    // src/lib/plugins/suggestions and src/lib/diff. `excludes: ""` lets an
+    // insert/delete/format instance (or two instances of the same subtype
+    // from different suggestions) stack on the same range.
+    suggestion: {
         attrs: {
-            id: { default: "" },
-            userId: { default: "" },
-            userName: { default: "" },
-        },
-        inclusive: true,
-        excludes: "",
-        toDOM(mark: Mark) {
-            const { id, userName } = mark.attrs;
-            return ["ins", {
-                class: "suggestion-insert",
-                "data-suggestion-id": id,
-                title: userName ? `Suggested insertion by ${userName}` : "Suggested insertion"
-            }, 0];
-        }
-    } as MarkSpec,
-
-    // :: MarkSpec Wraps inline content "deleted" while in suggestion mode.
-    // Kept in the document (struck through) until the suggestion is accepted
-    // (removes the content) or rejected (restores it).
-    suggestion_delete: {
-        attrs: {
-            id: { default: "" },
-            userId: { default: "" },
-            userName: { default: "" },
-        },
-        inclusive: false,
-        excludes: "",
-        toDOM(mark: Mark) {
-            const { id, userName } = mark.attrs;
-            return ["del", {
-                class: "suggestion-delete",
-                "data-suggestion-id": id,
-                title: userName ? `Suggested deletion by ${userName}` : "Suggested deletion"
-            }, 0];
-        }
-    } as MarkSpec,
-
-    // :: MarkSpec Marks a range of inline content whose formatting (marks)
-    // changed while in suggestion mode. `add` holds the mark type names that
-    // were added, `remove` holds the {type, attrs} of marks that were
-    // removed, so the change can be reverted if the suggestion is rejected.
-    suggestion_format: {
-        attrs: {
+            type: { default: "insert" },
             id: { default: "" },
             userId: { default: "" },
             userName: { default: "" },
@@ -479,7 +444,21 @@ export const marks = {
         inclusive: false,
         excludes: "",
         toDOM(mark: Mark) {
-            const { id, userName } = mark.attrs;
+            const { type, id, userName } = mark.attrs;
+            if (type === "insert") {
+                return ["ins", {
+                    class: "suggestion-insert",
+                    "data-suggestion-id": id,
+                    title: userName ? `Suggested insertion by ${userName}` : "Suggested insertion"
+                }, 0];
+            }
+            if (type === "delete") {
+                return ["del", {
+                    class: "suggestion-delete",
+                    "data-suggestion-id": id,
+                    title: userName ? `Suggested deletion by ${userName}` : "Suggested deletion"
+                }, 0];
+            }
             return ["span", {
                 class: "suggestion-format",
                 "data-suggestion-id": id,
@@ -489,18 +468,20 @@ export const marks = {
     } as MarkSpec,
 }
 
-// The three marks above only apply to inline content (by default, ProseMirror
-// doesn't allow marks on nodes with block content, and leaf/atom nodes like
-// image have no content to carry a mark's range at all). So a whole non-inline
-// node that is itself a pending suggestion - an inserted/deleted blockquote,
-// an image whose src changed, a table whose attrs changed, ... - can't be
-// wrapped in one of the marks. Instead every node except doc/text gets three
-// attrs recording {id, userId, userName} (plus, for suggestionFormat, a
-// snapshot of the node's previous attrs so a reject can restore them) when the
-// node itself - independent of any suggestion marks its own inline content
-// may carry - is a pending insert/delete/format suggestion. These round-trip
-// through JSON like any other attribute. See src/lib/plugins/suggestions and
-// src/lib/diff.
+// The suggestion mark above only applies to inline content (by default,
+// ProseMirror doesn't allow marks on nodes with block content, and leaf/atom
+// nodes like image have no content to carry a mark's range at all). So a
+// whole non-inline node that is itself a pending suggestion - an
+// inserted/deleted blockquote, an image whose src changed, a table whose
+// attrs changed, ... - can't be wrapped in the mark. Instead every node
+// except doc/text gets a `suggestion` attr recording
+// {type, id, userId, userName} (plus, for type "format", a snapshot of the
+// node's previous attrs so a reject can restore them) when the node itself -
+// independent of any suggestion marks its own inline content may carry - is
+// a pending insert/delete/format suggestion. A node never has more than one
+// pending whole-node suggestion at a time, so a single attr (rather than a
+// list, unlike commentIds below) is enough. This round-trips through JSON
+// like any other attribute. See src/lib/plugins/suggestions and src/lib/diff.
 function withSuggestionAttrs(nodes: ReturnType<typeof addListNodes>): ReturnType<typeof addListNodes> {
     let result = nodes;
     nodes.forEach((name, spec) => {
@@ -509,9 +490,7 @@ function withSuggestionAttrs(nodes: ReturnType<typeof addListNodes>): ReturnType
             ...spec,
             attrs: {
                 ...(spec.attrs ?? {}),
-                suggestionInsert: { default: null },
-                suggestionDelete: { default: null },
-                suggestionFormat: { default: null },
+                suggestion: { default: null },
             }
         });
     });
