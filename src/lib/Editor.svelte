@@ -103,6 +103,19 @@
 		if (!view) return;
 		const doc = props.schema.nodeFromJSON(typeof content === 'string' ? JSON.parse(content) : content);
 		const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, doc.content);
+		// Loading a whole new document programmatically is not a user edit - if
+		// the suggestions plugin (see src/lib/plugins/suggestions) is attached
+		// and in "suggesting" mode, it would otherwise treat a full-document
+		// replace as one giant tracked change (the entire previous doc marked
+		// deleted, the entire new one marked inserted) on every call, which -
+		// since the old "deleted" content is kept, not removed - makes the
+		// document grow without bound if setContent is called repeatedly (e.g.
+		// reactively, as app/DiffPage.svelte does). "suggestionsSkip" is that
+		// plugin's own convention meta key (see SUGGESTIONS_SKIP_META in
+		// plugin-suggestions.ts) for "apply this transaction as-is" - used by
+		// string value here rather than importing it, so this core component
+		// doesn't need to depend on an optional, opt-in plugin.
+		tr.setMeta('suggestionsSkip', true);
 		view.dispatch(tr);
 	}
 

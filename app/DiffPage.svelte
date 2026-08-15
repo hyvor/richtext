@@ -103,10 +103,18 @@
 
 	let diffEditor: Editor;
 
+	// guards against re-applying logically-unchanged content: diffDocJson is a
+	// freshly-built object every recompute (new reference), so without this the
+	// effect below would call setContent again any time anything nudges this
+	// effect to re-run, even with nothing new to show
+	let lastAppliedDiffDoc: string | null = null;
+
 	$effect(() => {
-		if (diffDocJson) {
-			diffEditor?.setContent(diffDocJson);
-		}
+		if (!diffDocJson) return;
+		const json = JSON.stringify(diffDocJson);
+		if (json === lastAppliedDiffDoc) return;
+		lastAppliedDiffDoc = json;
+		diffEditor?.setContent(diffDocJson);
 	});
 
 	function setMode(newMode: SuggestionMode) {
