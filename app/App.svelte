@@ -1,5 +1,13 @@
 <script lang="ts">
-	import { Editor, getSchema, suggestionsPlugin, setSuggestionMode, type SuggestionMode } from '../src/lib';
+	import {
+		Editor,
+		getSchema,
+		suggestionsPlugin,
+		setSuggestionMode,
+		type SuggestionMode,
+		commentsPlugin,
+		type Comment
+	} from '../src/lib';
 	import { Base, Button } from '@hyvor/design/components';
 
 	let editor: Editor;
@@ -24,6 +32,31 @@
 		const view = editor?.getView();
 		if (view) setSuggestionMode(view, newMode);
 	}
+
+	// stands in for the host app's own comment store (a real app would call
+	// its API here) - persisted in localStorage the same way `doc` already
+	// is below, so comments survive a reload just like the document does.
+	// The editor never sees this directly: it only round-trips thread ids
+	// through the doc, and reaches comment text/authors through these
+	// getComments/onAdd/onReply/onResolve callbacks.
+	function loadComments(): Comment[] {
+		try {
+			return JSON.parse(localStorage.getItem('comments') ?? '[]');
+		} catch {
+			return [];
+		}
+	}
+	function saveComments(comments: Comment[]) {
+		localStorage.setItem('comments', JSON.stringify(comments));
+	}
+
+	const editorCommentsPlugin = commentsPlugin({
+		user: { id: 'demo-user', name: 'Demo User' },
+		getComments: () => loadComments(),
+		onAdd: (comment) => saveComments([...loadComments(), comment]),
+		onReply: (reply) => saveComments([...loadComments(), reply]),
+		onResolve: (commentId) => saveComments(loadComments().filter((c) => c.commentId !== commentId))
+	});
 
 	function setContent() {
 		editor.setContent(JSON.stringify({
@@ -50,7 +83,7 @@
 			value={localStorage.getItem('doc')}
 			onvaluechange={(val) => localStorage.setItem('doc', val)}
 			{schema}
-			plugins={[editorSuggestionsPlugin]}
+			plugins={[editorSuggestionsPlugin, editorCommentsPlugin]}
 			editorConfig={{
 				codeBlockConfig: {
 					language: true,

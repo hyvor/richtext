@@ -10,9 +10,12 @@
 	import IconCopy from '@hyvor/icons/IconCopy';
 	import IconTrash from '@hyvor/icons/IconTrash';
 	import type { EditorView } from 'prosemirror-view';
+	import { NodeSelection } from 'prosemirror-state';
 	import IconGripVertical from '@hyvor/icons/IconGripVertical';
 	import IconChatRight from '@hyvor/icons/IconChatRight';
 	import { deleteNode, moveNode, nodeMenuPos, topLevelBlockPosAt } from './node-menu';
+	import { commentsPluginKey } from '../comments/plugin-comments';
+	import CommentComposer from '../comments/CommentComposer.svelte';
 
 	interface Props {
 		view: EditorView;
@@ -21,6 +24,20 @@
 	let { view }: Props = $props();
 
 	let show = $state(false);
+	let commentComposerOpen = $state(false);
+
+	// static for the editor's lifetime - the comments plugin is either
+	// installed at creation or not (see src/lib/plugins/comments)
+	const commentsAvailable = !!commentsPluginKey.getState(view.state);
+
+	function onComment() {
+		if ($nodeMenuPos === null) return;
+		const pos = $nodeMenuPos;
+		if (!view.state.doc.nodeAt(pos)) return;
+		view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos)));
+		show = false;
+		commentComposerOpen = true;
+	}
 	let wrapEl: HTMLSpanElement | undefined = $state();
 
 	// how far the pointer needs to move (in px) before a mousedown on the
@@ -232,12 +249,14 @@
 	<Dropdown bind:show width={250}>
 		{#snippet content()}
 			<ActionList>
-				<ActionListItem>
-					{#snippet start()}
-						<IconChatRight size={14} />
-					{/snippet}
-					Comment
-				</ActionListItem>
+				{#if commentsAvailable}
+					<ActionListItem on:click={onComment}>
+						{#snippet start()}
+							<IconChatRight size={14} />
+						{/snippet}
+						Comment
+					</ActionListItem>
+				{/if}
 				<ActionListItem>
 					{#snippet start()}
 						<IconCopy size={14} />
@@ -269,6 +288,10 @@
 		{/snippet}
 	</Dropdown>
 </div>
+
+{#if commentsAvailable}
+	<CommentComposer bind:show={commentComposerOpen} {view} />
+{/if}
 
 <style>
 	.wrap {

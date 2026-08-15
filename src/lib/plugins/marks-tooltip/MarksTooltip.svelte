@@ -3,6 +3,7 @@
 	import { tick, onMount, onDestroy } from 'svelte';
 	import { IconButton } from '@hyvor/design/components';
 	import IconBoxArrowUpRight from '@hyvor/icons/IconBoxArrowUpRight';
+	import IconChatRight from '@hyvor/icons/IconChatRight';
 	import IconCode from '@hyvor/icons/IconCode';
 	import IconLink45deg from '@hyvor/icons/IconLink45deg';
 	import IconPencil from '@hyvor/icons/IconPencil';
@@ -15,6 +16,8 @@
 	import { toggleMark } from 'prosemirror-commands';
 	import LinkSelector from './LinkSelector/LinkSelector.svelte';
 	import { markExtend } from './mark-helpers';
+	import { commentsPluginKey } from '../comments/plugin-comments';
+	import CommentComposer from '../comments/CommentComposer.svelte';
 
 	interface Props {
 		view: EditorView;
@@ -26,6 +29,12 @@
 
 	let tooltip: HTMLSpanElement | undefined = $state();
 	let linkSelectorOpen = $state(false);
+	let commentComposerOpen = $state(false);
+
+	// only offer "comment" when the host opted into the comments plugin
+	// (see src/lib/plugins/comments) - the mark itself always exists in the
+	// schema, but there's nowhere to persist a comment's text without it
+	let commentsAvailable = $derived(!!commentsPluginKey.getState(view.state));
 
 	function getLink(_: number): Mark | null {
 		const sel = view.state.selection;
@@ -100,6 +109,10 @@
 	async function handleClick(markName: MarkName) {
 		if (markName === 'link') {
 			linkSelectorOpen = true;
+			return;
+		}
+		if (markName === 'comment') {
+			commentComposerOpen = true;
 			return;
 		}
 		const markType = view.state.schema.marks[markName]!;
@@ -186,9 +199,11 @@
 					<IconTypeStrikethrough />
 				</IconButton>
 
-				<!-- <IconButton {...getProps('comment')} on:click={() => handleClick('comment')}>
-					<IconChatRight />
-				</IconButton> -->
+				{#if commentsAvailable}
+					<IconButton {...getProps('comment')} on:click={() => handleClick('comment')}>
+						<IconChatRight />
+					</IconButton>
+				{/if}
 			</div>
 		</span>
 	{/if}
@@ -196,6 +211,10 @@
 
 {#if linkSelectorOpen}
 	<LinkSelector bind:show={linkSelectorOpen} {view} edit={link ? link.attrs.href : undefined} />
+{/if}
+
+{#if commentsAvailable}
+	<CommentComposer bind:show={commentComposerOpen} {view} />
 {/if}
 
 <style>

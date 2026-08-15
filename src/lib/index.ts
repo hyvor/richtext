@@ -18,3 +18,16 @@ export {
 	acceptAllSuggestions,
 	rejectAllSuggestions
 } from './plugins/suggestions/commands';
+
+export { default as commentsPlugin } from './plugins/comments/plugin-comments';
+export type { Comment, CommentUser, CommentsPluginConfig } from './plugins/comments/plugin-comments';
+export type { CommentThread } from './plugins/comments/commands';
+export {
+	getCommentThreads,
+	getComments,
+	getCommentUser,
+	refreshComments,
+	addComment,
+	replyToComment,
+	resolveComment
+} from './plugins/comments/commands';

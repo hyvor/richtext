@@ -613,6 +613,21 @@
 
 	.pm-editor :global(.user-comment) {
 		border-bottom: 3px solid #e0d32e;
+		background-color: rgba(224, 211, 46, 0.15);
+		cursor: pointer;
+	}
+
+	.pm-editor :global(.user-comment:hover) {
+		background-color: rgba(224, 211, 46, 0.3);
+	}
+
+	/* a comment thread attached to a whole node (an image, a table, ...) via
+	   the commentIds node attr - see plugin-comments.ts's decorations(),
+	   since (unlike the `comment` mark) a node attr has no DOM of its own */
+	.pm-editor :global(.node-comment) {
+		outline: 2px dashed #e0d32e;
+		outline-offset: 2px;
+		border-radius: 6px;
 		cursor: pointer;
 	}
 

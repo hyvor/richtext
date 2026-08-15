@@ -398,10 +398,27 @@ export const marks = {
         toDOM() { return ["sub", 0] }
     } as MarkSpec,
 
-    /*  comment: {
-         parseDOM: [{tag: "comment"}],
-         toDOM() { return ["comment", 0] }
-     } as MarkSpec, */
+    // :: MarkSpec Marks a range of inline content as having an attached
+    // comment thread. Only the thread id is stored in the document - the
+    // comment text, author and replies live wherever the host app stores
+    // them (see src/lib/plugins/comments), the same "id-only" split the
+    // suggestion marks use for their own {id, userId, userName}. No
+    // parseDOM on purpose (matching the suggestion marks below): pasting
+    // HTML from elsewhere shouldn't silently attach content to an existing
+    // comment thread just because it happens to carry the same data
+    // attribute. `excludes: ""` lets more than one thread cover the same
+    // (or overlapping) text, since two people may comment on the same run.
+    comment: {
+        attrs: {
+            commentId: { default: "" },
+        },
+        inclusive: false,
+        excludes: "",
+        toDOM(mark: Mark) {
+            const { commentId } = mark.attrs;
+            return ["span", { class: "user-comment", "data-comment-id": commentId }, 0];
+        }
+    } as MarkSpec,
 
     // :: MarkSpec Wraps inline content that was inserted while in suggestion
     // mode (track changes). The content is part of the document, but is
@@ -501,6 +518,27 @@ function withSuggestionAttrs(nodes: ReturnType<typeof addListNodes>): ReturnType
     return result;
 }
 
+// The `comment` mark above only applies to inline content, for the same
+// reason described on withSuggestionAttrs. So a comment on a whole
+// non-inline node (an image, a table, ...) is instead recorded as a
+// `commentIds` attr - plural, since unlike a suggestion (which only ever has
+// one pending insert/delete/format at a time) a node can reasonably have
+// several independent comment threads attached to it at once.
+function withCommentAttrs(nodes: ReturnType<typeof addListNodes>): ReturnType<typeof addListNodes> {
+    let result = nodes;
+    nodes.forEach((name, spec) => {
+        if (name === "doc" || name === "text") return;
+        result = result.update(name, {
+            ...spec,
+            attrs: {
+                ...(spec.attrs ?? {}),
+                commentIds: { default: null },
+            }
+        });
+    });
+    return result;
+}
+
 export function getSchema(config?: Partial<SchemaConfig>): Schema {
 
     const mergedConfig: SchemaConfig = Object.assign({}, defaultSchemaConfig, config);
@@ -511,7 +549,7 @@ export function getSchema(config?: Partial<SchemaConfig>): Schema {
     });
 
     return new Schema({
-        nodes: withSuggestionAttrs(addListNodes(schemaWithoutList.spec.nodes, "block+", "block")),
+        nodes: withCommentAttrs(withSuggestionAttrs(addListNodes(schemaWithoutList.spec.nodes, "block+", "block"))),
         marks
     });
 }
