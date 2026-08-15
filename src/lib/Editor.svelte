@@ -622,8 +622,9 @@
 	}
 
 	/* a comment thread attached to a whole node (an image, a table, ...) via
-	   the commentIds node attr - see plugin-comments.ts's decorations(),
-	   since (unlike the `comment` mark) a node attr has no DOM of its own */
+	   the `suggestions` node attr - see plugin-suggestions.ts's decorations(),
+	   since (unlike the suggestion mark's "comment" subtype) a node attr has
+	   no DOM of its own */
 	.pm-editor :global(.node-comment) {
 		outline: 2px dashed #e0d32e;
 		outline-offset: 2px;
@@ -695,7 +696,7 @@
 
 	/* whole-node suggestions (a deleted/inserted/reformatted block or atom node
 	   that can't carry an inline mark) - rendered as decorations from the
-	   `suggestion` node attr, see plugin-suggestions.ts */
+	   `suggestions` node attr, see plugin-suggestions.ts */
 
 	.pm-editor :global(.suggestion-node-insert) {
 		outline: 2px dashed #2e9e5b;

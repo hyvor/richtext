@@ -14,8 +14,8 @@
 	import IconGripVertical from '@hyvor/icons/IconGripVertical';
 	import IconChatRight from '@hyvor/icons/IconChatRight';
 	import { deleteNode, moveNode, nodeMenuPos, topLevelBlockPosAt } from './node-menu';
-	import { commentsPluginKey } from '../comments/plugin-comments';
-	import CommentComposer from '../comments/CommentComposer.svelte';
+	import { suggestionsPluginKey } from '../suggestions/plugin-suggestions';
+	import CommentComposer from '../suggestions/CommentComposer.svelte';
 
 	interface Props {
 		view: EditorView;
@@ -26,9 +26,9 @@
 	let show = $state(false);
 	let commentComposerOpen = $state(false);
 
-	// static for the editor's lifetime - the comments plugin is either
-	// installed at creation or not (see src/lib/plugins/comments)
-	const commentsAvailable = !!commentsPluginKey.getState(view.state);
+	// static for the editor's lifetime - the suggestions plugin is either
+	// installed at creation or not (see src/lib/plugins/suggestions)
+	const commentsAvailable = !!suggestionsPluginKey.getState(view.state);
 
 	function onComment() {
 		if ($nodeMenuPos === null) return;

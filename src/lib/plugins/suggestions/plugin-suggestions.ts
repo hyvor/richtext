@@ -5,16 +5,42 @@ import { Decoration, DecorationSet } from "prosemirror-view";
 import { isHistoryTransaction } from "prosemirror-history";
 import { SuggestionsPanelView } from "./plugin-suggestions-panel.svelte";
 
-// {type, id, userId, userName} recorded on a node's `suggestion` attr when
-// the whole node (not just some inline content inside it) is itself a
-// pending suggestion - see withSuggestionAttrs in schema.ts. Mirrors the
-// `suggestion` mark's attrs (see marks.suggestion in schema.ts) for the same
-// insert/delete/format cases, just on a node instead of a mark instance.
-export interface SuggestionNodeMeta {
-    type: "insert" | "delete" | "format";
+// Identifies who made a suggestion or wrote a comment. A plain string rather
+// than an {id, name} object on purpose: the document only ever stores this
+// identifier, never a display name - see AuthorInfo/resolveAuthor below for
+// how it's turned into something renderable.
+export type Author = `user:${string}` | "ai";
+
+// What a host app's resolveAuthor callback (see SuggestionsPluginState) turns
+// an Author into for display in the panel.
+export interface AuthorInfo {
+    name: string;
+    picture?: string;
+}
+
+// A reply in an annotation's discussion thread - attached to any suggestion
+// (insert/delete/format) or comment via its `comments` attr (see
+// marks.suggestion in schema.ts). This is what makes suggestions repliable:
+// there's no separate "comment on a suggestion" concept, just this array.
+export interface SuggestionReply {
     id: string;
-    userId: string;
-    userName: string;
+    author: Author;
+    content: string;
+    timestamp: number;
+}
+
+export type SuggestionSubtype = "insert" | "delete" | "format" | "comment";
+
+// {type, id, author, comments} recorded in a node's `suggestions` attr (a
+// list - see withSuggestionAttrs in schema.ts) when the whole node (not just
+// some inline content inside it) itself carries a pending suggestion or
+// comment thread. Mirrors the `suggestion` mark's attrs for the same four
+// subtypes, just on a node instead of a mark instance.
+export interface SuggestionNodeMeta {
+    type: SuggestionSubtype;
+    id: string;
+    author: Author;
+    comments: SuggestionReply[];
 }
 
 // type: "format" additionally carries a snapshot of the node's attrs from
@@ -24,12 +50,9 @@ export interface SuggestionFormatNodeMeta extends SuggestionNodeMeta {
     oldAttrs: Record<string, unknown>;
 }
 
-export type SuggestionSubtype = "insert" | "delete" | "format";
-
-// The suggestion mark type covers all three subtypes (see marks.suggestion in
+// The suggestion mark type covers all four subtypes (see marks.suggestion in
 // schema.ts) - MarkType.isInSet alone can't tell them apart, since it only
-// matches by mark type, not attrs. Use this instead wherever the old code
-// used `suggestion_insert`/`suggestion_delete`/`suggestion_format`.isInSet.
+// matches by mark type, not attrs. Use this instead of `.isInSet`.
 export function findSuggestionMark(
     marks: readonly Mark[],
     suggestionType: MarkType,
@@ -38,23 +61,60 @@ export function findSuggestionMark(
     return marks.find(m => m.type === suggestionType && m.attrs.type === subtype);
 }
 
-export interface SuggestionUser {
-    id: string;
-    name: string;
+// Node-attr equivalents of findSuggestionMark, for the whole-node case (see
+// SuggestionNodeMeta above). A node holds at most one pending
+// insert/delete/format at a time, but can hold several independent comment
+// threads - withNodeSuggestion/withoutNodeSuggestion enforce that: setting a
+// non-comment entry replaces any existing non-comment entry, while comment
+// entries just accumulate.
+export function getNodeSuggestions(node: Node): SuggestionNodeMeta[] {
+    return (node.attrs.suggestions as SuggestionNodeMeta[] | null) ?? [];
+}
+
+export function findNodeSuggestion(node: Node, subtype: SuggestionSubtype): SuggestionNodeMeta | undefined {
+    return getNodeSuggestions(node).find(s => s.type === subtype);
+}
+
+export function withNodeSuggestion(node: Node, meta: SuggestionNodeMeta): SuggestionNodeMeta[] {
+    const existing = getNodeSuggestions(node);
+    if (meta.type === "comment") return [...existing, meta];
+    return [...existing.filter(s => s.type === "comment"), meta];
+}
+
+// Returns null (not []) when the result would be empty, matching the
+// schema's `default: null` for `suggestions` - no leftover empty-array attr.
+export function withoutNodeSuggestion(node: Node, id: string): SuggestionNodeMeta[] | null {
+    const remaining = getNodeSuggestions(node).filter(s => s.id !== id);
+    return remaining.length ? remaining : null;
 }
 
 export type SuggestionMode = "editing" | "suggesting";
 
 export interface SuggestionsPluginState {
     mode: SuggestionMode;
-    user: SuggestionUser;
+    author: Author;
+    resolveAuthor: (author: Author) => AuthorInfo | Promise<AuthorInfo>;
+}
+
+export interface SuggestionsPluginConfig {
+    author: Author;
+    // 'editing' | 'suggesting' - only gates whether *edits* get auto-wrapped
+    // into insert/delete/format suggestions (default 'editing'). Comment
+    // authoring via addComment is available regardless of mode, same as
+    // today's MarksTooltip/NodeMenu "Comment" actions.
+    mode?: SuggestionMode;
+    // Comment/suggestion content lives entirely in the document now (no more
+    // host-owned store/callbacks) - the only thing the host still owns is
+    // identity display: turning an Author id into a name/picture. May return
+    // a value directly or a Promise (e.g. a network lookup).
+    resolveAuthor: (author: Author) => AuthorInfo | Promise<AuthorInfo>;
 }
 
 export const suggestionsPluginKey = new PluginKey<SuggestionsPluginState>("suggestions");
 
 // set on transactions we generate ourselves, so we don't try to re-process them
 const REWRITTEN_META = "suggestionsRewritten";
-// set on transactions from accept/reject commands, so they are applied as-is
+// set on transactions from accept/reject/resolve/reply commands, so they are applied as-is
 export const SUGGESTIONS_SKIP_META = "suggestionsSkip";
 
 let idCounter = 0;
@@ -64,14 +124,17 @@ export function generateSuggestionId(): string {
 }
 
 /**
- * Track-changes ("suggesting") mode for the editor: while active, edits are
- * rewritten into a `suggestion` mark (type: "insert"/"delete"/"format") on
- * inline content, or, for whole deleted block/atom nodes, a `suggestion`
- * node attr with type "delete" - instead of being applied directly, see
- * schema.ts. Pair with the commands in ./commands.ts to list/accept/reject
- * the resulting suggestions.
+ * Track-changes ("suggesting" mode) and comment threads, unified: while
+ * suggesting, edits are rewritten into a `suggestion` mark (type:
+ * "insert"/"delete"/"format") on inline content, or, for whole deleted
+ * block/atom nodes, a `suggestion` node attr entry with type "delete" -
+ * instead of being applied directly, see schema.ts. Comment threads (type
+ * "comment") are never produced by editing - only by explicit "Comment"
+ * actions (see commands.ts's addComment), available regardless of mode.
+ * Every subtype can carry a reply thread via its `comments` attr. Pair with
+ * the commands in ./commands.ts to list/accept/reject/reply/resolve.
  *
- * This plugin only ever *produces* a whole-node suggestion attr of type
+ * This plugin only ever *produces* a whole-node suggestion entry of type
  * "delete" (deleting an existing block/atom while suggesting); it never
  * produces type "insert" or "format" on whole nodes - those are only ever
  * produced by src/lib/diff's buildDiffDoc (comparing two documents can
@@ -80,15 +143,16 @@ export function generateSuggestionId(): string {
  * accept/reject, whole-node "insert"/"format" suggestions too, so a diff's
  * output is just as interactive as a live-typed suggestion.
  */
-export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?: SuggestionMode }) {
+export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
     return new Plugin<SuggestionsPluginState>({
         key: suggestionsPluginKey,
 
         state: {
             init(): SuggestionsPluginState {
                 return {
-                    mode: initial.mode ?? "editing",
-                    user: initial.user
+                    mode: config.mode ?? "editing",
+                    author: config.author,
+                    resolveAuthor: config.resolveAuthor
                 };
             },
             apply(tr, value): SuggestionsPluginState {
@@ -135,7 +199,7 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
                 if (!isPlainTextReplace(state.doc, from, to, Slice.empty)) return false;
 
                 const tr = state.tr;
-                const id = handleReplaceStep(tr, new ReplaceStep(from, to, Slice.empty), suggestionState.user);
+                const id = handleReplaceStep(tr, new ReplaceStep(from, to, Slice.empty), suggestionState.author);
                 tr.setMeta(REWRITTEN_META, true);
                 // Because this dispatches a single mark-only transaction directly
                 // (bypassing the root+appended pair the normal flow produces),
@@ -150,11 +214,11 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
             },
 
             // Marks only apply to inline content, so a whole deleted/inserted/
-            // reformatted block/atom node is tracked via node attrs (see schema.ts)
-            // instead of a mark. Render those attrs as visual decorations here
-            // rather than baking them into every node type's toDOM, and
-            // independent of suggesting/editing mode (like the inline suggestion
-            // marks, they stay visible until accepted/rejected).
+            // reformatted/commented block/atom node is tracked via the `suggestions`
+            // node attr (see schema.ts) instead of a mark. Render those attrs as
+            // visual decorations here rather than baking them into every node type's
+            // toDOM, and independent of suggesting/editing mode (like the inline
+            // suggestion marks, they stay visible until accepted/rejected/resolved).
             decorations(state) {
                 const decorations: Decoration[] = [];
 
@@ -166,8 +230,7 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
                 const deleteIds = new Set<string>();
                 const insertIds = new Set<string>();
                 state.doc.descendants((node) => {
-                    const s = node.attrs.suggestion as SuggestionNodeMeta | null | undefined;
-                    if (s && s.id) {
+                    for (const s of getNodeSuggestions(node)) {
                         if (s.type === "delete") deleteIds.add(s.id);
                         else if (s.type === "insert") insertIds.add(s.id);
                     }
@@ -175,17 +238,21 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
                 });
 
                 state.doc.descendants((node, pos) => {
-                    const s = node.attrs.suggestion as SuggestionNodeMeta | null | undefined;
-                    if (!s || !s.id) return true;
+                    const list = getNodeSuggestions(node);
+                    if (!list.length) return true;
 
-                    if (s.type === "delete") {
-                        const isReplace = insertIds.has(s.id);
+                    // a node holds at most one pending insert/delete/format at a time
+                    // (the "primary" entry), but any number of independent comment
+                    // threads alongside it
+                    const primary = list.find(s => s.type !== "comment");
+                    const comments = list.filter(s => s.type === "comment");
+
+                    if (primary?.type === "delete") {
+                        const isReplace = insertIds.has(primary.id);
                         decorations.push(Decoration.node(pos, pos + node.nodeSize, {
                             class: isReplace ? "suggestion-node-delete suggestion-node-replace-delete" : "suggestion-node-delete",
-                            "data-suggestion-id": s.id,
-                            title: s.userName
-                                ? `Suggested ${isReplace ? "replacement" : "deletion"} by ${s.userName}`
-                                : `Suggested ${isReplace ? "replacement" : "deletion"}`
+                            "data-suggestion-id": primary.id,
+                            title: `Suggested ${isReplace ? "replacement" : "deletion"}`
                         }));
                         if (isReplace) {
                             // sits right at the boundary between the deleted node and its
@@ -193,33 +260,38 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
                             decorations.push(Decoration.widget(pos + node.nodeSize, () => {
                                 const el = document.createElement("div");
                                 el.className = "suggestion-replace-connector";
-                                el.setAttribute("data-suggestion-id", s.id);
+                                el.setAttribute("data-suggestion-id", primary.id);
                                 el.textContent = "Replaced with";
                                 return el;
-                            }, { key: `replace-${s.id}` }));
+                            }, { key: `replace-${primary.id}` }));
                         }
-                        return false;
-                    }
-
-                    if (s.type === "insert") {
-                        const isReplace = deleteIds.has(s.id);
+                    } else if (primary?.type === "insert") {
+                        const isReplace = deleteIds.has(primary.id);
                         decorations.push(Decoration.node(pos, pos + node.nodeSize, {
                             class: isReplace ? "suggestion-node-insert suggestion-node-replace-insert" : "suggestion-node-insert",
-                            "data-suggestion-id": s.id,
-                            title: s.userName
-                                ? `Suggested ${isReplace ? "replacement" : "insertion"} by ${s.userName}`
-                                : `Suggested ${isReplace ? "replacement" : "insertion"}`
+                            "data-suggestion-id": primary.id,
+                            title: `Suggested ${isReplace ? "replacement" : "insertion"}`
                         }));
-                        return false;
+                    } else if (primary?.type === "format") {
+                        decorations.push(Decoration.node(pos, pos + node.nodeSize, {
+                            class: "suggestion-node-format",
+                            "data-suggestion-id": primary.id,
+                            title: "Suggested formatting"
+                        }));
                     }
 
-                    decorations.push(Decoration.node(pos, pos + node.nodeSize, {
-                        class: "suggestion-node-format",
-                        "data-suggestion-id": s.id,
-                        title: s.userName ? `Suggested formatting by ${s.userName}` : "Suggested formatting"
-                    }));
+                    if (comments.length) {
+                        decorations.push(Decoration.node(pos, pos + node.nodeSize, {
+                            class: "node-comment",
+                            "data-suggestion-ids": comments.map(c => c.id).join(",")
+                        }));
+                    }
 
-                    return true;
+                    // skip descending into children only when this node itself is a
+                    // whole insert/delete (matches prior behavior) - format-only or
+                    // comment-only nodes still get walked, since their children may
+                    // carry their own, independent suggestions/comments
+                    return !(primary && primary.type !== "format");
                 });
                 return decorations.length ? DecorationSet.create(state.doc, decorations) : null;
             }
@@ -258,7 +330,7 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
                 // prosemirror-history's adjacency check silently can't use, so it would
                 // otherwise file every keystroke as its own undo step instead of
                 // grouping consecutive typing into one.
-                const fast = tryFastPureInsert(transactions, newState, suggestionState.user);
+                const fast = tryFastPureInsert(transactions, newState, suggestionState.author);
                 if (fast) return fast;
 
                 // appendTransaction must return a transaction starting from newState.doc,
@@ -301,11 +373,11 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
                         if (!mapped) continue;
 
                         if (mapped instanceof ReplaceStep) {
-                            handleReplaceStep(tr, mapped, suggestionState.user);
+                            handleReplaceStep(tr, mapped, suggestionState.author);
                         } else if (mapped instanceof AddMarkStep) {
-                            handleAddMarkStep(tr, mapped, suggestionState.user);
+                            handleAddMarkStep(tr, mapped, suggestionState.author);
                         } else if (mapped instanceof RemoveMarkStep) {
-                            handleRemoveMarkStep(tr, mapped, suggestionState.user);
+                            handleRemoveMarkStep(tr, mapped, suggestionState.author);
                         } else {
                             tr.step(mapped);
                         }
@@ -325,9 +397,9 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
             }
         },
 
-        // floating accept/dismiss panel - shown whenever there's at least one
-        // pending suggestion, so reviewing suggestions is part of the editor
-        // itself rather than something every app has to build (see
+        // floating accept/dismiss/reply panel - shown whenever there's at least one
+        // pending suggestion or comment thread, so reviewing them is part of the
+        // editor itself rather than something every app has to build (see
         // ./plugin-suggestions-panel.svelte.ts and ./SuggestionsPanel.svelte)
         view(editorView) {
             return new SuggestionsPanelView(editorView);
@@ -342,7 +414,7 @@ export default function suggestionsPlugin(initial: { user: SuggestionUser; mode?
 function tryFastPureInsert(
     transactions: readonly Transaction[],
     newState: EditorState,
-    user: SuggestionUser
+    author: Author
 ): Transaction | null {
     const changed = transactions.filter(tr => tr.docChanged);
     if (changed.length !== 1 || changed[0].steps.length !== 1) return null;
@@ -363,11 +435,10 @@ function tryFastPureInsert(
     const schema = newState.schema;
     const suggestionType = schema.marks.suggestion!;
 
-    const id = findReuseId(newState.doc, from, to, user, suggestionType) ?? generateSuggestionId();
-    const attrs = { id, userId: user.id, userName: user.name };
+    const id = findReuseId(newState.doc, from, to, author, suggestionType) ?? generateSuggestionId();
 
     const tr = newState.tr;
-    tr.addMark(from, to, suggestionType.create({ type: "insert", ...attrs }));
+    tr.addMark(from, to, suggestionType.create({ type: "insert", id, author }));
     tr.setSelection(TextSelection.create(tr.doc, to));
     tr.setMeta(REWRITTEN_META, true);
     return tr;
@@ -412,32 +483,32 @@ function findReuseId(
     doc: Node,
     from: number,
     to: number,
-    user: SuggestionUser,
+    author: Author,
     suggestionType: MarkType
 ): string | null {
 
     // if the range being replaced already carries an unresolved insertion by
-    // this user, reuse its id (e.g. typing then immediately backspacing)
+    // this author, reuse its id (e.g. typing then immediately backspacing)
     let foundInRange: string | null = null;
     if (to > from) {
         doc.nodesBetween(from, to, node => {
             if (foundInRange || !node.isInline) return true;
             const m = findSuggestionMark(node.marks, suggestionType, "insert");
-            if (m && m.attrs.userId === user.id) foundInRange = m.attrs.id;
+            if (m && m.attrs.author === author) foundInRange = m.attrs.id;
             return true;
         });
     }
     if (foundInRange) return foundInRange;
 
-    // if this edit is adjacent to an existing unresolved suggestion by this user
+    // if this edit is adjacent to an existing unresolved suggestion by this author
     // (typing right after your own pending insert, or backspacing into text you
     // already marked as deleted), extend it instead of starting a new one
     const ownMarkId = (node: Node | null): string | null => {
         if (!node) return null;
         const insertMark = findSuggestionMark(node.marks, suggestionType, "insert");
-        if (insertMark && insertMark.attrs.userId === user.id) return insertMark.attrs.id;
+        if (insertMark && insertMark.attrs.author === author) return insertMark.attrs.id;
         const deleteMark = findSuggestionMark(node.marks, suggestionType, "delete");
-        if (deleteMark && deleteMark.attrs.userId === user.id) return deleteMark.attrs.id;
+        if (deleteMark && deleteMark.attrs.author === author) return deleteMark.attrs.id;
         return null;
     };
 
@@ -457,7 +528,7 @@ function findReuseId(
 interface DeletionSegment {
     from: number;
     to: number;
-    // true if this segment is this user's own unresolved insertion - deleting it
+    // true if this segment is this author's own unresolved insertion - deleting it
     // should cancel the insertion outright rather than mark it as deleted
     cancel: boolean;
 }
@@ -466,7 +537,7 @@ function computeDeletionSegments(
     doc: Node,
     from: number,
     to: number,
-    user: SuggestionUser,
+    author: Author,
     suggestionType: MarkType
 ): DeletionSegment[] {
     const segments: DeletionSegment[] = [];
@@ -477,7 +548,7 @@ function computeDeletionSegments(
         if (segTo <= segFrom) return true;
 
         const mark = findSuggestionMark(node.marks, suggestionType, "insert");
-        const cancel = !!mark && mark.attrs.userId === user.id;
+        const cancel = !!mark && mark.attrs.author === author;
 
         const last = segments[segments.length - 1];
         if (last && last.cancel === cancel && last.to === segFrom) {
@@ -525,22 +596,21 @@ function findWholeNodeRange(doc: Node, from: number, to: number): { node: Node; 
     return null;
 }
 
-// Marks whole nodes as pending-delete suggestions via their `suggestion`
-// attr (type "delete") instead of removing them, so they can later be
-// accepted (removed) or rejected (attr cleared). Nodes already marked
-// deleted are left untouched.
-function markNodesDeleted(tr: Transaction, nodes: { node: Node; pos: number }[], user: SuggestionUser): string | null {
-    const toMark = nodes.filter(({ node }) => (node.attrs.suggestion as SuggestionNodeMeta | null)?.type !== "delete");
+// Marks whole nodes as pending-delete suggestions via their `suggestions`
+// attr instead of removing them, so they can later be accepted (removed) or
+// rejected (entry cleared). Nodes already marked deleted are left untouched.
+function markNodesDeleted(tr: Transaction, nodes: { node: Node; pos: number }[], author: Author): string | null {
+    const toMark = nodes.filter(({ node }) => !findNodeSuggestion(node, "delete"));
     if (!toMark.length) {
         // everything in range is already marked deleted; surface that shared id
-        return (nodes[0]?.node.attrs.suggestion as SuggestionNodeMeta | undefined)?.id ?? null;
+        return nodes[0] ? findNodeSuggestion(nodes[0].node, "delete")?.id ?? null : null;
     }
 
-    const attrs: SuggestionNodeMeta = { type: "delete", id: generateSuggestionId(), userId: user.id, userName: user.name };
-    for (const { pos } of toMark) {
-        tr.setNodeAttribute(pos, "suggestion", attrs);
+    const meta: SuggestionNodeMeta = { type: "delete", id: generateSuggestionId(), author, comments: [] };
+    for (const { pos, node } of toMark) {
+        tr.setNodeAttribute(pos, "suggestions", withNodeSuggestion(node, meta));
     }
-    return attrs.id;
+    return meta.id;
 }
 
 // Detects a slice made up entirely of complete block-level (non-text,
@@ -564,31 +634,32 @@ function wholeBlockNodesInSlice(slice: Slice): Node[] | null {
 }
 
 // Inserts whole node(s) and marks them as pending-insert suggestions via
-// their `suggestion` attr (type "insert") - the insertion counterpart of
-// markNodesDeleted. `reuseId`, when given, pairs this insertion with an
-// existing deletion (the 'replace' case in handleReplaceStep) so the two
-// render as one connected suggestion instead of two unrelated ones.
+// their `suggestions` attr - the insertion counterpart of markNodesDeleted.
+// `reuseId`, when given, pairs this insertion with an existing deletion (the
+// 'replace' case in handleReplaceStep) so the two render as one connected
+// suggestion instead of two unrelated ones.
 function markNodesInserted(
     tr: Transaction,
     from: number,
     nodes: readonly Node[],
-    user: SuggestionUser,
+    author: Author,
     reuseId?: string
 ): string {
-    const attrs: SuggestionNodeMeta = { type: "insert", id: reuseId ?? generateSuggestionId(), userId: user.id, userName: user.name };
+    const meta: SuggestionNodeMeta = { type: "insert", id: reuseId ?? generateSuggestionId(), author, comments: [] };
     let pos = from;
     for (const node of nodes) {
         tr.insert(pos, node);
-        tr.setNodeAttribute(pos, "suggestion", attrs);
+        // freshly inserted nodes never already carry a `suggestions` attr
+        tr.setNodeAttribute(pos, "suggestions", [meta]);
         pos += node.nodeSize;
     }
-    return attrs.id;
+    return meta.id;
 }
 
 // Returns the suggestion id involved (for callers that need it, e.g. to group
 // consecutive edits in the undo history), or null if this step didn't result
 // in a tracked suggestion change (structural passthrough, no-op, etc).
-function handleReplaceStep(tr: Transaction, step: ReplaceStep, user: SuggestionUser): string | null {
+function handleReplaceStep(tr: Transaction, step: ReplaceStep, author: Author): string | null {
     const { from, to, slice } = step;
     const schema = tr.doc.type.schema;
     const suggestionType = schema.marks.suggestion!;
@@ -598,7 +669,7 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, user: SuggestionU
     if (slice.size === 0) {
         const wholeNodes = findWholeNodeRange(tr.doc, from, to);
         if (wholeNodes) {
-            return markNodesDeleted(tr, wholeNodes, user);
+            return markNodesDeleted(tr, wholeNodes, author);
         }
     } else {
         const insertedNodes = wholeBlockNodesInSlice(slice);
@@ -606,7 +677,7 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, user: SuggestionU
             if (from === to) {
                 // pure whole-node insertion, nothing replaced - e.g. a node
                 // dropped here via the node menu's drag handle
-                return markNodesInserted(tr, from, insertedNodes, user);
+                return markNodesInserted(tr, from, insertedNodes, author);
             }
 
             const wholeNodes = findWholeNodeRange(tr.doc, from, to);
@@ -621,10 +692,10 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, user: SuggestionU
                 // with" suggestion (see the decorations prop above and
                 // diff/render.ts's 'replace' case, which produces the same
                 // shape from a document diff).
-                const deleteId = markNodesDeleted(tr, wholeNodes, user);
+                const deleteId = markNodesDeleted(tr, wholeNodes, author);
                 if (deleteId) {
                     const last = wholeNodes[wholeNodes.length - 1]!;
-                    return markNodesInserted(tr, last.pos + last.node.nodeSize, insertedNodes, user, deleteId);
+                    return markNodesInserted(tr, last.pos + last.node.nodeSize, insertedNodes, author, deleteId);
                 }
             }
         }
@@ -637,8 +708,7 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, user: SuggestionU
         return null;
     }
 
-    const id = findReuseId(tr.doc, from, to, user, suggestionType) ?? generateSuggestionId();
-    const attrs = { id, userId: user.id, userName: user.name };
+    const id = findReuseId(tr.doc, from, to, author, suggestionType) ?? generateSuggestionId();
 
     let insertAt = to;
 
@@ -647,20 +717,20 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, user: SuggestionU
         // the suggestion) rather than mark it as deleted on top of an insert mark;
         // only content that isn't your own pending insertion gets a delete mark
         const mapStart = tr.mapping.maps.length;
-        const segments = computeDeletionSegments(tr.doc, from, to, user, suggestionType);
+        const segments = computeDeletionSegments(tr.doc, from, to, author, suggestionType);
         for (let i = segments.length - 1; i >= 0; i--) {
             const seg = segments[i];
             if (seg.cancel) {
                 tr.delete(seg.from, seg.to);
             } else {
-                tr.addMark(seg.from, seg.to, suggestionType.create({ type: "delete", ...attrs }));
+                tr.addMark(seg.from, seg.to, suggestionType.create({ type: "delete", id, author }));
             }
         }
         insertAt = subMapping(tr.mapping, mapStart, tr.mapping.maps.length).map(to, -1);
     }
 
     if (slice.size > 0) {
-        const markedContent = addMarkToFragment(slice.content, suggestionType.create({ type: "insert", ...attrs }));
+        const markedContent = addMarkToFragment(slice.content, suggestionType.create({ type: "insert", id, author }));
         tr.insert(insertAt, markedContent);
         tr.setSelection(TextSelection.create(tr.doc, insertAt + slice.size));
     } else {
@@ -673,22 +743,22 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, user: SuggestionU
     return id;
 }
 
-function handleAddMarkStep(tr: Transaction, step: AddMarkStep, user: SuggestionUser) {
+function handleAddMarkStep(tr: Transaction, step: AddMarkStep, author: Author) {
     tr.step(step);
 
     const suggestionType = tr.doc.type.schema.marks.suggestion;
     if (!suggestionType) return;
 
-    tagFormatChange(tr, step.from, step.to, user, suggestionType, { addType: step.mark.type.name });
+    tagFormatChange(tr, step.from, step.to, author, suggestionType, { addType: step.mark.type.name });
 }
 
-function handleRemoveMarkStep(tr: Transaction, step: RemoveMarkStep, user: SuggestionUser) {
+function handleRemoveMarkStep(tr: Transaction, step: RemoveMarkStep, author: Author) {
     tr.step(step);
 
     const suggestionType = tr.doc.type.schema.marks.suggestion;
     if (!suggestionType) return;
 
-    tagFormatChange(tr, step.from, step.to, user, suggestionType, {
+    tagFormatChange(tr, step.from, step.to, author, suggestionType, {
         removeType: step.mark.type.name,
         removeAttrs: step.mark.attrs
     });
@@ -698,7 +768,7 @@ function tagFormatChange(
     tr: Transaction,
     from: number,
     to: number,
-    user: SuggestionUser,
+    author: Author,
     suggestionType: MarkType,
     change: { addType?: string; removeType?: string; removeAttrs?: Record<string, any> }
 ) {
@@ -708,7 +778,7 @@ function tagFormatChange(
     tr.doc.nodesBetween(from, to, node => {
         if (existing || !node.isInline) return true;
         const m = findSuggestionMark(node.marks, suggestionType, "format");
-        if (m && m.attrs.userId === user.id) existing = m;
+        if (m && m.attrs.author === author) existing = m;
         return true;
     });
 
@@ -731,12 +801,12 @@ function tagFormatChange(
     if (add.length === 0 && remove.length === 0) {
         // this change exactly cancels out the previously recorded one - strip just
         // that one format mark instance, not every suggestion mark in range (the
-        // insert/delete subtypes share this same mark type, so removing by type
-        // here would also strip unrelated pending insert/delete suggestions)
+        // insert/delete/comment subtypes share this same mark type, so removing by
+        // type here would also strip unrelated pending suggestions/threads)
         if (existing) tr.removeMark(from, to, existing);
         return;
     }
 
-    const mark = suggestionType.create({ type: "format", id, userId: user.id, userName: user.name, add, remove });
+    const mark = suggestionType.create({ type: "format", id, author, add, remove });
     tr.addMark(from, to, mark);
 }

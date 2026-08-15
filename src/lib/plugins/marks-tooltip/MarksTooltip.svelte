@@ -16,8 +16,8 @@
 	import { toggleMark } from 'prosemirror-commands';
 	import LinkSelector from './LinkSelector/LinkSelector.svelte';
 	import { markExtend } from './mark-helpers';
-	import { commentsPluginKey } from '../comments/plugin-comments';
-	import CommentComposer from '../comments/CommentComposer.svelte';
+	import { suggestionsPluginKey } from '../suggestions/plugin-suggestions';
+	import CommentComposer from '../suggestions/CommentComposer.svelte';
 
 	interface Props {
 		view: EditorView;
@@ -31,10 +31,11 @@
 	let linkSelectorOpen = $state(false);
 	let commentComposerOpen = $state(false);
 
-	// only offer "comment" when the host opted into the comments plugin
-	// (see src/lib/plugins/comments) - the mark itself always exists in the
-	// schema, but there's nowhere to persist a comment's text without it
-	let commentsAvailable = $derived(!!commentsPluginKey.getState(view.state));
+	// only offer "comment" when the host installed the suggestions plugin
+	// (see src/lib/plugins/suggestions) - the mark itself always exists in
+	// the schema, but there's no current author/mode to attribute a new
+	// comment to without the plugin's state
+	let commentsAvailable = $derived(!!suggestionsPluginKey.getState(view.state));
 
 	function getLink(_: number): Mark | null {
 		const sel = view.state.selection;
@@ -94,9 +95,21 @@
 		}
 	});
 
+	// 'comment' isn't a real schema mark name (comments are the "comment"
+	// subtype of the unified `suggestion` mark, see schema.ts) - it's kept
+	// here purely as a UI identifier for the button/composer below.
 	type MarkName = 'link' | 'strong' | 'em' | 'code' | 'strike' | 'comment';
 
 	function getProps(markName: MarkName) {
+		if (markName === 'comment') {
+			// an action button (opens the composer to start a new thread), not
+			// a toggle - there's no single "is this selection already
+			// commented" state to reflect here
+			return { size: 'small', variant: 'invisible', color: 'gray' } as {
+				size: 'small';
+				variant: 'fill' | 'invisible';
+			};
+		}
 		const markType = view.state.schema.marks[markName]!;
 		const isActive = isMarkActive(view.state, markType);
 		return {

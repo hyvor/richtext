@@ -5,8 +5,8 @@
 		suggestionsPlugin,
 		setSuggestionMode,
 		type SuggestionMode,
-		commentsPlugin,
-		type Comment
+		type Author,
+		type AuthorInfo
 	} from '../src/lib';
 	import { Base, Button } from '@hyvor/design/components';
 
@@ -16,6 +16,17 @@
 
 	const schema = getSchema();
 
+	const currentAuthor: Author = 'user:demo-user';
+
+	// stands in for the host app's own identity lookup (a real app would call
+	// its API/user directory here) - suggestions and comments only ever store
+	// this raw author id in the document, never a display name/picture
+	function resolveAuthor(author: Author): AuthorInfo {
+		if (author === 'ai') return { name: 'AI' };
+		if (author === currentAuthor) return { name: 'Demo User' };
+		return { name: author };
+	}
+
 	// lets the demo page exercise "suggesting" mode (edits get wrapped in the
 	// suggestion mark instead of applied directly, reviewable via the floating
 	// suggestions panel) against the same editor/document used for everything
@@ -23,8 +34,9 @@
 	// diff demo
 	let suggestionMode: SuggestionMode = $state('editing');
 	const editorSuggestionsPlugin = suggestionsPlugin({
-		user: { id: 'demo-user', name: 'Demo User' },
-		mode: suggestionMode
+		author: currentAuthor,
+		mode: suggestionMode,
+		resolveAuthor
 	});
 
 	function setMode(newMode: SuggestionMode) {
@@ -32,31 +44,6 @@
 		const view = editor?.getView();
 		if (view) setSuggestionMode(view, newMode);
 	}
-
-	// stands in for the host app's own comment store (a real app would call
-	// its API here) - persisted in localStorage the same way `doc` already
-	// is below, so comments survive a reload just like the document does.
-	// The editor never sees this directly: it only round-trips thread ids
-	// through the doc, and reaches comment text/authors through these
-	// getComments/onAdd/onReply/onResolve callbacks.
-	function loadComments(): Comment[] {
-		try {
-			return JSON.parse(localStorage.getItem('comments') ?? '[]');
-		} catch {
-			return [];
-		}
-	}
-	function saveComments(comments: Comment[]) {
-		localStorage.setItem('comments', JSON.stringify(comments));
-	}
-
-	const editorCommentsPlugin = commentsPlugin({
-		user: { id: 'demo-user', name: 'Demo User' },
-		getComments: () => loadComments(),
-		onAdd: (comment) => saveComments([...loadComments(), comment]),
-		onReply: (reply) => saveComments([...loadComments(), reply]),
-		onResolve: (commentId) => saveComments(loadComments().filter((c) => c.commentId !== commentId))
-	});
 
 	function setContent() {
 		editor.setContent(JSON.stringify({
@@ -83,7 +70,7 @@
 			value={localStorage.getItem('doc')}
 			onvaluechange={(val) => localStorage.setItem('doc', val)}
 			{schema}
-			plugins={[editorSuggestionsPlugin, editorCommentsPlugin]}
+			plugins={[editorSuggestionsPlugin]}
 			editorConfig={{
 				codeBlockConfig: {
 					language: true,

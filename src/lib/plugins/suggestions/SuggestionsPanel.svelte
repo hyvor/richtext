@@ -1,14 +1,20 @@
 <script lang="ts">
 	import type { EditorView } from 'prosemirror-view';
 	import { tick, onMount } from 'svelte';
+	import { TextSelection } from 'prosemirror-state';
 	import {
 		getSuggestions,
 		acceptSuggestion,
 		rejectSuggestion,
-		acceptAllSuggestions,
-		rejectAllSuggestions,
-		type SuggestionItem
+		replyToSuggestion,
+		resolveComment,
+		getResolveAuthor,
+		type SuggestionItem,
+		type Author,
+		type AuthorInfo
 	} from './commands';
+	// bulk actions temporarily disabled, see the header below
+	// import { acceptAllSuggestions, rejectAllSuggestions } from './commands';
 
 	interface Props {
 		view: EditorView;
@@ -18,21 +24,22 @@
 	let { view, updateId }: Props = $props();
 	let panel: HTMLDivElement | undefined = $state();
 	let itemEls: Record<string, HTMLLIElement> = {};
+	let replyDrafts: Record<string, string> = $state({});
 
-	let suggestions: SuggestionItem[] = $derived.by(() => {
+	let items: SuggestionItem[] = $derived.by(() => {
 		updateId;
 		return getSuggestions(view.state);
 	});
 
-	// the suggestion whose range is closest to the current selection - kept in
-	// sync as the user clicks/moves the cursor around the editor (not just
-	// while editing), so the panel always highlights whatever's relevant
+	// the item whose range is closest to the current selection - kept in sync
+	// as the user clicks/moves the cursor around the editor (not just while
+	// editing), so the panel always highlights whatever's relevant
 	let activeId: string | null = $derived.by(() => {
-		if (suggestions.length === 0) return null;
+		if (items.length === 0) return null;
 		const pos = view.state.selection.head;
-		let best = suggestions[0];
+		let best = items[0];
 		let bestDistance = distanceToItem(pos, best);
-		for (const item of suggestions) {
+		for (const item of items) {
 			const distance = distanceToItem(pos, item);
 			if (distance < bestDistance) {
 				best = item;
@@ -50,7 +57,7 @@
 	$effect(() => {
 		// depend on the list (and therefore visibility) so position is
 		// recomputed whenever the panel appears/resizes
-		suggestions;
+		items;
 		(async () => {
 			await tick();
 			updatePosition();
@@ -104,29 +111,141 @@
 		if (item.formatRemove.length) parts.push(`format −${item.formatRemove.join(', −')}`);
 		return parts.join('  ') || 'Change';
 	}
+
+	// author display name resolution - cached locally since resolveAuthor may
+	// be async (e.g. a network lookup); shows a "…" placeholder meanwhile
+	let authorCache: Record<string, AuthorInfo> = $state({});
+	let authorPending = new Set<string>();
+
+	function authorName(author: Author): string {
+		const cached = authorCache[author];
+		if (cached) return cached.name;
+		if (!authorPending.has(author)) {
+			authorPending.add(author);
+			const resolveAuthor = getResolveAuthor(view.state);
+			Promise.resolve(resolveAuthor(author)).then((info) => {
+				authorCache[author] = info;
+				authorPending.delete(author);
+			});
+		}
+		return '…';
+	}
+
+	function formatTime(timestamp: number): string {
+		return new Date(timestamp).toLocaleString(undefined, {
+			month: 'short',
+			day: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit'
+		});
+	}
+
+	function submitReply(item: SuggestionItem) {
+		const text = (replyDrafts[item.id] ?? '').trim();
+		if (!text) return;
+		replyToSuggestion(view, item.id, text);
+		replyDrafts[item.id] = '';
+	}
+
+	// Clicking an item's content (not its buttons/reply input) moves the
+	// editor's selection to its range and scrolls the editor to reveal it -
+	// the reverse direction of activeId/itemEls[...].scrollIntoView above,
+	// which only keeps the panel's own list in sync with the editor
+	// selection, not the other way around.
+	function jumpTo(item: SuggestionItem) {
+		const tr = view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(item.from)));
+		view.dispatch(tr.scrollIntoView());
+		view.focus();
+	}
+
+	function jumpToOnKey(e: KeyboardEvent, item: SuggestionItem) {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			jumpTo(item);
+		}
+	}
 </script>
 
-{#if suggestions.length > 0}
+{#if items.length > 0}
 	<div class="suggestions-panel" bind:this={panel}>
 		<div class="header">
-			<span>{suggestions.length} suggestion{suggestions.length === 1 ? '' : 's'}</span>
-			{#if suggestions.length > 1}
+			<span>{items.length} suggestion{items.length === 1 ? '' : 's'}</span>
+			<!--
+			bulk actions removed for now
+			{#if items.length > 1}
 				<div class="bulk-actions">
 					<button class="dismiss" onclick={() => rejectAllSuggestions(view)}>Dismiss all</button>
 					<button class="accept" onclick={() => acceptAllSuggestions(view)}>Accept all</button>
 				</div>
 			{/if}
+			-->
 		</div>
 		<ul>
-			{#each suggestions as item (item.id)}
+			{#each items as item (item.id)}
 				<li bind:this={itemEls[item.id]} class:active={item.id === activeId}>
-					<div class="meta">
-						{#if item.user.name}<strong>{item.user.name}</strong>{/if}
-						<span class="change">{label(item)}</span>
+					{#if item.type === 'comment'}
+						{@const opener = item.comments[0]}
+						<div
+							class="content"
+							role="button"
+							tabindex="0"
+							onclick={() => jumpTo(item)}
+							onkeydown={(e) => jumpToOnKey(e, item)}
+						>
+							{#if opener}
+								<div class="comment">
+									<strong>{authorName(opener.author)}</strong>
+									<span class="time">{formatTime(opener.timestamp)}</span>
+									<p>{opener.content}</p>
+								</div>
+							{/if}
+							{#each item.comments.slice(1) as reply (reply.id)}
+								<div class="comment reply">
+									<strong>{authorName(reply.author)}</strong>
+									<span class="time">{formatTime(reply.timestamp)}</span>
+									<p>{reply.content}</p>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<div
+							class="content"
+							role="button"
+							tabindex="0"
+							onclick={() => jumpTo(item)}
+							onkeydown={(e) => jumpToOnKey(e, item)}
+						>
+							<div class="meta">
+								<strong>{authorName(item.author)}</strong>
+								<span class="change">{label(item)}</span>
+							</div>
+							{#each item.comments as reply (reply.id)}
+								<div class="comment reply">
+									<strong>{authorName(reply.author)}</strong>
+									<span class="time">{formatTime(reply.timestamp)}</span>
+									<p>{reply.content}</p>
+								</div>
+							{/each}
+						</div>
+					{/if}
+
+					<div class="reply-row">
+						<input
+							type="text"
+							placeholder="Reply..."
+							bind:value={replyDrafts[item.id]}
+							onkeydown={(e) => e.key === 'Enter' && submitReply(item)}
+						/>
+						<button class="reply" onclick={() => submitReply(item)}>Reply</button>
 					</div>
+
 					<div class="actions">
-						<button class="dismiss" onclick={() => rejectSuggestion(view, item.id)}>Dismiss</button>
-						<button class="accept" onclick={() => acceptSuggestion(view, item.id)}>Accept</button>
+						{#if item.type === 'comment'}
+							<button class="resolve" onclick={() => resolveComment(view, item.id)}>Resolve</button>
+						{:else}
+							<button class="dismiss" onclick={() => rejectSuggestion(view, item.id)}>Dismiss</button>
+							<button class="accept" onclick={() => acceptSuggestion(view, item.id)}>Accept</button>
+						{/if}
 					</div>
 				</li>
 			{/each}
@@ -137,7 +256,7 @@
 <style>
 	.suggestions-panel {
 		position: fixed;
-		width: 260px;
+		width: 280px;
 		max-height: calc(100vh - 40px);
 		overflow-y: auto;
 		background: var(--box-background);
@@ -172,19 +291,30 @@
 		padding: 8px;
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
+		gap: 8px;
 	}
 
+	/* floating "chat bubble" look - no flat fill, just enough definition
+	   (border + shadow) to read as a card sitting on the panel's surface */
 	li {
 		padding: 8px 10px;
-		background: var(--gray-light);
+		border: 1px solid var(--border);
 		border-radius: calc(var(--box-radius) - 4px);
-		box-shadow: 0 0 0 0 transparent;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 		transition: box-shadow 0.15s ease;
 	}
 
 	li.active {
 		box-shadow: 0 0 0 2px var(--link);
+	}
+
+	.content {
+		cursor: pointer;
+		border-radius: 4px;
+	}
+
+	.content:hover {
+		background: var(--hover);
 	}
 
 	.meta {
@@ -203,13 +333,57 @@
 		word-break: break-word;
 	}
 
-	.actions {
+	.comment {
+		margin-bottom: 6px;
+	}
+
+	.comment.reply {
+		margin-left: 10px;
+		padding-left: 8px;
+		border-left: 2px solid var(--border);
+	}
+
+	.comment strong {
+		font-size: 12px;
+	}
+
+	.comment .time {
+		color: var(--text-light);
+		font-size: 11px;
+		margin-left: 6px;
+	}
+
+	.comment p {
+		margin: 2px 0 0 0;
+		word-break: break-word;
+	}
+
+	.reply-row {
 		display: flex;
 		gap: 6px;
+		margin-top: 6px;
+	}
+
+	.reply-row input {
+		flex: 1;
+		min-width: 0;
+		font-size: 12px;
+		font-family: inherit;
+		padding: 4px 8px;
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		background: var(--box-background);
+		color: var(--text);
+	}
+
+	.actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 6px;
+		margin-top: 6px;
 	}
 
 	button {
-		flex: 1;
 		font-size: 12px;
 		font-family: inherit;
 		padding: 4px 8px;
@@ -220,11 +394,16 @@
 		color: var(--text);
 	}
 
+	.actions button {
+		flex: 1;
+	}
+
 	button:hover {
 		background: var(--hover);
 	}
 
-	button.accept {
+	button.accept,
+	button.resolve {
 		border-color: #2e9e5b;
 		color: #1a7431;
 	}
@@ -232,5 +411,10 @@
 	button.dismiss {
 		border-color: #d64545;
 		color: #a51c2c;
+	}
+
+	button.reply {
+		border-color: #e0d32e;
+		color: #8a7a12;
 	}
 </style>

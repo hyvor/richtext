@@ -95,8 +95,8 @@ function getNodes(config: SchemaConfig): Record<string, NodeSpec> {
             selectable: false,
             // hard_break has no inline *content*, so ProseMirror doesn't allow it to
             // carry marks by default - grant the suggestion mark explicitly so a
-            // line break can be part of a tracked insert/delete/format run (see
-            // src/lib/plugins/suggestions and src/lib/diff).
+            // line break can be part of a tracked insert/delete/format run, or a
+            // comment thread (see src/lib/plugins/suggestions and src/lib/diff).
             marks: "suggestion",
             parseDOM: [{ tag: "br" }],
             toDOM() { return ['br'] }
@@ -398,71 +398,71 @@ export const marks = {
         toDOM() { return ["sub", 0] }
     } as MarkSpec,
 
-    // :: MarkSpec Marks a range of inline content as having an attached
-    // comment thread. Only the thread id is stored in the document - the
-    // comment text, author and replies live wherever the host app stores
-    // them (see src/lib/plugins/comments), the same "id-only" split the
-    // suggestion marks use for their own {id, userId, userName}. No
-    // parseDOM on purpose (matching the suggestion marks below): pasting
-    // HTML from elsewhere shouldn't silently attach content to an existing
-    // comment thread just because it happens to carry the same data
-    // attribute. `excludes: ""` lets more than one thread cover the same
-    // (or overlapping) text, since two people may comment on the same run.
-    comment: {
-        attrs: {
-            commentId: { default: "" },
-        },
-        inclusive: false,
-        excludes: "",
-        toDOM(mark: Mark) {
-            const { commentId } = mark.attrs;
-            return ["span", { class: "user-comment", "data-comment-id": commentId }, 0];
-        }
-    } as MarkSpec,
-
-    // :: MarkSpec Wraps inline content that changed while in suggestion mode
-    // (track changes): inserted text, "deleted" text (kept in place, struck
-    // through, until accepted/rejected), or a run whose formatting (marks)
-    // changed. `type` ("insert" | "delete" | "format") picks which of these
-    // this instance represents; `add`/`remove` are only meaningful for
-    // "format" - `add` holds the mark type names that were added, `remove`
-    // holds the {type, attrs} of marks that were removed, so the change can
-    // be reverted if the suggestion is rejected. Not meant to be applied by
-    // the user - only by the suggestions plugin and the diff renderer. See
-    // src/lib/plugins/suggestions and src/lib/diff. `excludes: ""` lets an
-    // insert/delete/format instance (or two instances of the same subtype
-    // from different suggestions) stack on the same range.
+    // :: MarkSpec Wraps inline content that carries a pending suggestion or a
+    // comment thread - track-changes and comments share this one mark type.
+    // `type` picks which of the four this instance represents:
+    //   - "insert"/"delete": inserted/"deleted" text while in suggesting mode
+    //     (deleted text is kept in place, struck through, until
+    //     accepted/rejected)
+    //   - "format": a run whose formatting (marks) changed while suggesting;
+    //     `add` holds the mark type names that were added, `remove` holds the
+    //     {type, attrs} of marks that were removed, so the change can be
+    //     reverted if rejected
+    //   - "comment": a plain comment thread over this range, not a proposed
+    //     edit - never produced by editing, only by explicit "Comment"
+    //     actions (see commands.ts's addComment)
+    // `author` identifies who made the suggestion/comment (e.g. "user:42" or
+    // "ai") - display name/picture resolution is left to the host app (see
+    // AuthorInfo/resolveAuthor in plugin-suggestions.ts), so only the raw
+    // identifier round-trips through the document. `comments` is a reply
+    // thread attached to this instance - available on every subtype, not
+    // just "comment", so a live suggestion can be discussed too.
+    // insert/delete/format are produced by the suggestions plugin and the
+    // diff renderer (src/lib/plugins/suggestions, src/lib/diff); "comment" is
+    // produced by commands.ts's addComment, triggered from the marks-tooltip
+    // and node-menu "Comment" actions. No parseDOM on purpose: pasting HTML
+    // from elsewhere shouldn't silently attach content to an existing
+    // suggestion/thread just because it happens to carry the same data
+    // attribute. `excludes: ""` lets multiple instances (any subtype/id)
+    // stack on the same range - e.g. two comment threads on the same word, or
+    // a comment alongside a pending suggestion.
     suggestion: {
         attrs: {
             type: { default: "insert" },
             id: { default: "" },
-            userId: { default: "" },
-            userName: { default: "" },
+            author: { default: "" },
+            comments: { default: [] },
             add: { default: [] },
             remove: { default: [] },
         },
         inclusive: false,
         excludes: "",
         toDOM(mark: Mark) {
-            const { type, id, userName } = mark.attrs;
+            const { type, id } = mark.attrs;
             if (type === "insert") {
                 return ["ins", {
                     class: "suggestion-insert",
                     "data-suggestion-id": id,
-                    title: userName ? `Suggested insertion by ${userName}` : "Suggested insertion"
+                    title: "Suggested insertion"
                 }, 0];
             }
             if (type === "delete") {
                 return ["del", {
                     class: "suggestion-delete",
                     "data-suggestion-id": id,
-                    title: userName ? `Suggested deletion by ${userName}` : "Suggested deletion"
+                    title: "Suggested deletion"
+                }, 0];
+            }
+            if (type === "format") {
+                return ["span", {
+                    class: "suggestion-format",
+                    "data-suggestion-id": id,
+                    title: "Suggested formatting"
                 }, 0];
             }
             return ["span", {
-                class: "suggestion-format",
+                class: "user-comment",
                 "data-suggestion-id": id,
-                title: userName ? `Suggested formatting by ${userName}` : "Suggested formatting"
             }, 0];
         }
     } as MarkSpec,
@@ -471,17 +471,21 @@ export const marks = {
 // The suggestion mark above only applies to inline content (by default,
 // ProseMirror doesn't allow marks on nodes with block content, and leaf/atom
 // nodes like image have no content to carry a mark's range at all). So a
-// whole non-inline node that is itself a pending suggestion - an
-// inserted/deleted blockquote, an image whose src changed, a table whose
-// attrs changed, ... - can't be wrapped in the mark. Instead every node
-// except doc/text gets a `suggestion` attr recording
-// {type, id, userId, userName} (plus, for type "format", a snapshot of the
-// node's previous attrs so a reject can restore them) when the node itself -
-// independent of any suggestion marks its own inline content may carry - is
-// a pending insert/delete/format suggestion. A node never has more than one
-// pending whole-node suggestion at a time, so a single attr (rather than a
-// list, unlike commentIds below) is enough. This round-trips through JSON
-// like any other attribute. See src/lib/plugins/suggestions and src/lib/diff.
+// whole non-inline node that itself carries a pending suggestion or comment
+// thread - an inserted/deleted blockquote, an image whose src changed, a
+// table someone commented on, ... - can't be wrapped in the mark. Instead
+// every node except doc/text gets a `suggestions` attr: a list of
+// {type, id, author, comments} objects (plus, for type "format", a snapshot
+// of the node's previous attrs so a reject can restore them), one per
+// pending whole-node suggestion/comment on that node - independent of any
+// suggestion marks its own inline content may carry. It's a list (not a
+// single object) because while a node never has more than one pending
+// insert/delete/format at a time, it can reasonably have several independent
+// comment threads attached to it at once; that business rule (at most one
+// non-comment entry) is enforced by the mutating code, not the schema. Reset
+// to null (not an empty array) when the last entry is removed. This
+// round-trips through JSON like any other attribute. See
+// src/lib/plugins/suggestions and src/lib/diff.
 function withSuggestionAttrs(nodes: ReturnType<typeof addListNodes>): ReturnType<typeof addListNodes> {
     let result = nodes;
     nodes.forEach((name, spec) => {
@@ -490,28 +494,7 @@ function withSuggestionAttrs(nodes: ReturnType<typeof addListNodes>): ReturnType
             ...spec,
             attrs: {
                 ...(spec.attrs ?? {}),
-                suggestion: { default: null },
-            }
-        });
-    });
-    return result;
-}
-
-// The `comment` mark above only applies to inline content, for the same
-// reason described on withSuggestionAttrs. So a comment on a whole
-// non-inline node (an image, a table, ...) is instead recorded as a
-// `commentIds` attr - plural, since unlike a suggestion (which only ever has
-// one pending insert/delete/format at a time) a node can reasonably have
-// several independent comment threads attached to it at once.
-function withCommentAttrs(nodes: ReturnType<typeof addListNodes>): ReturnType<typeof addListNodes> {
-    let result = nodes;
-    nodes.forEach((name, spec) => {
-        if (name === "doc" || name === "text") return;
-        result = result.update(name, {
-            ...spec,
-            attrs: {
-                ...(spec.attrs ?? {}),
-                commentIds: { default: null },
+                suggestions: { default: null },
             }
         });
     });
@@ -528,7 +511,7 @@ export function getSchema(config?: Partial<SchemaConfig>): Schema {
     });
 
     return new Schema({
-        nodes: withCommentAttrs(withSuggestionAttrs(addListNodes(schemaWithoutList.spec.nodes, "block+", "block"))),
+        nodes: withSuggestionAttrs(addListNodes(schemaWithoutList.spec.nodes, "block+", "block")),
         marks
     });
 }

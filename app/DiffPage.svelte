@@ -2,8 +2,24 @@
 	import { Editor } from '../src/lib';
 	import { getSchema } from '../src/lib/schema';
 	import { diffDoc, buildDiffDoc, type Diff } from '../src/lib/diff';
-	import { suggestionsPlugin, setSuggestionMode, type SuggestionMode } from '../src/lib';
+	import {
+		suggestionsPlugin,
+		setSuggestionMode,
+		type SuggestionMode,
+		type Author,
+		type AuthorInfo
+	} from '../src/lib';
 	import { Base, Button } from '@hyvor/design/components';
+
+	const DIFF_AUTHOR: Author = 'user:diff';
+	const REVIEWER_AUTHOR: Author = 'user:reviewer';
+
+	function resolveAuthor(author: Author): AuthorInfo {
+		if (author === DIFF_AUTHOR) return { name: 'Comparison' };
+		if (author === REVIEWER_AUTHOR) return { name: 'Reviewer' };
+		if (author === 'ai') return { name: 'AI' };
+		return { name: author };
+	}
 
 	const STORAGE_KEY_A = 'diff-doc-a';
 	const STORAGE_KEY_B = 'diff-doc-b';
@@ -64,7 +80,7 @@
 	let diffDocJson: object | null = $derived.by(() => {
 		if (!Array.isArray(diffResult)) return null;
 		try {
-			return buildDiffDoc(diffResult, schema, { id: 'diff', name: 'Comparison' }).toJSON();
+			return buildDiffDoc(diffResult, schema, DIFF_AUTHOR).toJSON();
 		} catch (e) {
 			return null;
 		}
@@ -80,8 +96,9 @@
 	// suggestions rather than silently changing the merged doc.
 	let suggestionMode: SuggestionMode = $state('suggesting');
 	const diffSuggestionsPlugin = suggestionsPlugin({
-		user: { id: 'reviewer', name: 'Reviewer' },
-		mode: suggestionMode
+		author: REVIEWER_AUTHOR,
+		mode: suggestionMode,
+		resolveAuthor
 	});
 
 	let diffEditor: Editor;
