@@ -53,6 +53,14 @@ export class NodeMenuPluginView implements PluginView {
             return;
         }
 
+        // the pointer is over the menu's own handle/dropdown (a fixed-position
+        // overlay that visually sits on top of the document) - leave
+        // nodeMenuPos alone, since resolving *its* screen position against the
+        // document would hijack it to whatever node happens to be underneath
+        if (event.target instanceof Node && this.wrap.contains(event.target)) {
+            return;
+        }
+
         const result = this.view.posAtCoords({ left: event.clientX, top: event.clientY });
         if (!result) {
             nodeMenuPos.set(null);

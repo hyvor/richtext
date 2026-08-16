@@ -38,7 +38,10 @@
 	function onComment() {
 		if ($nodeMenuPos === null) return;
 		if (!selectNode($nodeMenuPos)) return;
-		commentInputOpen = true;
+		// deferred - swapping the DOM synchronously here detaches the clicked item before Dropdown's own outside-click listener sees this same click, so it misreads it as "outside" and closes the menu
+		setTimeout(() => {
+			commentInputOpen = true;
+		});
 	}
 
 	// reset back to the action list once the dropdown closes, so it doesn't
@@ -81,7 +84,7 @@
 		// align near the top-left corner of the node, rather than vertically
 		// centered on it
 		left -= 26;
-		top += 2;
+		top += 5;
 
 		wrapEl.style.top = `${top}px`;
 		wrapEl.style.left = `${left}px`;
@@ -135,8 +138,12 @@
 
 	function onDelete() {
 		if ($nodeMenuPos === null) return;
-		deleteNode(view, $nodeMenuPos);
-		show = false;
+		const pos = $nodeMenuPos;
+		// deferred - see onComment() above for why closing the dropdown can't happen synchronously inside this click handler
+		setTimeout(() => {
+			deleteNode(view, pos);
+			show = false;
+		});
 	}
 
 	function positionDrag(clientX: number, clientY: number) {
@@ -304,37 +311,33 @@
 <div class="wrap" bind:this={wrapEl} class:show={$nodeMenuPos !== null && !dragging}>
 	<Dropdown bind:show width={250}>
 		{#snippet content()}
-			<!-- stop mousemove from reaching the container's hover-tracking listener, which would otherwise re-resolve $nodeMenuPos to the node under the dropdown -->
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div onmousemove={(e) => e.stopPropagation()}>
-				{#if commentInputOpen}
-					<CommentInput
-						{view}
-						onSubmit={() => {
-							commentInputOpen = false;
-							show = false;
-						}}
-						onCancel={() => (commentInputOpen = false)}
-					/>
-				{:else}
-					<ActionList>
-						{#if commentsAvailable}
-							<ActionListItem on:click={onComment}>
-								{#snippet start()}
-									<IconChatRight size={14} />
-								{/snippet}
-								Comment
-							</ActionListItem>
-						{/if}
-						<ActionListItem type="danger" on:click={onDelete}>
+			{#if commentInputOpen}
+				<CommentInput
+					{view}
+					onSubmit={() => {
+						commentInputOpen = false;
+						show = false;
+					}}
+					onCancel={() => (commentInputOpen = false)}
+				/>
+			{:else}
+				<ActionList>
+					{#if commentsAvailable}
+						<ActionListItem on:click={onComment}>
 							{#snippet start()}
-								<IconTrash size={14} />
+								<IconChatRight size={14} />
 							{/snippet}
-							Delete
+							Comment
 						</ActionListItem>
-					</ActionList>
-				{/if}
-			</div>
+					{/if}
+					<ActionListItem type="danger" on:click={onDelete}>
+						{#snippet start()}
+							<IconTrash size={14} />
+						{/snippet}
+						Delete
+					</ActionListItem>
+				</ActionList>
+			{/if}
 		{/snippet}
 
 		{#snippet trigger()}
@@ -360,6 +363,7 @@
 		z-index: 1000;
 		opacity: 0;
 		pointer-events: none;
+		transition: opacity 0.15s ease;
 	}
 	.wrap.show {
 		opacity: 1;
