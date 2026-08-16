@@ -40,6 +40,12 @@ export interface SuggestionItem {
     insertedNodeType?: string;
     deletedNodeType?: string;
     formattedNodeType?: string;
+    // a content preview for a whole inserted/deleted node (its concatenated
+    // text, e.g. a paragraph's own text) - lets a host show what the node
+    // actually says instead of just its type name. Absent for nodes with no
+    // text content of their own (image, audio, ...).
+    insertedNodeText?: string;
+    deletedNodeText?: string;
     // the reply thread attached to this suggestion/comment - available on
     // every type, not just "comment" (see marks.suggestion in schema.ts).
     // Sourced from the host, not the document - empty until resolved.
@@ -107,9 +113,14 @@ export function getSuggestions(state: EditorState): SuggestionItem[] {
         const nodeSuggestions = getNodeSuggestions(node);
         for (const ns of nodeSuggestions) {
             const item = ensure(ns.id, ns.type, pos, pos + node.nodeSize);
-            if (ns.type === "delete") item.deletedNodeType = node.type.name;
-            else if (ns.type === "insert") item.insertedNodeType = node.type.name;
-            else if (ns.type === "format") item.formattedNodeType = node.type.name;
+            const text = node.textContent.trim();
+            if (ns.type === "delete") {
+                item.deletedNodeType = node.type.name;
+                if (text) item.deletedNodeText = text;
+            } else if (ns.type === "insert") {
+                item.insertedNodeType = node.type.name;
+                if (text) item.insertedNodeText = text;
+            } else if (ns.type === "format") item.formattedNodeType = node.type.name;
         }
 
         const primary = nodeSuggestions.find(s => s.type !== "comment");

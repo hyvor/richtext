@@ -6,6 +6,7 @@
 		getSuggestions,
 		acceptSuggestion,
 		rejectSuggestion,
+		acceptAllSuggestions,
 		replyToSuggestion,
 		resolveComment,
 		getResolveAuthor,
@@ -14,11 +15,9 @@
 		type AuthorInfo
 	} from './commands';
 	import { slide } from 'svelte/transition';
-	import { IconButton, Tooltip } from '@hyvor/design/components';
+	import { IconButton, Tooltip, confirm } from '@hyvor/design/components';
 	import IconCheck from '@hyvor/icons/IconCheck';
 	import IconX from '@hyvor/icons/IconX';
-	// bulk actions temporarily disabled, see the header below
-	// import { acceptAllSuggestions, rejectAllSuggestions } from './command size={12}s';
 
 	interface Props {
 		view: EditorView;
@@ -34,6 +33,21 @@
 		updateId;
 		return getSuggestions(view.state);
 	});
+
+	// comments aren't "suggestions" for accept-all purposes (acceptAllSuggestions
+	// itself skips them too, see commands.ts) - only count/offer the button for
+	// actual tracked-change items
+	let suggestionCount = $derived(items.filter((item) => item.type !== 'comment').length);
+
+	async function handleAcceptAll() {
+		const confirmed = await confirm({
+			title: 'Accept all suggestions',
+			content: `Are you sure you want to accept all ${suggestionCount} suggestion${suggestionCount === 1 ? '' : 's'}? This cannot be undone.`,
+			confirmText: 'Yes, accept all'
+		});
+		if (!confirmed) return;
+		acceptAllSuggestions(view);
+	}
 
 	// the item whose range is closest to the current selection - kept in sync
 	// as the user clicks/moves the cursor around the editor (not just while
@@ -106,6 +120,12 @@
 		| { kind: 'replace'; prefix: string; from: string; to: string }
 		| { kind: 'plain'; prefix: string; text: string };
 
+	const CHANGE_TEXT_MAX = 40;
+
+	function truncate(text: string, max = CHANGE_TEXT_MAX): string {
+		return text.length <= max ? text : text.slice(0, max).trimEnd() + '…';
+	}
+
 	function describeChange(item: SuggestionItem): ChangeDescription | null {
 		if (item.formatAdd.length || item.formatRemove.length) {
 			const parts = [
@@ -118,33 +138,38 @@
 			return { kind: 'plain', prefix: 'Format', text: item.formattedNodeType };
 		}
 
-		const inserted = item.insertedText || item.insertedNodeType;
-		const deleted = item.deletedText || item.deletedNodeType;
+		// prefer a content preview (the node's own text, e.g. a paragraph's
+		// text) over the bare type name, so "Insert: paragraph" reads as
+		// "Insert: "this is new content..."" instead - falls back to the type
+		// name only for nodes with no text of their own (image, audio, ...)
+		const inserted = item.insertedText || item.insertedNodeText || item.insertedNodeType;
+		const deleted = item.deletedText || item.deletedNodeText || item.deletedNodeType;
 
 		if (inserted && deleted) {
-			return { kind: 'replace', prefix: 'Replace', from: deleted, to: inserted };
+			return { kind: 'replace', prefix: 'Replace', from: truncate(deleted), to: truncate(inserted) };
 		}
 		if (inserted) {
-			return { kind: 'quoted', prefix: 'Insert', text: inserted };
+			return { kind: 'quoted', prefix: 'Insert', text: truncate(inserted) };
 		}
 		if (deleted) {
-			return { kind: 'quoted', prefix: 'Delete', text: deleted };
+			return { kind: 'quoted', prefix: 'Delete', text: truncate(deleted) };
 		}
 		return null;
 	}
 
-	// author display name resolution - cached locally since resolveAuthor may
-	// be async (e.g. a network lookup); shows a "…" placeholder meanwhile
+	// author display name/picture resolution - cached locally since
+	// resolveAuthor may be async (e.g. a network lookup); returns null (shown
+	// as a "…" placeholder) meanwhile
 	let authorCache: Record<string, AuthorInfo> = $state({});
 	let authorPending = new Set<string>();
 
-	function authorName(author: Author | null): string {
+	function authorInfo(author: Author | null): AuthorInfo | null {
 		// null: the host's SuggestionSource (see plugin-suggestions.ts) hasn't
 		// resolved this suggestion's author yet - distinct from "resolveAuthor
 		// pending", but shows the same placeholder either way
-		if (author === null) return '…';
+		if (author === null) return null;
 		const cached = authorCache[author];
-		if (cached) return cached.name;
+		if (cached) return cached;
 		if (!authorPending.has(author)) {
 			authorPending.add(author);
 			const resolveAuthor = getResolveAuthor(view.state);
@@ -153,7 +178,27 @@
 				authorPending.delete(author);
 			});
 		}
-		return '…';
+		return null;
+	}
+
+	function authorName(author: Author | null): string {
+		return authorInfo(author)?.name ?? '…';
+	}
+
+	// deterministic per-name color for the initials avatar fallback, so the
+	// same author always gets the same color instead of a random one on every
+	// render
+	function avatarColor(seed: string): string {
+		let hash = 0;
+		for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+		return `hsl(${Math.abs(hash) % 360}, 55%, 42%)`;
+	}
+
+	function initials(name: string): string {
+		const words = name.trim().split(/\s+/).filter(Boolean);
+		if (words.length === 0) return '?';
+		if (words.length === 1) return words[0]!.slice(0, 1).toUpperCase();
+		return (words[0]!.slice(0, 1) + words[words.length - 1]!.slice(0, 1)).toUpperCase();
 	}
 
 	function formatTime(timestamp: number): string {
@@ -200,19 +245,25 @@
 	}
 </script>
 
+{#snippet avatar(author: Author | null)}
+	{@const info = authorInfo(author)}
+	{@const seed = info?.name ?? author ?? '?'}
+	<span class="avatar" style:background-color={info?.picture ? undefined : avatarColor(seed)}>
+		{#if info?.picture}
+			<img src={info.picture} alt="" />
+		{:else}
+			{initials(seed)}
+		{/if}
+	</span>
+{/snippet}
+
 {#if items.length > 0 && view.editable}
 	<div class="suggestions-panel" bind:this={panel}>
 		<div class="header">
 			<span>{items.length} suggestion{items.length === 1 ? '' : 's'}</span>
-			<!--
-			bulk actions removed for now
-			{#if items.length > 1}
-				<div class="bulk-actions">
-					<button class="dismiss" onclick={() => rejectAllSuggestions(view)}>Dismiss all</button>
-					<button class="accept" onclick={() => acceptAllSuggestions(view)}>Accept all</button>
-				</div>
+			{#if suggestionCount > 0}
+				<button class="accept-all" onclick={handleAcceptAll}>Accept all</button>
 			{/if}
-			-->
 		</div>
 		<ul>
 			{#each items as item (item.id)}
@@ -228,7 +279,10 @@
 							{#if item.type !== 'comment'}
 								{@const change = describeChange(item)}
 								<div class="meta">
-									<strong>{authorName(item.author)}</strong>
+									<div class="author-row">
+										{@render avatar(item.author)}
+										<strong>{authorName(item.author)}</strong>
+									</div>
 									{#if change}
 										<span class="change"
 											>{change.prefix}:
@@ -245,8 +299,11 @@
 							{/if}
 							{#each item.comments as comment (comment.id)}
 								<div class="comment">
-									<strong>{authorName(comment.author)}</strong>
-									<span class="time">{formatTime(comment.timestamp)}</span>
+									<div class="author-row">
+										{@render avatar(comment.author)}
+										<strong>{authorName(comment.author)}</strong>
+										<span class="time">{formatTime(comment.timestamp)}</span>
+									</div>
 									<div class="comment-content">{comment.content}</div>
 								</div>
 							{/each}
@@ -319,15 +376,25 @@
 	.header {
 		position: sticky;
 		top: 0;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
 		gap: 8px;
-		padding: 4px 12px;
+		padding: 4px 8px 4px 12px;
 		font-weight: 600;
-		text-align: right;
+		background: var(--box-background);
 	}
 
-	.bulk-actions {
-		display: flex;
-		gap: 6px;
+	.accept-all {
+		font-size: 11px;
+		font-weight: 600;
+		padding: 4px 8px;
+		border-radius: 6px;
+		color: var(--green-dark);
+	}
+
+	.accept-all:hover {
+		background: var(--hover);
 	}
 
 	ul {
@@ -357,13 +424,40 @@
 	.meta {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: 4px;
 		margin-bottom: 6px;
 	}
 
-	.meta strong {
-		font-size: 12px;
+	.author-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
 		margin-top: 6px;
+	}
+
+	.author-row strong {
+		font-size: 12px;
+	}
+
+	.avatar {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+		overflow: hidden;
+		font-size: 8px;
+		font-weight: 700;
+		color: #fff;
+		letter-spacing: 0.02em;
+	}
+
+	.avatar img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
 	}
 
 	.change {
@@ -379,14 +473,9 @@
 		margin-bottom: 6px;
 	}
 
-	.comment strong {
-		font-size: 12px;
-	}
-
 	.comment .time {
 		color: var(--text-light);
 		font-size: 11px;
-		margin-left: 6px;
 	}
 
 	.comment-content {
