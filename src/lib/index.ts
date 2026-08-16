@@ -1,6 +1,6 @@
 export { default as Editor } from './Editor.svelte';
 export { diffDoc, buildDiffDoc } from './diff';
-export type { Diff, InlineOp } from './diff';
+export type { Diff, InlineOp, DiffSuggestionRef } from './diff';
 export { getSchema } from './schema';
 export type { SchemaConfig, EditorConfig } from './config';
 
@@ -11,7 +11,10 @@ export type {
 	SuggestionsPluginConfig,
 	Author,
 	AuthorInfo,
-	SuggestionReply
+	SuggestionReply,
+	SuggestionSource,
+	SuggestionSourceEntry,
+	SuggestionEvent
 } from './plugins/suggestions/plugin-suggestions';
 export type { SuggestionItem } from './plugins/suggestions/commands';
 export {
@@ -26,5 +29,6 @@ export {
 	rejectAllSuggestions,
 	addComment,
 	replyToSuggestion,
-	resolveComment
+	resolveComment,
+	seedSuggestionSource
 } from './plugins/suggestions/commands';

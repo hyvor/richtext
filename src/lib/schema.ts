@@ -411,12 +411,13 @@ export const marks = {
     //   - "comment": a plain comment thread over this range, not a proposed
     //     edit - never produced by editing, only by explicit "Comment"
     //     actions (see commands.ts's addComment)
-    // `author` identifies who made the suggestion/comment (e.g. "user:42" or
-    // "ai") - display name/picture resolution is left to the host app (see
-    // AuthorInfo/resolveAuthor in plugin-suggestions.ts), so only the raw
-    // identifier round-trips through the document. `comments` is a reply
-    // thread attached to this instance - available on every subtype, not
-    // just "comment", so a live suggestion can be discussed too.
+    // Who made the suggestion/comment (`author`) and its reply thread
+    // (`comments`) are NOT stored here - they're sourced from outside via the
+    // suggestions plugin's `source` callback (see SuggestionSource in
+    // plugin-suggestions.ts), keyed by `id`, the same way `fileUploader`
+    // keeps uploaded blobs out of the document and only stores a reference.
+    // Only `id`/`type` (and, for "format", `add`/`remove`) - all mechanical,
+    // not identity data - round-trip through the document.
     // insert/delete/format are produced by the suggestions plugin and the
     // diff renderer (src/lib/plugins/suggestions, src/lib/diff); "comment" is
     // produced by commands.ts's addComment, triggered from the marks-tooltip
@@ -430,8 +431,6 @@ export const marks = {
         attrs: {
             type: { default: "insert" },
             id: { default: "" },
-            author: { default: "" },
-            comments: { default: [] },
             add: { default: [] },
             remove: { default: [] },
         },
@@ -475,9 +474,9 @@ export const marks = {
 // thread - an inserted/deleted blockquote, an image whose src changed, a
 // table someone commented on, ... - can't be wrapped in the mark. Instead
 // every node except doc/text gets a `suggestions` attr: a list of
-// {type, id, author, comments} objects (plus, for type "format", a snapshot
-// of the node's previous attrs so a reject can restore them), one per
-// pending whole-node suggestion/comment on that node - independent of any
+// {type, id} objects (plus, for type "format", a snapshot of the node's
+// previous attrs so a reject can restore them), one per pending whole-node
+// suggestion/comment on that node - independent of any
 // suggestion marks its own inline content may carry. It's a list (not a
 // single object) because while a node never has more than one pending
 // insert/delete/format at a time, it can reasonably have several independent

@@ -16,7 +16,8 @@ import {
     type AuthorInfo,
     type SuggestionReply,
     type SuggestionNodeMeta,
-    type SuggestionFormatNodeMeta
+    type SuggestionFormatNodeMeta,
+    type SuggestionEvent
 } from "./plugin-suggestions";
 
 export type { SuggestionMode, SuggestionSubtype, Author, AuthorInfo, SuggestionReply };
@@ -24,7 +25,9 @@ export type { SuggestionMode, SuggestionSubtype, Author, AuthorInfo, SuggestionR
 export interface SuggestionItem {
     id: string;
     type: SuggestionSubtype;
-    author: Author;
+    // null while the host's SuggestionSource hasn't resolved this id yet
+    // (see plugin-suggestions-source.ts) - never comes from the document.
+    author: Author | null;
     from: number;
     to: number;
     insertedText: string;
@@ -38,7 +41,8 @@ export interface SuggestionItem {
     deletedNodeType?: string;
     formattedNodeType?: string;
     // the reply thread attached to this suggestion/comment - available on
-    // every type, not just "comment" (see marks.suggestion in schema.ts)
+    // every type, not just "comment" (see marks.suggestion in schema.ts).
+    // Sourced from the host, not the document - empty until resolved.
     comments: SuggestionReply[];
 }
 
@@ -73,15 +77,19 @@ export function getSuggestions(state: EditorState): SuggestionItem[] {
     const suggestionType = schema.marks.suggestion;
     if (!suggestionType) return [];
 
+    const cache = suggestionsPluginKey.getState(state)?.cache ?? {};
+
     const items = new Map<string, SuggestionItem>();
 
-    function ensure(
-        id: string, type: SuggestionSubtype, author: Author, comments: SuggestionReply[],
-        from: number, to: number
-    ): SuggestionItem {
+    function ensure(id: string, type: SuggestionSubtype, from: number, to: number): SuggestionItem {
         let item = items.get(id);
         if (!item) {
-            item = { id, type, author, from, to, insertedText: "", deletedText: "", formatAdd: [], formatRemove: [], comments };
+            const cached = cache[id];
+            item = {
+                id, type, author: cached?.author ?? null, from, to,
+                insertedText: "", deletedText: "", formatAdd: [], formatRemove: [],
+                comments: cached?.comments ?? []
+            };
             items.set(id, item);
         } else {
             item.from = Math.min(item.from, from);
@@ -98,7 +106,7 @@ export function getSuggestions(state: EditorState): SuggestionItem[] {
         // carry their own, independent suggestions/threads)
         const nodeSuggestions = getNodeSuggestions(node);
         for (const ns of nodeSuggestions) {
-            const item = ensure(ns.id, ns.type, ns.author, ns.comments, pos, pos + node.nodeSize);
+            const item = ensure(ns.id, ns.type, pos, pos + node.nodeSize);
             if (ns.type === "delete") item.deletedNodeType = node.type.name;
             else if (ns.type === "insert") item.insertedNodeType = node.type.name;
             else if (ns.type === "format") item.formattedNodeType = node.type.name;
@@ -112,19 +120,19 @@ export function getSuggestions(state: EditorState): SuggestionItem[] {
 
         const insertMark = findSuggestionMark(node.marks, suggestionType, "insert");
         if (insertMark) {
-            const item = ensure(insertMark.attrs.id, "insert", insertMark.attrs.author, insertMark.attrs.comments, from, to);
+            const item = ensure(insertMark.attrs.id, "insert", from, to);
             if (node.isText) item.insertedText += node.text ?? "";
         }
 
         const deleteMark = findSuggestionMark(node.marks, suggestionType, "delete");
         if (deleteMark) {
-            const item = ensure(deleteMark.attrs.id, "delete", deleteMark.attrs.author, deleteMark.attrs.comments, from, to);
+            const item = ensure(deleteMark.attrs.id, "delete", from, to);
             if (node.isText) item.deletedText += node.text ?? "";
         }
 
         const formatMark = findSuggestionMark(node.marks, suggestionType, "format");
         if (formatMark) {
-            const item = ensure(formatMark.attrs.id, "format", formatMark.attrs.author, formatMark.attrs.comments, from, to);
+            const item = ensure(formatMark.attrs.id, "format", from, to);
             item.formatAdd = formatMark.attrs.add;
             item.formatRemove = (formatMark.attrs.remove as { type: string }[]).map(r => r.type);
         }
@@ -134,7 +142,7 @@ export function getSuggestions(state: EditorState): SuggestionItem[] {
         // all of them, not just one
         for (const mark of node.marks) {
             if (mark.type !== suggestionType || mark.attrs.type !== "comment") continue;
-            ensure(mark.attrs.id, "comment", mark.attrs.author, mark.attrs.comments, from, to);
+            ensure(mark.attrs.id, "comment", from, to);
         }
 
         return true;
@@ -173,10 +181,12 @@ function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "r
 
     const tr = state.tr;
     const deleteRanges: { from: number; to: number }[] = [];
+    let found = false;
 
     state.doc.descendants((node, pos) => {
         const nodeSuggestion = getNodeSuggestions(node).find(s => s.id === id);
         if (nodeSuggestion) {
+            found = true;
             if (nodeSuggestion.type === "delete") {
                 if (decision === "accept") {
                     deleteRanges.push({ from: pos, to: pos + node.nodeSize });
@@ -217,6 +227,7 @@ function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "r
         const hasDelete = deleteMark?.attrs.id === id;
 
         if (hasInsert || hasDelete) {
+            found = true;
             const removeContent =
                 (hasInsert && hasDelete) ||
                 (hasInsert && !hasDelete && decision === "reject") ||
@@ -234,6 +245,7 @@ function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "r
 
         const formatMark = findSuggestionMark(node.marks, suggestionType, "format");
         if (formatMark && formatMark.attrs.id === id) {
+            found = true;
             if (decision === "reject") {
                 for (const typeName of formatMark.attrs.add as string[]) {
                     const mt = schema.marks[typeName];
@@ -255,8 +267,9 @@ function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "r
         tr.delete(r.from, r.to);
     }
 
-    if (tr.steps.length > 0) {
+    if (tr.steps.length > 0 || found) {
         tr.setMeta(SUGGESTIONS_SKIP_META, true);
+        tr.setMeta(suggestionsPluginKey, { events: [{ kind: "resolve", id, decision } satisfies SuggestionEvent] });
         view.dispatch(tr);
     }
 }
@@ -291,15 +304,18 @@ export function addComment(view: EditorView, text: string): SuggestionItem | nul
     const tr = state.tr;
 
     if (sel instanceof NodeSelection) {
-        const meta: SuggestionNodeMeta = { type: "comment", id, author: pluginState.author, comments: [opening] };
+        const meta: SuggestionNodeMeta = { type: "comment", id };
         tr.setNodeAttribute(sel.from, "suggestions", withNodeSuggestion(sel.node, meta));
     } else {
-        tr.addMark(sel.from, sel.to, suggestionType.create({
-            type: "comment", id, author: pluginState.author, comments: [opening]
-        }));
+        tr.addMark(sel.from, sel.to, suggestionType.create({ type: "comment", id }));
     }
 
+    const events: SuggestionEvent[] = [
+        { kind: "create", id, type: "comment", author: pluginState.author },
+        { kind: "reply", id, reply: opening }
+    ];
     tr.setMeta(SUGGESTIONS_SKIP_META, true);
+    tr.setMeta(suggestionsPluginKey, { events });
     dispatch(tr);
 
     return {
@@ -312,17 +328,20 @@ export function addComment(view: EditorView, text: string): SuggestionItem | nul
 
 /**
  * Adds a reply to any suggestion or comment thread's discussion - this is
- * what makes suggestions repliable, not just comments. Patches `comments` on
- * every mark instance / node-attr entry sharing `id` (a suggestion can span
- * several disjoint mark instances, e.g. crossing a bold run).
+ * what makes suggestions repliable, not just comments. Never touches the
+ * document: replies live entirely in the host's SuggestionSource (see
+ * plugin-suggestions.ts), keyed by `id`, so this dispatches a zero-step
+ * transaction carrying just the reply event - not part of undo history,
+ * `onvaluechange`, or any future doc-sync mechanism, since it isn't
+ * editorial document content.
  */
 export function replyToSuggestion(view: EditorView, id: string, text: string): SuggestionReply | null {
     const { state, dispatch } = view;
     const pluginState = suggestionsPluginKey.getState(state);
     if (!pluginState) return null;
 
-    const suggestionType = state.schema.marks.suggestion;
-    if (!suggestionType) return null;
+    // the thread must still exist in the doc (mark/node-attr with this id)
+    if (!getSuggestions(state).some(item => item.id === id)) return null;
 
     const reply: SuggestionReply = {
         id: generateSuggestionId(),
@@ -331,36 +350,7 @@ export function replyToSuggestion(view: EditorView, id: string, text: string): S
         timestamp: Date.now()
     };
 
-    const tr = state.tr;
-    let found = false;
-
-    state.doc.descendants((node, pos) => {
-        const list = getNodeSuggestions(node);
-        if (list.some(s => s.id === id)) {
-            found = true;
-            tr.setNodeAttribute(pos, "suggestions", list.map(s =>
-                s.id === id ? { ...s, comments: [...s.comments, reply] } : s
-            ));
-        }
-
-        if (!node.isInline) return true;
-
-        const mark = node.marks.find(m => m.type === suggestionType && m.attrs.id === id);
-        if (mark) {
-            found = true;
-            const from = pos, to = pos + node.nodeSize;
-            const updated = suggestionType.create({ ...mark.attrs, comments: [...mark.attrs.comments, reply] });
-            tr.removeMark(from, to, mark);
-            tr.addMark(from, to, updated);
-        }
-
-        return true;
-    });
-
-    if (!found) return null;
-
-    tr.setMeta(SUGGESTIONS_SKIP_META, true);
-    dispatch(tr);
+    dispatch(state.tr.setMeta(suggestionsPluginKey, { events: [{ kind: "reply", id, reply } satisfies SuggestionEvent] }));
     return reply;
 }
 
@@ -368,7 +358,8 @@ export function replyToSuggestion(view: EditorView, id: string, text: string): S
  * Resolves a comment thread (type "comment" only - for suggestions use
  * acceptSuggestion/rejectSuggestion instead): strips its mark/node-attr
  * entries from the document (removing just that thread's highlight, leaving
- * any other overlapping threads/suggestions intact). No content mutation,
+ * any other overlapping threads/suggestions intact) and evicts/notifies its
+ * author+comments from the host's SuggestionSource. No content mutation,
  * since a comment never wraps inserted/deleted text.
  */
 export function resolveComment(view: EditorView, id: string): void {
@@ -377,22 +368,47 @@ export function resolveComment(view: EditorView, id: string): void {
     if (!suggestionType) return;
 
     const tr = state.tr;
+    let found = false;
 
     state.doc.descendants((node, pos) => {
         if (getNodeSuggestions(node).some(s => s.id === id && s.type === "comment")) {
+            found = true;
             tr.setNodeAttribute(pos, "suggestions", withoutNodeSuggestion(node, id));
         }
 
         if (!node.isInline) return true;
 
         const mark = node.marks.find(m => m.type === suggestionType && m.attrs.type === "comment" && m.attrs.id === id);
-        if (mark) tr.removeMark(pos, pos + node.nodeSize, mark);
+        if (mark) {
+            found = true;
+            tr.removeMark(pos, pos + node.nodeSize, mark);
+        }
 
         return true;
     });
 
-    if (tr.steps.length > 0) {
+    if (found) {
         tr.setMeta(SUGGESTIONS_SKIP_META, true);
+        tr.setMeta(suggestionsPluginKey, { events: [{ kind: "resolve", id, decision: "resolve" } satisfies SuggestionEvent] });
         dispatch(tr);
     }
+}
+
+/**
+ * Seeds the plugin's cache with already-known {id, type, author} pairs
+ * without waiting on the host's SuggestionSource.get() - used for content
+ * whose authorship is already known locally when it's created (e.g.
+ * src/lib/diff's buildDiffDoc-generated suggestions, attributed by the
+ * caller rather than a live editing session). Dispatching this synchronously
+ * right after loading such content (no `await` in between) lets it win the
+ * race against the source view's own microtask-deferred fetch for the same
+ * ids - see plugin-suggestions-source.ts.
+ */
+export function seedSuggestionSource(
+    view: EditorView,
+    entries: { id: string; type: SuggestionSubtype; author: Author }[]
+): void {
+    if (!entries.length) return;
+    const events: SuggestionEvent[] = entries.map(e => ({ kind: "create", ...e }));
+    view.dispatch(view.state.tr.setMeta(suggestionsPluginKey, { events }));
 }

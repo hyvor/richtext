@@ -3,15 +3,21 @@ import type { Diff, InlineOp } from './types';
 import {
 	generateSuggestionId,
 	withNodeSuggestion,
-	type Author,
+	type SuggestionSubtype,
 	type SuggestionNodeMeta,
 	type SuggestionFormatNodeMeta
 } from '../plugins/suggestions/plugin-suggestions';
 
-// attributed to generated suggestion marks/attrs when the caller doesn't pass
-// their own Author - renders as a plain "Suggested insertion" etc. tooltip
-// (see the mark/attr toDOM in schema.ts and plugin-suggestions.ts)
-const DEFAULT_DIFF_AUTHOR: Author = 'user:';
+// A generated suggestion's {id, type}, collected as buildDiffDoc runs so the
+// caller can attribute the whole batch to an author and seed the suggestions
+// plugin's host-backed cache (see seedSuggestionSource in
+// plugins/suggestions/commands.ts) - authorship is no longer embedded in the
+// document itself (see marks.suggestion in schema.ts), and a two-document
+// diff has no per-change authorship of its own to embed anyway.
+export interface DiffSuggestionRef {
+	id: string;
+	type: SuggestionSubtype;
+}
 
 function setNodeSuggestion(node: PMNode, meta: SuggestionNodeMeta | SuggestionFormatNodeMeta): PMNode {
 	return node.type.create({ ...node.attrs, suggestions: withNodeSuggestion(node, meta) }, node.content, node.marks);
@@ -22,13 +28,27 @@ function setNodeSuggestion(node: PMNode, meta: SuggestionNodeMeta | SuggestionFo
 // carry an inline mark (an inserted/deleted paragraph, image, table, ...).
 // An explicit id lets a delete+insert pair (a 'replace' diff, where the old
 // and new nodes are different types) share one id, so accept/reject treats
-// them as a single suggestion.
-function markNodeInserted(node: PMNode, author: Author, id = generateSuggestionId()): PMNode {
-	return setNodeSuggestion(node, { type: 'insert', id, author, comments: [] });
+// them as a single suggestion - `collect: false` is passed for the second
+// half of such a pair, so the shared id is only collected once (see
+// mergeDiffs's 'replace' case below).
+function markNodeInserted(
+	node: PMNode,
+	collected: DiffSuggestionRef[],
+	id = generateSuggestionId(),
+	collect = true
+): PMNode {
+	if (collect) collected.push({ id, type: 'insert' });
+	return setNodeSuggestion(node, { type: 'insert', id });
 }
 
-function markNodeDeleted(node: PMNode, author: Author, id = generateSuggestionId()): PMNode {
-	return setNodeSuggestion(node, { type: 'delete', id, author, comments: [] });
+function markNodeDeleted(
+	node: PMNode,
+	collected: DiffSuggestionRef[],
+	id = generateSuggestionId(),
+	collect = true
+): PMNode {
+	if (collect) collected.push({ id, type: 'delete' });
+	return setNodeSuggestion(node, { type: 'delete', id });
 }
 
 // Whole-node variant of the suggestion mark's format subtype, for a
@@ -36,18 +56,14 @@ function markNodeDeleted(node: PMNode, author: Author, id = generateSuggestionId
 // change, ...) rather than its content. Snapshots oldNode's attrs (with the
 // `suggestions` attr itself nulled out, since it didn't apply before this
 // change) so a reject can restore them exactly.
-function markNodeFormatted(newNode: PMNode, oldNode: PMNode, author: Author): PMNode {
+function markNodeFormatted(newNode: PMNode, oldNode: PMNode, collected: DiffSuggestionRef[]): PMNode {
 	const oldAttrs = {
 		...oldNode.attrs,
 		suggestions: null
 	};
-	return setNodeSuggestion(newNode, {
-		type: 'format',
-		id: generateSuggestionId(),
-		author,
-		comments: [],
-		oldAttrs
-	});
+	const id = generateSuggestionId();
+	collected.push({ id, type: 'format' });
+	return setNodeSuggestion(newNode, { type: 'format', id, oldAttrs });
 }
 
 // Which mark types were added/removed going from oldMarks to newMarks, in the
@@ -60,7 +76,7 @@ function markDelta(oldMarks: readonly Mark[], newMarks: readonly Mark[]) {
 	return { add, remove };
 }
 
-function inlineOpNodes(op: InlineOp, schema: Schema, author: Author): PMNode[] {
+function inlineOpNodes(op: InlineOp, schema: Schema, collected: DiffSuggestionRef[]): PMNode[] {
 	const suggestionType = schema.marks.suggestion;
 
 	switch (op.type) {
@@ -69,22 +85,22 @@ function inlineOpNodes(op: InlineOp, schema: Schema, author: Author): PMNode[] {
 			// flag it without duplicating the (identical) text
 			if (op.marksChanged) {
 				const { add, remove } = markDelta(op.oldMarks, op.newMarks);
-				const mark = suggestionType.create({
-					type: 'format',
-					id: generateSuggestionId(),
-					author,
-					add,
-					remove
-				});
+				const id = generateSuggestionId();
+				collected.push({ id, type: 'format' });
+				const mark = suggestionType.create({ type: 'format', id, add, remove });
 				return op.text ? [schema.text(op.text, mark.addToSet(op.newMarks))] : [];
 			}
 			return op.text ? [schema.text(op.text, op.newMarks)] : [];
 		case 'insert': {
-			const mark = suggestionType.create({ type: 'insert', id: generateSuggestionId(), author });
+			const id = generateSuggestionId();
+			collected.push({ id, type: 'insert' });
+			const mark = suggestionType.create({ type: 'insert', id });
 			return [schema.text(op.text, mark.addToSet(op.marks))];
 		}
 		case 'delete': {
-			const mark = suggestionType.create({ type: 'delete', id: generateSuggestionId(), author });
+			const id = generateSuggestionId();
+			collected.push({ id, type: 'delete' });
+			const mark = suggestionType.create({ type: 'delete', id });
 			return [schema.text(op.text, mark.addToSet(op.marks))];
 		}
 		case 'replace': {
@@ -95,8 +111,9 @@ function inlineOpNodes(op: InlineOp, schema: Schema, author: Author): PMNode[] {
 			// final doc. The visual gap between them is done in CSS instead (see
 			// `del.suggestion-delete + ins.suggestion-insert` in Editor.svelte).
 			const id = generateSuggestionId();
-			const delMark = suggestionType.create({ type: 'delete', id, author });
-			const insMark = suggestionType.create({ type: 'insert', id, author });
+			collected.push({ id, type: 'delete' });
+			const delMark = suggestionType.create({ type: 'delete', id });
+			const insMark = suggestionType.create({ type: 'insert', id });
 			return [
 				schema.text(op.oldText, delMark.addToSet(op.oldMarks)),
 				schema.text(op.newText, insMark.addToSet(op.newMarks))
@@ -105,28 +122,29 @@ function inlineOpNodes(op: InlineOp, schema: Schema, author: Author): PMNode[] {
 		case 'equalAtom':
 			if (op.marksChanged) {
 				const { add, remove } = markDelta(op.oldNode.marks, op.newNode.marks);
-				const mark = suggestionType.create({
-					type: 'format',
-					id: generateSuggestionId(),
-					author,
-					add,
-					remove
-				});
+				const id = generateSuggestionId();
+				collected.push({ id, type: 'format' });
+				const mark = suggestionType.create({ type: 'format', id, add, remove });
 				return [op.newNode.mark(mark.addToSet(op.newNode.marks))];
 			}
 			return [op.newNode];
 		case 'insertAtom': {
-			const mark = suggestionType.create({ type: 'insert', id: generateSuggestionId(), author });
+			const id = generateSuggestionId();
+			collected.push({ id, type: 'insert' });
+			const mark = suggestionType.create({ type: 'insert', id });
 			return [op.node.mark(mark.addToSet(op.node.marks))];
 		}
 		case 'deleteAtom': {
-			const mark = suggestionType.create({ type: 'delete', id: generateSuggestionId(), author });
+			const id = generateSuggestionId();
+			collected.push({ id, type: 'delete' });
+			const mark = suggestionType.create({ type: 'delete', id });
 			return [op.node.mark(mark.addToSet(op.node.marks))];
 		}
 		case 'replaceAtom': {
 			const id = generateSuggestionId();
-			const delMark = suggestionType.create({ type: 'delete', id, author });
-			const insMark = suggestionType.create({ type: 'insert', id, author });
+			collected.push({ id, type: 'delete' });
+			const delMark = suggestionType.create({ type: 'delete', id });
+			const insMark = suggestionType.create({ type: 'insert', id });
 			return [
 				op.oldNode.mark(delMark.addToSet(op.oldNode.marks)),
 				op.newNode.mark(insMark.addToSet(op.newNode.marks))
@@ -135,7 +153,7 @@ function inlineOpNodes(op: InlineOp, schema: Schema, author: Author): PMNode[] {
 	}
 }
 
-function mergeDiffs(diffs: Diff[], schema: Schema, author: Author): PMNode[] {
+function mergeDiffs(diffs: Diff[], schema: Schema, collected: DiffSuggestionRef[]): PMNode[] {
 	const result: PMNode[] = [];
 
 	for (const diff of diffs) {
@@ -144,34 +162,34 @@ function mergeDiffs(diffs: Diff[], schema: Schema, author: Author): PMNode[] {
 				result.push(diff.newNode);
 				break;
 			case 'insert':
-				result.push(markNodeInserted(diff.node, author));
+				result.push(markNodeInserted(diff.node, collected));
 				break;
 			case 'delete':
-				result.push(markNodeDeleted(diff.node, author));
+				result.push(markNodeDeleted(diff.node, collected));
 				break;
 			case 'replace': {
 				const id = generateSuggestionId();
-				result.push(markNodeDeleted(diff.oldNode, author, id));
-				result.push(markNodeInserted(diff.newNode, author, id));
+				result.push(markNodeDeleted(diff.oldNode, collected, id));
+				result.push(markNodeInserted(diff.newNode, collected, id, false));
 				break;
 			}
 			case 'attrs':
 				// e.g. image src/width/height, heading level on a leaf-ish node - flag it, show the new state
-				result.push(markNodeFormatted(diff.newNode, diff.oldNode, author));
+				result.push(markNodeFormatted(diff.newNode, diff.oldNode, collected));
 				break;
 			case 'inline': {
-				const content = diff.operations.flatMap((op) => inlineOpNodes(op, schema, author));
+				const content = diff.operations.flatMap((op) => inlineOpNodes(op, schema, collected));
 				const merged = diff.newNode.type.create(diff.newNode.attrs, Fragment.from(content), diff.newNode.marks);
-				result.push(diff.attrsChanged ? markNodeFormatted(merged, diff.oldNode, author) : merged);
+				result.push(diff.attrsChanged ? markNodeFormatted(merged, diff.oldNode, collected) : merged);
 				break;
 			}
 			case 'container': {
 				const merged = diff.newNode.type.create(
 					diff.newNode.attrs,
-					Fragment.from(mergeDiffs(diff.children, schema, author)),
+					Fragment.from(mergeDiffs(diff.children, schema, collected)),
 					diff.newNode.marks
 				);
-				result.push(diff.attrsChanged ? markNodeFormatted(merged, diff.oldNode, author) : merged);
+				result.push(diff.attrsChanged ? markNodeFormatted(merged, diff.oldNode, collected) : merged);
 				break;
 			}
 		}
@@ -192,10 +210,13 @@ function mergeDiffs(diffs: Diff[], schema: Schema, author: Author): PMNode[] {
  * like a live-typed suggestion. Must use the same Schema instance the diff
  * was computed with.
  *
- * `author` is attributed to every generated suggestion (there's no
- * per-change authorship in a two-document diff); defaults to an unnamed
- * placeholder author.
+ * No author is embedded (the schema no longer carries one - see
+ * marks.suggestion in schema.ts) - the returned `suggestions` list lets the
+ * caller attribute the whole batch and seed the suggestions plugin's cache,
+ * e.g. via seedSuggestionSource(view, suggestions.map(s => ({...s, author}))).
  */
-export function buildDiffDoc(diffs: Diff[], schema: Schema, author: Author = DEFAULT_DIFF_AUTHOR): PMNode {
-	return schema.topNodeType.create(null, Fragment.from(mergeDiffs(diffs, schema, author)));
+export function buildDiffDoc(diffs: Diff[], schema: Schema): { doc: PMNode; suggestions: DiffSuggestionRef[] } {
+	const suggestions: DiffSuggestionRef[] = [];
+	const doc = schema.topNodeType.create(null, Fragment.from(mergeDiffs(diffs, schema, suggestions)));
+	return { doc, suggestions };
 }

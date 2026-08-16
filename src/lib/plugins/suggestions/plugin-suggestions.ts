@@ -4,6 +4,7 @@ import { Fragment, Slice, type Mark, type MarkType, type Node } from "prosemirro
 import { Decoration, DecorationSet } from "prosemirror-view";
 import { isHistoryTransaction } from "prosemirror-history";
 import { SuggestionsPanelView } from "./plugin-suggestions-panel.svelte";
+import { SuggestionsSourceView } from "./plugin-suggestions-source";
 
 // Identifies who made a suggestion or wrote a comment. A plain string rather
 // than an {id, name} object on purpose: the document only ever stores this
@@ -19,9 +20,10 @@ export interface AuthorInfo {
 }
 
 // A reply in an annotation's discussion thread - attached to any suggestion
-// (insert/delete/format) or comment via its `comments` attr (see
-// marks.suggestion in schema.ts). This is what makes suggestions repliable:
-// there's no separate "comment on a suggestion" concept, just this array.
+// (insert/delete/format) or comment via the plugin's `source`-backed cache
+// (see SuggestionSource below), keyed by the mark/node-attr's `id`. This is
+// what makes suggestions repliable: there's no separate "comment on a
+// suggestion" concept, just this array, sourced from outside the document.
 export interface SuggestionReply {
     id: string;
     author: Author;
@@ -31,16 +33,15 @@ export interface SuggestionReply {
 
 export type SuggestionSubtype = "insert" | "delete" | "format" | "comment";
 
-// {type, id, author, comments} recorded in a node's `suggestions` attr (a
-// list - see withSuggestionAttrs in schema.ts) when the whole node (not just
-// some inline content inside it) itself carries a pending suggestion or
-// comment thread. Mirrors the `suggestion` mark's attrs for the same four
-// subtypes, just on a node instead of a mark instance.
+// {type, id} recorded in a node's `suggestions` attr (a list - see
+// withSuggestionAttrs in schema.ts) when the whole node (not just some inline
+// content inside it) itself carries a pending suggestion or comment thread.
+// Mirrors the `suggestion` mark's attrs for the same four subtypes, just on a
+// node instead of a mark instance. No author/comments here either - see
+// SuggestionSource.
 export interface SuggestionNodeMeta {
     type: SuggestionSubtype;
     id: string;
-    author: Author;
-    comments: SuggestionReply[];
 }
 
 // type: "format" additionally carries a snapshot of the node's attrs from
@@ -88,12 +89,74 @@ export function withoutNodeSuggestion(node: Node, id: string): SuggestionNodeMet
     return remaining.length ? remaining : null;
 }
 
+// Walks the whole doc collecting every suggestion/comment id present (mark
+// instances and node-attr entries alike) - used by the source view to know
+// which ids need their author/comments fetched. Deliberately not built on
+// commands.ts's richer getSuggestions (which also needs plugin state) to
+// avoid an import cycle between this file and commands.ts.
+export function collectSuggestionIds(doc: Node, suggestionType: MarkType): Set<string> {
+    const ids = new Set<string>();
+    doc.descendants(node => {
+        for (const s of getNodeSuggestions(node)) ids.add(s.id);
+        for (const mark of node.marks) {
+            if (mark.type === suggestionType) ids.add(mark.attrs.id);
+        }
+        return true;
+    });
+    return ids;
+}
+
 export type SuggestionMode = "editing" | "suggesting";
+
+// {author, comments} for a given suggestion/comment id, as returned by the
+// host's SuggestionSource - never stored in the document itself (see
+// marks.suggestion in schema.ts).
+export interface SuggestionSourceEntry {
+    author: Author;
+    comments: SuggestionReply[];
+}
+
+// Host-supplied backing store for suggestion/comment identity+content data -
+// mirrors EditorConfig's fileUploader: the editor only ever holds a
+// reference (the mark/node-attr `id`), the host owns the real persistence
+// and any auth/attribution checks. `get` is called in batches (never one id
+// at a time) whenever the editor encounters ids it hasn't seen yet (e.g.
+// right after loading a document). `create`/`reply`/`resolve` are
+// fire-and-forget notifications the editor calls once per event, always
+// after the causing transaction has already committed locally - never from
+// inside appendTransaction. Errors/rejections from any of these are logged,
+// never allowed to crash the editor.
+export interface SuggestionSource {
+    get: (ids: string[]) => Promise<Record<string, SuggestionSourceEntry | null>>;
+    create: (id: string, type: SuggestionSubtype, author: Author) => void;
+    reply: (id: string, reply: SuggestionReply) => void;
+    resolve?: (id: string, decision: "accept" | "reject" | "resolve") => void;
+}
+
+// Describes a suggestion/comment mutation that just happened, attached to the
+// causing transaction via `tr.setMeta(suggestionsPluginKey, { events })`.
+// The plugin's apply() folds these into `cache` synchronously (so the same
+// render already reflects locally-known data), and the source view (see
+// plugin-suggestions-source.ts) turns them into SuggestionSource calls
+// post-commit. "loaded" is the one kind never sent back to the host - it's
+// how a resolved source.get() batch reports back in.
+export type SuggestionEvent =
+    | { kind: "create"; id: string; type: SuggestionSubtype; author: Author }
+    | { kind: "reply"; id: string; reply: SuggestionReply }
+    | { kind: "resolve"; id: string; decision: "accept" | "reject" | "resolve" }
+    | { kind: "loaded"; entries: Record<string, SuggestionSourceEntry | null> };
 
 export interface SuggestionsPluginState {
     mode: SuggestionMode;
     author: Author;
     resolveAuthor: (author: Author) => AuthorInfo | Promise<AuthorInfo>;
+    source: SuggestionSource;
+    // key absent = never asked the host; null = asked, host has no record
+    // (never retried); otherwise the resolved {author, comments}.
+    cache: Record<string, SuggestionSourceEntry | null | undefined>;
+    // events folded into `cache` by the transaction just applied - read by
+    // the source view once, then naturally superseded by the next apply().
+    pendingEvents: SuggestionEvent[];
 }
 
 export interface SuggestionsPluginConfig {
@@ -103,11 +166,12 @@ export interface SuggestionsPluginConfig {
     // authoring via addComment is available regardless of mode, same as
     // today's MarksTooltip/NodeMenu "Comment" actions.
     mode?: SuggestionMode;
-    // Comment/suggestion content lives entirely in the document now (no more
-    // host-owned store/callbacks) - the only thing the host still owns is
-    // identity display: turning an Author id into a name/picture. May return
-    // a value directly or a Promise (e.g. a network lookup).
+    // Turns an Author id into a name/picture for display - see AuthorInfo.
     resolveAuthor: (author: Author) => AuthorInfo | Promise<AuthorInfo>;
+    // Backs every suggestion/comment's author + reply thread - see
+    // SuggestionSource. Required, same as resolveAuthor: without it the
+    // plugin has nowhere to store or read identity/content data at all.
+    source: SuggestionSource;
 }
 
 export const suggestionsPluginKey = new PluginKey<SuggestionsPluginState>("suggestions");
@@ -123,6 +187,36 @@ export function generateSuggestionId(): string {
     return `sg-${Date.now().toString(36)}-${idCounter}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+// Tracks, for a single appendTransaction/handleKeyDown pass, which ids are
+// "mine" - backed by the plugin's persisted cache, plus an overlay for ids
+// created earlier in this same pass (which haven't gone through apply() yet,
+// so they aren't in `cache` at the time this runs). This replaces the old
+// `mark.attrs.author === author` comparisons, which relied on a document
+// field that no longer exists (and, before this change, was forgeable).
+interface OwnershipCheck {
+    noteCreated(id: string): void;
+    isMine(id: string): boolean;
+}
+
+function makeOwnershipCheck(cache: SuggestionsPluginState["cache"], author: Author): OwnershipCheck {
+    const local = new Map<string, Author>();
+    return {
+        noteCreated(id: string) {
+            local.set(id, author);
+        },
+        isMine(id: string): boolean {
+            const l = local.get(id);
+            if (l) return l === author;
+            const cached = cache[id];
+            // a cache miss (doc just loaded, source.get hasn't resolved yet)
+            // conservatively reads as "not mine" - typing adjacent to your
+            // own not-yet-warm pending suggestion starts a new one instead of
+            // extending it, until the fetch lands. Rare, self-correcting.
+            return !!cached && cached.author === author;
+        }
+    };
+}
+
 /**
  * Track-changes ("suggesting" mode) and comment threads, unified: while
  * suggesting, edits are rewritten into a `suggestion` mark (type:
@@ -131,8 +225,9 @@ export function generateSuggestionId(): string {
  * instead of being applied directly, see schema.ts. Comment threads (type
  * "comment") are never produced by editing - only by explicit "Comment"
  * actions (see commands.ts's addComment), available regardless of mode.
- * Every subtype can carry a reply thread via its `comments` attr. Pair with
- * the commands in ./commands.ts to list/accept/reject/reply/resolve.
+ * Every subtype can carry a reply thread, sourced from outside the document
+ * via `config.source` (see SuggestionSource) rather than stored in it. Pair
+ * with the commands in ./commands.ts to list/accept/reject/reply/resolve.
  *
  * This plugin only ever *produces* a whole-node suggestion entry of type
  * "delete" (deleting an existing block/atom while suggesting); it never
@@ -152,13 +247,40 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
                 return {
                     mode: config.mode ?? "editing",
                     author: config.author,
-                    resolveAuthor: config.resolveAuthor
+                    resolveAuthor: config.resolveAuthor,
+                    source: config.source,
+                    cache: {},
+                    pendingEvents: []
                 };
             },
             apply(tr, value): SuggestionsPluginState {
                 const meta = tr.getMeta(suggestionsPluginKey);
-                if (meta) return { ...value, ...meta };
-                return value;
+                if (!meta) return value.pendingEvents.length ? { ...value, pendingEvents: [] } : value;
+
+                const next: SuggestionsPluginState = { ...value, ...meta };
+
+                const events = meta.events as SuggestionEvent[] | undefined;
+                if (events?.length) {
+                    const cache = { ...value.cache };
+                    for (const ev of events) {
+                        if (ev.kind === "create") {
+                            if (!cache[ev.id]) cache[ev.id] = { author: ev.author, comments: [] };
+                        } else if (ev.kind === "reply") {
+                            const existing = cache[ev.id] ?? { author: ev.reply.author, comments: [] };
+                            cache[ev.id] = { ...existing, comments: [...existing.comments, ev.reply] };
+                        } else if (ev.kind === "resolve") {
+                            delete cache[ev.id];
+                        } else if (ev.kind === "loaded") {
+                            Object.assign(cache, ev.entries);
+                        }
+                    }
+                    next.cache = cache;
+                    next.pendingEvents = events;
+                } else {
+                    next.pendingEvents = [];
+                }
+
+                return next;
             }
         },
 
@@ -199,8 +321,11 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
                 if (!isPlainTextReplace(state.doc, from, to, Slice.empty)) return false;
 
                 const tr = state.tr;
-                const id = handleReplaceStep(tr, new ReplaceStep(from, to, Slice.empty), suggestionState.author);
+                const events: SuggestionEvent[] = [];
+                const ownership = makeOwnershipCheck(suggestionState.cache, suggestionState.author);
+                const id = handleReplaceStep(tr, new ReplaceStep(from, to, Slice.empty), suggestionState.author, ownership, events);
                 tr.setMeta(REWRITTEN_META, true);
+                if (events.length) tr.setMeta(suggestionsPluginKey, { events });
                 // Because this dispatches a single mark-only transaction directly
                 // (bypassing the root+appended pair the normal flow produces),
                 // prosemirror-history's default adjacency check - which looks at real
@@ -320,6 +445,9 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
                 return null;
             }
 
+            const events: SuggestionEvent[] = [];
+            const ownership = makeOwnershipCheck(suggestionState.cache, suggestionState.author);
+
             try {
                 // Fast path for the common case: a single plain-text insertion (i.e.
                 // ordinary typing). The typed content is already sitting correctly in
@@ -330,8 +458,11 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
                 // prosemirror-history's adjacency check silently can't use, so it would
                 // otherwise file every keystroke as its own undo step instead of
                 // grouping consecutive typing into one.
-                const fast = tryFastPureInsert(transactions, newState, suggestionState.author);
-                if (fast) return fast;
+                const fast = tryFastPureInsert(transactions, newState, suggestionState.author, ownership, events);
+                if (fast) {
+                    if (events.length) fast.setMeta(suggestionsPluginKey, { events });
+                    return fast;
+                }
 
                 // appendTransaction must return a transaction starting from newState.doc,
                 // so we build it from newState.tr, first undo the original edits in exact
@@ -373,11 +504,11 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
                         if (!mapped) continue;
 
                         if (mapped instanceof ReplaceStep) {
-                            handleReplaceStep(tr, mapped, suggestionState.author);
+                            handleReplaceStep(tr, mapped, suggestionState.author, ownership, events);
                         } else if (mapped instanceof AddMarkStep) {
-                            handleAddMarkStep(tr, mapped, suggestionState.author);
+                            handleAddMarkStep(tr, mapped, suggestionState.author, ownership, events);
                         } else if (mapped instanceof RemoveMarkStep) {
-                            handleRemoveMarkStep(tr, mapped, suggestionState.author);
+                            handleRemoveMarkStep(tr, mapped, suggestionState.author, ownership, events);
                         } else {
                             tr.step(mapped);
                         }
@@ -390,6 +521,7 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
                 if (!changed) return null;
 
                 tr.setMeta(REWRITTEN_META, true);
+                if (events.length) tr.setMeta(suggestionsPluginKey, { events });
                 return tr;
             } catch (e) {
                 console.error("suggestions plugin: failed to rewrite transaction, applying edit as-is", e);
@@ -397,12 +529,26 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
             }
         },
 
-        // floating accept/dismiss/reply panel - shown whenever there's at least one
+        // floating accept/dismiss/reply panel, plus the host-source bridge (fetch
+        // author/comments for unknown ids, notify the host of local
+        // creates/replies/resolves) - shown/run whenever there's at least one
         // pending suggestion or comment thread, so reviewing them is part of the
         // editor itself rather than something every app has to build (see
-        // ./plugin-suggestions-panel.svelte.ts and ./SuggestionsPanel.svelte)
+        // ./plugin-suggestions-panel.svelte.ts, ./plugin-suggestions-source.ts and
+        // ./SuggestionsPanel.svelte)
         view(editorView) {
-            return new SuggestionsPanelView(editorView);
+            const panel = new SuggestionsPanelView(editorView);
+            const source = new SuggestionsSourceView(editorView);
+            return {
+                update(view, prevState) {
+                    source.update(view, prevState);
+                    panel.update(view, prevState);
+                },
+                destroy() {
+                    source.destroy();
+                    panel.destroy();
+                }
+            };
         }
 
     });
@@ -414,7 +560,9 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
 function tryFastPureInsert(
     transactions: readonly Transaction[],
     newState: EditorState,
-    author: Author
+    author: Author,
+    ownership: OwnershipCheck,
+    events: SuggestionEvent[]
 ): Transaction | null {
     const changed = transactions.filter(tr => tr.docChanged);
     if (changed.length !== 1 || changed[0].steps.length !== 1) return null;
@@ -435,10 +583,15 @@ function tryFastPureInsert(
     const schema = newState.schema;
     const suggestionType = schema.marks.suggestion!;
 
-    const id = findReuseId(newState.doc, from, to, author, suggestionType) ?? generateSuggestionId();
+    const reuseId = findReuseId(newState.doc, from, to, suggestionType, ownership);
+    const id = reuseId ?? generateSuggestionId();
+    if (!reuseId) {
+        ownership.noteCreated(id);
+        events.push({ kind: "create", id, type: "insert", author });
+    }
 
     const tr = newState.tr;
-    tr.addMark(from, to, suggestionType.create({ type: "insert", id, author }));
+    tr.addMark(from, to, suggestionType.create({ type: "insert", id }));
     tr.setSelection(TextSelection.create(tr.doc, to));
     tr.setMeta(REWRITTEN_META, true);
     return tr;
@@ -483,8 +636,8 @@ function findReuseId(
     doc: Node,
     from: number,
     to: number,
-    author: Author,
-    suggestionType: MarkType
+    suggestionType: MarkType,
+    ownership: OwnershipCheck
 ): string | null {
 
     // if the range being replaced already carries an unresolved insertion by
@@ -494,7 +647,7 @@ function findReuseId(
         doc.nodesBetween(from, to, node => {
             if (foundInRange || !node.isInline) return true;
             const m = findSuggestionMark(node.marks, suggestionType, "insert");
-            if (m && m.attrs.author === author) foundInRange = m.attrs.id;
+            if (m && ownership.isMine(m.attrs.id)) foundInRange = m.attrs.id;
             return true;
         });
     }
@@ -506,9 +659,9 @@ function findReuseId(
     const ownMarkId = (node: Node | null): string | null => {
         if (!node) return null;
         const insertMark = findSuggestionMark(node.marks, suggestionType, "insert");
-        if (insertMark && insertMark.attrs.author === author) return insertMark.attrs.id;
+        if (insertMark && ownership.isMine(insertMark.attrs.id)) return insertMark.attrs.id;
         const deleteMark = findSuggestionMark(node.marks, suggestionType, "delete");
-        if (deleteMark && deleteMark.attrs.author === author) return deleteMark.attrs.id;
+        if (deleteMark && ownership.isMine(deleteMark.attrs.id)) return deleteMark.attrs.id;
         return null;
     };
 
@@ -537,8 +690,8 @@ function computeDeletionSegments(
     doc: Node,
     from: number,
     to: number,
-    author: Author,
-    suggestionType: MarkType
+    suggestionType: MarkType,
+    ownership: OwnershipCheck
 ): DeletionSegment[] {
     const segments: DeletionSegment[] = [];
     doc.nodesBetween(from, to, (node, pos) => {
@@ -548,7 +701,7 @@ function computeDeletionSegments(
         if (segTo <= segFrom) return true;
 
         const mark = findSuggestionMark(node.marks, suggestionType, "insert");
-        const cancel = !!mark && mark.attrs.author === author;
+        const cancel = !!mark && ownership.isMine(mark.attrs.id);
 
         const last = segments[segments.length - 1];
         if (last && last.cancel === cancel && last.to === segFrom) {
@@ -599,18 +752,27 @@ function findWholeNodeRange(doc: Node, from: number, to: number): { node: Node; 
 // Marks whole nodes as pending-delete suggestions via their `suggestions`
 // attr instead of removing them, so they can later be accepted (removed) or
 // rejected (entry cleared). Nodes already marked deleted are left untouched.
-function markNodesDeleted(tr: Transaction, nodes: { node: Node; pos: number }[], author: Author): string | null {
+function markNodesDeleted(
+    tr: Transaction,
+    nodes: { node: Node; pos: number }[],
+    author: Author,
+    ownership: OwnershipCheck,
+    events: SuggestionEvent[]
+): string | null {
     const toMark = nodes.filter(({ node }) => !findNodeSuggestion(node, "delete"));
     if (!toMark.length) {
         // everything in range is already marked deleted; surface that shared id
         return nodes[0] ? findNodeSuggestion(nodes[0].node, "delete")?.id ?? null : null;
     }
 
-    const meta: SuggestionNodeMeta = { type: "delete", id: generateSuggestionId(), author, comments: [] };
+    const id = generateSuggestionId();
+    const meta: SuggestionNodeMeta = { type: "delete", id };
     for (const { pos, node } of toMark) {
         tr.setNodeAttribute(pos, "suggestions", withNodeSuggestion(node, meta));
     }
-    return meta.id;
+    ownership.noteCreated(id);
+    events.push({ kind: "create", id, type: "delete", author });
+    return id;
 }
 
 // Detects a slice made up entirely of complete block-level (non-text,
@@ -637,15 +799,19 @@ function wholeBlockNodesInSlice(slice: Slice): Node[] | null {
 // their `suggestions` attr - the insertion counterpart of markNodesDeleted.
 // `reuseId`, when given, pairs this insertion with an existing deletion (the
 // 'replace' case in handleReplaceStep) so the two render as one connected
-// suggestion instead of two unrelated ones.
+// suggestion instead of two unrelated ones - in that case no new "create"
+// event is emitted, since the pairing shares the deletion's.
 function markNodesInserted(
     tr: Transaction,
     from: number,
     nodes: readonly Node[],
     author: Author,
+    ownership: OwnershipCheck,
+    events: SuggestionEvent[],
     reuseId?: string
 ): string {
-    const meta: SuggestionNodeMeta = { type: "insert", id: reuseId ?? generateSuggestionId(), author, comments: [] };
+    const id = reuseId ?? generateSuggestionId();
+    const meta: SuggestionNodeMeta = { type: "insert", id };
     let pos = from;
     for (const node of nodes) {
         tr.insert(pos, node);
@@ -653,13 +819,23 @@ function markNodesInserted(
         tr.setNodeAttribute(pos, "suggestions", [meta]);
         pos += node.nodeSize;
     }
-    return meta.id;
+    if (!reuseId) {
+        ownership.noteCreated(id);
+        events.push({ kind: "create", id, type: "insert", author });
+    }
+    return id;
 }
 
 // Returns the suggestion id involved (for callers that need it, e.g. to group
 // consecutive edits in the undo history), or null if this step didn't result
 // in a tracked suggestion change (structural passthrough, no-op, etc).
-function handleReplaceStep(tr: Transaction, step: ReplaceStep, author: Author): string | null {
+function handleReplaceStep(
+    tr: Transaction,
+    step: ReplaceStep,
+    author: Author,
+    ownership: OwnershipCheck,
+    events: SuggestionEvent[]
+): string | null {
     const { from, to, slice } = step;
     const schema = tr.doc.type.schema;
     const suggestionType = schema.marks.suggestion!;
@@ -669,7 +845,7 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, author: Author): 
     if (slice.size === 0) {
         const wholeNodes = findWholeNodeRange(tr.doc, from, to);
         if (wholeNodes) {
-            return markNodesDeleted(tr, wholeNodes, author);
+            return markNodesDeleted(tr, wholeNodes, author, ownership, events);
         }
     } else {
         const insertedNodes = wholeBlockNodesInSlice(slice);
@@ -677,7 +853,7 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, author: Author): 
             if (from === to) {
                 // pure whole-node insertion, nothing replaced - e.g. a node
                 // dropped here via the node menu's drag handle
-                return markNodesInserted(tr, from, insertedNodes, author);
+                return markNodesInserted(tr, from, insertedNodes, author, ownership, events);
             }
 
             const wholeNodes = findWholeNodeRange(tr.doc, from, to);
@@ -692,10 +868,10 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, author: Author): 
                 // with" suggestion (see the decorations prop above and
                 // diff/render.ts's 'replace' case, which produces the same
                 // shape from a document diff).
-                const deleteId = markNodesDeleted(tr, wholeNodes, author);
+                const deleteId = markNodesDeleted(tr, wholeNodes, author, ownership, events);
                 if (deleteId) {
                     const last = wholeNodes[wholeNodes.length - 1]!;
-                    return markNodesInserted(tr, last.pos + last.node.nodeSize, insertedNodes, author, deleteId);
+                    return markNodesInserted(tr, last.pos + last.node.nodeSize, insertedNodes, author, ownership, events, deleteId);
                 }
             }
         }
@@ -708,7 +884,12 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, author: Author): 
         return null;
     }
 
-    const id = findReuseId(tr.doc, from, to, author, suggestionType) ?? generateSuggestionId();
+    const reuseId = findReuseId(tr.doc, from, to, suggestionType, ownership);
+    const id = reuseId ?? generateSuggestionId();
+    if (!reuseId) {
+        ownership.noteCreated(id);
+        events.push({ kind: "create", id, type: to > from ? "delete" : "insert", author });
+    }
 
     let insertAt = to;
 
@@ -717,20 +898,20 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, author: Author): 
         // the suggestion) rather than mark it as deleted on top of an insert mark;
         // only content that isn't your own pending insertion gets a delete mark
         const mapStart = tr.mapping.maps.length;
-        const segments = computeDeletionSegments(tr.doc, from, to, author, suggestionType);
+        const segments = computeDeletionSegments(tr.doc, from, to, suggestionType, ownership);
         for (let i = segments.length - 1; i >= 0; i--) {
             const seg = segments[i];
             if (seg.cancel) {
                 tr.delete(seg.from, seg.to);
             } else {
-                tr.addMark(seg.from, seg.to, suggestionType.create({ type: "delete", id, author }));
+                tr.addMark(seg.from, seg.to, suggestionType.create({ type: "delete", id }));
             }
         }
         insertAt = subMapping(tr.mapping, mapStart, tr.mapping.maps.length).map(to, -1);
     }
 
     if (slice.size > 0) {
-        const markedContent = addMarkToFragment(slice.content, suggestionType.create({ type: "insert", id, author }));
+        const markedContent = addMarkToFragment(slice.content, suggestionType.create({ type: "insert", id }));
         tr.insert(insertAt, markedContent);
         tr.setSelection(TextSelection.create(tr.doc, insertAt + slice.size));
     } else {
@@ -743,22 +924,34 @@ function handleReplaceStep(tr: Transaction, step: ReplaceStep, author: Author): 
     return id;
 }
 
-function handleAddMarkStep(tr: Transaction, step: AddMarkStep, author: Author) {
+function handleAddMarkStep(
+    tr: Transaction,
+    step: AddMarkStep,
+    author: Author,
+    ownership: OwnershipCheck,
+    events: SuggestionEvent[]
+) {
     tr.step(step);
 
     const suggestionType = tr.doc.type.schema.marks.suggestion;
     if (!suggestionType) return;
 
-    tagFormatChange(tr, step.from, step.to, author, suggestionType, { addType: step.mark.type.name });
+    tagFormatChange(tr, step.from, step.to, author, suggestionType, ownership, events, { addType: step.mark.type.name });
 }
 
-function handleRemoveMarkStep(tr: Transaction, step: RemoveMarkStep, author: Author) {
+function handleRemoveMarkStep(
+    tr: Transaction,
+    step: RemoveMarkStep,
+    author: Author,
+    ownership: OwnershipCheck,
+    events: SuggestionEvent[]
+) {
     tr.step(step);
 
     const suggestionType = tr.doc.type.schema.marks.suggestion;
     if (!suggestionType) return;
 
-    tagFormatChange(tr, step.from, step.to, author, suggestionType, {
+    tagFormatChange(tr, step.from, step.to, author, suggestionType, ownership, events, {
         removeType: step.mark.type.name,
         removeAttrs: step.mark.attrs
     });
@@ -770,6 +963,8 @@ function tagFormatChange(
     to: number,
     author: Author,
     suggestionType: MarkType,
+    ownership: OwnershipCheck,
+    events: SuggestionEvent[],
     change: { addType?: string; removeType?: string; removeAttrs?: Record<string, any> }
 ) {
     if (from >= to) return;
@@ -778,7 +973,7 @@ function tagFormatChange(
     tr.doc.nodesBetween(from, to, node => {
         if (existing || !node.isInline) return true;
         const m = findSuggestionMark(node.marks, suggestionType, "format");
-        if (m && m.attrs.author === author) existing = m;
+        if (m && ownership.isMine(m.attrs.id)) existing = m;
         return true;
     });
 
@@ -803,10 +998,21 @@ function tagFormatChange(
         // that one format mark instance, not every suggestion mark in range (the
         // insert/delete/comment subtypes share this same mark type, so removing by
         // type here would also strip unrelated pending suggestions/threads)
-        if (existing) tr.removeMark(from, to, existing);
+        if (existing) {
+            tr.removeMark(from, to, existing);
+            // the id disappears from the doc without ever being explicitly
+            // accepted/rejected by a person - clean up its cache/host record
+            // the same way an explicit reject would
+            events.push({ kind: "resolve", id: existing.attrs.id, decision: "reject" });
+        }
         return;
     }
 
-    const mark = suggestionType.create({ type: "format", id, author, add, remove });
+    if (!existing) {
+        ownership.noteCreated(id);
+        events.push({ kind: "create", id, type: "format", author });
+    }
+
+    const mark = suggestionType.create({ type: "format", id, add, remove });
     tr.addMark(from, to, mark);
 }

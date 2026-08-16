@@ -8,6 +8,7 @@
 		type Author,
 		type AuthorInfo
 	} from '../src/lib';
+	import { createDemoSuggestionSource } from './demoSuggestionSource';
 	import { Base, Button } from '@hyvor/design/components';
 
 	let editor: Editor;
@@ -36,7 +37,8 @@
 	const editorSuggestionsPlugin = suggestionsPlugin({
 		author: currentAuthor,
 		mode: suggestionMode,
-		resolveAuthor
+		resolveAuthor,
+		source: createDemoSuggestionSource('suggestions-source')
 	});
 
 	function setMode(newMode: SuggestionMode) {

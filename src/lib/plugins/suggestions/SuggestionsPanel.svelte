@@ -121,7 +121,11 @@
 	let authorCache: Record<string, AuthorInfo> = $state({});
 	let authorPending = new Set<string>();
 
-	function authorName(author: Author): string {
+	function authorName(author: Author | null): string {
+		// null: the host's SuggestionSource (see plugin-suggestions.ts) hasn't
+		// resolved this suggestion's author yet - distinct from "resolveAuthor
+		// pending", but shows the same placeholder either way
+		if (author === null) return '…';
 		const cached = authorCache[author];
 		if (cached) return cached.name;
 		if (!authorPending.has(author)) {

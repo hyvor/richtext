@@ -2,6 +2,7 @@ import type { EditorState, PluginView } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import { mount, unmount } from "svelte";
 import SuggestionsPanel from "./SuggestionsPanel.svelte";
+import { suggestionsPluginKey } from "./plugin-suggestions";
 
 // Mounted as the suggestions plugin's PluginView (see plugin-suggestions.ts),
 // so any editor with that plugin attached automatically gets a floating
@@ -37,13 +38,19 @@ export class SuggestionsPanelView implements PluginView {
     }
 
     update(view: EditorView, lastState: EditorState) {
-        // re-render on doc changes (suggestions list) and on selection-only
-        // changes too (moving the cursor around should re-focus the nearest
-        // suggestion in the panel, even without editing anything)
+        // re-render on doc changes (suggestions list), selection-only changes
+        // (moving the cursor around should re-focus the nearest suggestion in
+        // the panel, even without editing anything), and cache-only changes
+        // (a reply or a newly-resolved author/comments from the host's
+        // SuggestionSource - see plugin-suggestions.ts - touches neither doc
+        // nor selection, only plugin state)
+        const lastCache = lastState && suggestionsPluginKey.getState(lastState)?.cache;
+        const newCache = suggestionsPluginKey.getState(view.state)?.cache;
         if (
             lastState &&
             lastState.doc.eq(view.state.doc) &&
-            lastState.selection.eq(view.state.selection)
+            lastState.selection.eq(view.state.selection) &&
+            lastCache === newCache
         ) return;
         this.props.updateId++;
     }

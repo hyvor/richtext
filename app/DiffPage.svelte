@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Editor } from '../src/lib';
 	import { getSchema } from '../src/lib/schema';
-	import { diffDoc, buildDiffDoc, type Diff } from '../src/lib/diff';
+	import { diffDoc, buildDiffDoc, type Diff, type DiffSuggestionRef } from '../src/lib/diff';
 	import {
 		suggestionsPlugin,
 		setSuggestionMode,
@@ -9,6 +9,7 @@
 		type Author,
 		type AuthorInfo
 	} from '../src/lib';
+	import { createDemoSuggestionSource } from './demoSuggestionSource';
 	import { Base, Button } from '@hyvor/design/components';
 
 	const DIFF_AUTHOR: Author = 'user:diff';
@@ -76,11 +77,16 @@
 
 	// The merged doc is rebuilt from the diff and re-parsed through JSON so it
 	// can be handed to the diff-display Editor below (which shares the same
-	// schema instance as documents A/B).
-	let diffDocJson: object | null = $derived.by(() => {
+	// schema instance as documents A/B). buildDiffDoc no longer embeds
+	// authorship (see src/lib/diff/render.ts) - `suggestions` is the list of
+	// generated {id, type} pairs this page attributes to DIFF_AUTHOR and seeds
+	// into the suggestions plugin's cache once the doc is loaded (see the
+	// $effect below).
+	let diffBuild: { doc: object; suggestions: DiffSuggestionRef[] } | null = $derived.by(() => {
 		if (!Array.isArray(diffResult)) return null;
 		try {
-			return buildDiffDoc(diffResult, schema, DIFF_AUTHOR).toJSON();
+			const built = buildDiffDoc(diffResult, schema);
+			return { doc: built.doc.toJSON(), suggestions: built.suggestions };
 		} catch (e) {
 			return null;
 		}
@@ -95,26 +101,45 @@
 	// further edits made directly in this editor are themselves tracked as new
 	// suggestions rather than silently changing the merged doc.
 	let suggestionMode: SuggestionMode = $state('suggesting');
+	// named so the effect below can seed it directly (see comment there) -
+	// same instance passed to the plugin as its `source`
+	const diffSource = createDemoSuggestionSource('diff-suggestions-source');
 	const diffSuggestionsPlugin = suggestionsPlugin({
 		author: REVIEWER_AUTHOR,
 		mode: suggestionMode,
-		resolveAuthor
+		resolveAuthor,
+		source: diffSource
 	});
 
 	let diffEditor: Editor;
 
-	// guards against re-applying logically-unchanged content: diffDocJson is a
+	// guards against re-applying logically-unchanged content: diffBuild is a
 	// freshly-built object every recompute (new reference), so without this the
 	// effect below would call setContent again any time anything nudges this
 	// effect to re-run, even with nothing new to show
 	let lastAppliedDiffDoc: string | null = null;
 
 	$effect(() => {
-		if (!diffDocJson) return;
-		const json = JSON.stringify(diffDocJson);
+		if (!diffBuild) return;
+		const json = JSON.stringify(diffBuild.doc);
 		if (json === lastAppliedDiffDoc) return;
 		lastAppliedDiffDoc = json;
-		diffEditor?.setContent(diffDocJson);
+		// Seed the demo source directly (not via seedSuggestionSource, which
+		// needs a live EditorView) - this document's ids are new to it, so
+		// buildDiffDoc's generated {id,type} pairs are attributed to
+		// DIFF_AUTHOR right in the host-side store the plugin's source.get()
+		// reads from. Writing here rather than through the view sidesteps a
+		// real timing hazard: on the very first render, this effect can run
+		// before the diff-display Editor below has mounted its ProseMirror
+		// view (bind:this/$effect ordering across components isn't
+		// guaranteed), so a seed routed through `diffEditor.getView()` could
+		// silently no-op. Writing straight to the store has no such
+		// dependency - source.get() will find it whenever it's eventually
+		// called, mount order or not.
+		for (const s of diffBuild.suggestions) {
+			diffSource.create(s.id, s.type, DIFF_AUTHOR);
+		}
+		diffEditor?.setContent(diffBuild.doc);
 	});
 
 	function setMode(newMode: SuggestionMode) {
@@ -179,7 +204,7 @@
 				</div>
 				<Editor
 					bind:this={diffEditor}
-					value={JSON.stringify(diffDocJson ?? defaultDocA)}
+					value={JSON.stringify(diffBuild?.doc ?? defaultDocA)}
 					editable={true}
 					plugins={[diffSuggestionsPlugin]}
 					{schema}
