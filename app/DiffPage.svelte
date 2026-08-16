@@ -2,11 +2,7 @@
 	import { Editor } from '../src/lib';
 	import { getSchema } from '../src/lib/schema';
 	import { diffDoc, buildDiffDoc, type Diff, type DiffSuggestionRef } from '../src/lib/diff';
-	import type {
-		SuggestionMode,
-		Author,
-		AuthorInfo
-	} from '../src/lib/plugins/suggestions/plugin-suggestions';
+	import type { SuggestionMode, Author, AuthorInfo } from '../src/lib';
 	import { createDemoSuggestionSource } from './demoSuggestionSource';
 	import { Base, Button } from '@hyvor/design/components';
 

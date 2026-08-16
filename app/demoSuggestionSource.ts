@@ -1,8 +1,4 @@
-import type {
-	SuggestionSource,
-	SuggestionSourceEntry,
-	SuggestionReply
-} from '../src/lib/plugins/suggestions/plugin-suggestions';
+import type { SuggestionSource, SuggestionSourceEntry, SuggestionReply } from '../src/lib';
 
 // Stand-in for a host's real backend (auth-checked API, database, ...) - the
 // suggestions plugin never stores author/comments itself, only an `id` (see

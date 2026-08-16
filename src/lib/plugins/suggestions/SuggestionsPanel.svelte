@@ -94,26 +94,43 @@
 		panel.style.left = editorRect.left - panel.offsetWidth - gap + 'px';
 	}
 
-	function label(item: SuggestionItem): string {
-		const parts: string[] = [];
-		if (item.deletedNodeType && item.insertedNodeType) {
-			// a whole-node replace (see diff/render.ts) - one grouped suggestion,
-			// not a separate delete and insert
-			parts.push(
-				item.deletedNodeType === item.insertedNodeType
-					? `Replaced ${item.deletedNodeType}`
-					: `Replaced ${item.deletedNodeType} with ${item.insertedNodeType}`
-			);
-		} else {
-			if (item.deletedNodeType) parts.push(`Deleted ${item.deletedNodeType}`);
-			if (item.insertedNodeType) parts.push(`Inserted ${item.insertedNodeType}`);
+	// "quoted": prefix + one italic "text" (plain insert or delete).
+	// "replace": prefix + two italic "text"s joined by "with" (a word-level or
+	// whole-node replace - see plugin-suggestions.ts's handleReplaceStep and
+	// diff/render.ts's 'replace' case, both of which reuse one suggestion id
+	// across the deleted and inserted halves, so they land in the same item
+	// here - see getSuggestions() in commands.ts).
+	// "plain": prefix + a description with no quoting/italics (format).
+	type ChangeDescription =
+		| { kind: 'quoted'; prefix: string; text: string }
+		| { kind: 'replace'; prefix: string; from: string; to: string }
+		| { kind: 'plain'; prefix: string; text: string };
+
+	function describeChange(item: SuggestionItem): ChangeDescription | null {
+		if (item.formatAdd.length || item.formatRemove.length) {
+			const parts = [
+				...item.formatAdd.map((m) => `add ${m}`),
+				...item.formatRemove.map((m) => `remove ${m}`)
+			];
+			return { kind: 'plain', prefix: 'Format', text: parts.join(', ') };
 		}
-		if (item.formattedNodeType) parts.push(`Changed ${item.formattedNodeType}`);
-		if (item.insertedText) parts.push(`+ "${item.insertedText}"`);
-		if (item.deletedText) parts.push(`− "${item.deletedText}"`);
-		if (item.formatAdd.length) parts.push(`format +${item.formatAdd.join(', +')}`);
-		if (item.formatRemove.length) parts.push(`format −${item.formatRemove.join(', −')}`);
-		return parts.join('  ') || 'Change';
+		if (item.formattedNodeType) {
+			return { kind: 'plain', prefix: 'Format', text: item.formattedNodeType };
+		}
+
+		const inserted = item.insertedText || item.insertedNodeType;
+		const deleted = item.deletedText || item.deletedNodeType;
+
+		if (inserted && deleted) {
+			return { kind: 'replace', prefix: 'Replace', from: deleted, to: inserted };
+		}
+		if (inserted) {
+			return { kind: 'quoted', prefix: 'Insert', text: inserted };
+		}
+		if (deleted) {
+			return { kind: 'quoted', prefix: 'Delete', text: deleted };
+		}
+		return null;
 	}
 
 	// author display name resolution - cached locally since resolveAuthor may
@@ -159,11 +176,20 @@
 	// editor's selection to its range and scrolls the editor to reveal it -
 	// the reverse direction of activeId/itemEls[...].scrollIntoView above,
 	// which only keeps the panel's own list in sync with the editor
-	// selection, not the other way around.
+	// selection, not the other way around. Focus must happen BEFORE dispatch:
+	// prosemirror-view's scrollToSelection() reads the *current* DOM selection
+	// to know what to scroll to, but selectionToDOM() only writes the new
+	// selection into the DOM if the view already owns focus at dispatch time
+	// (editorOwnsSelection() in prosemirror-view) - otherwise it's silently
+	// skipped. Dispatching before focusing means the browser's selection is
+	// still stale (or outside the editor) when scrollToSelection() runs, so it
+	// either scrolls to the wrong place or no-ops - the cursor still lands
+	// correctly once view.focus() runs afterward (it syncs the DOM selection
+	// itself), just without ever scrolling.
 	function jumpTo(item: SuggestionItem) {
+		view.focus();
 		const tr = view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(item.from)));
 		view.dispatch(tr.scrollIntoView());
-		view.focus();
 	}
 
 	function jumpToOnKey(e: KeyboardEvent, item: SuggestionItem) {
@@ -200,9 +226,21 @@
 					>
 						<div class="content">
 							{#if item.type !== 'comment'}
+								{@const change = describeChange(item)}
 								<div class="meta">
 									<strong>{authorName(item.author)}</strong>
-									<span class="change">{label(item)}</span>
+									{#if change}
+										<span class="change"
+											>{change.prefix}:
+											{#if change.kind === 'replace'}
+												<em>"{change.from}"</em> with <em>"{change.to}"</em>
+											{:else if change.kind === 'quoted'}
+												<em>"{change.text}"</em>
+											{:else}
+												{change.text}
+											{/if}</span
+										>
+									{/if}
 								</div>
 							{/if}
 							{#each item.comments as comment (comment.id)}
@@ -331,6 +369,10 @@
 	.change {
 		color: var(--text-light);
 		word-break: break-word;
+	}
+
+	.change em {
+		font-style: italic;
 	}
 
 	.comment {
