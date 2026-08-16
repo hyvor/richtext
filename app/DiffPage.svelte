@@ -2,13 +2,11 @@
 	import { Editor } from '../src/lib';
 	import { getSchema } from '../src/lib/schema';
 	import { diffDoc, buildDiffDoc, type Diff, type DiffSuggestionRef } from '../src/lib/diff';
-	import {
-		suggestionsPlugin,
-		setSuggestionMode,
-		type SuggestionMode,
-		type Author,
-		type AuthorInfo
-	} from '../src/lib';
+	import type {
+		SuggestionMode,
+		Author,
+		AuthorInfo
+	} from '../src/lib/plugins/suggestions/plugin-suggestions';
 	import { createDemoSuggestionSource } from './demoSuggestionSource';
 	import { Base, Button } from '@hyvor/design/components';
 
@@ -104,12 +102,18 @@
 	// named so the effect below can seed it directly (see comment there) -
 	// same instance passed to the plugin as its `source`
 	const diffSource = createDemoSuggestionSource('diff-suggestions-source');
-	const diffSuggestionsPlugin = suggestionsPlugin({
-		author: REVIEWER_AUTHOR,
-		mode: suggestionMode,
-		resolveAuthor,
-		source: diffSource
-	});
+	// configured via editorConfig.suggestions (like fileUploader) rather than
+	// built and passed through the `plugins` prop - only the diff-display
+	// editor below gets it, docs A/B don't
+	const diffEditorConfig = {
+		...editorConfig,
+		suggestions: {
+			author: REVIEWER_AUTHOR,
+			mode: suggestionMode,
+			resolveAuthor,
+			source: diffSource
+		}
+	};
 
 	let diffEditor: Editor;
 
@@ -144,8 +148,7 @@
 
 	function setMode(newMode: SuggestionMode) {
 		suggestionMode = newMode;
-		const view = diffEditor?.getView();
-		if (view) setSuggestionMode(view, newMode);
+		diffEditor?.suggestions.setMode(newMode);
 	}
 </script>
 
@@ -156,7 +159,7 @@
 			<Editor
 				value={valueA}
 				{schema}
-				editorConfig={editorConfig}
+				{editorConfig}
 				onvaluechange={(val) => {
 					valueA = val;
 					localStorage.setItem(STORAGE_KEY_A, val);
@@ -168,7 +171,7 @@
 			<Editor
 				value={valueB}
 				{schema}
-				editorConfig={editorConfig}
+				{editorConfig}
 				onvaluechange={(val) => {
 					valueB = val;
 					localStorage.setItem(STORAGE_KEY_B, val);
@@ -179,7 +182,9 @@
 			<h3>
 				Diff
 				<div class="mode-switch">
-					<button class:active={mode === 'display'} onclick={() => (mode = 'display')}>Display</button>
+					<button class:active={mode === 'display'} onclick={() => (mode = 'display')}
+						>Display</button
+					>
 					<button class:active={mode === 'json'} onclick={() => (mode = 'json')}>JSON</button>
 				</div>
 			</h3>
@@ -206,9 +211,8 @@
 					bind:this={diffEditor}
 					value={JSON.stringify(diffBuild?.doc ?? defaultDocA)}
 					editable={true}
-					plugins={[diffSuggestionsPlugin]}
 					{schema}
-					editorConfig={editorConfig}
+					editorConfig={diffEditorConfig}
 				/>
 			</div>
 			{#if mode === 'json'}

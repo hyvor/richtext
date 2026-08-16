@@ -174,7 +174,7 @@
 	}
 </script>
 
-{#if items.length > 0}
+{#if items.length > 0 && view.editable}
 	<div class="suggestions-panel" bind:this={panel}>
 		<div class="header">
 			<span>{items.length} suggestion{items.length === 1 ? '' : 's'}</span>

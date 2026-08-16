@@ -13,6 +13,7 @@ export class SuggestionsPanelView implements PluginView {
     view: EditorView;
     private wrap: HTMLElement;
     private panel: Record<string, any> | null = null;
+    private lastEditable: boolean;
 
     private props: {
         view: EditorView;
@@ -21,6 +22,7 @@ export class SuggestionsPanelView implements PluginView {
 
     constructor(view: EditorView) {
         this.view = view;
+        this.lastEditable = view.editable;
 
         this.wrap = document.createElement("div");
         this.wrap.className = "pm-suggestions-panel-wrap";
@@ -40,13 +42,19 @@ export class SuggestionsPanelView implements PluginView {
     update(view: EditorView, lastState: EditorState) {
         // re-render on doc changes (suggestions list), selection-only changes
         // (moving the cursor around should re-focus the nearest suggestion in
-        // the panel, even without editing anything), and cache-only changes
+        // the panel, even without editing anything), cache-only changes
         // (a reply or a newly-resolved author/comments from the host's
         // SuggestionSource - see plugin-suggestions.ts - touches neither doc
-        // nor selection, only plugin state)
+        // nor selection, only plugin state), and editable changes (setEditable
+        // doesn't touch state at all, see SuggestionsPanel.svelte's
+        // view.editable check - so this is the only signal for that one)
+        const editableChanged = view.editable !== this.lastEditable;
+        this.lastEditable = view.editable;
+
         const lastCache = lastState && suggestionsPluginKey.getState(lastState)?.cache;
         const newCache = suggestionsPluginKey.getState(view.state)?.cache;
         if (
+            !editableChanged &&
             lastState &&
             lastState.doc.eq(view.state.doc) &&
             lastState.selection.eq(view.state.selection) &&
