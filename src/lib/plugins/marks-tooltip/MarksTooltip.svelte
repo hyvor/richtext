@@ -1,23 +1,26 @@
 <script lang="ts">
 	import type { EditorView } from 'prosemirror-view';
-	import { tick, onMount, onDestroy } from 'svelte';
-	import { IconButton } from '@hyvor/design/components';
+	import { tick, onMount, onDestroy, untrack } from 'svelte';
+	import { slide } from 'svelte/transition';
+	import { IconButton, TextInput } from '@hyvor/design/components';
 	import IconBoxArrowUpRight from '@hyvor/icons/IconBoxArrowUpRight';
 	import IconChatRight from '@hyvor/icons/IconChatRight';
 	import IconCode from '@hyvor/icons/IconCode';
 	import IconLink45deg from '@hyvor/icons/IconLink45deg';
 	import IconPencil from '@hyvor/icons/IconPencil';
+	import IconSend from '@hyvor/icons/IconSend';
 	import IconTrash from '@hyvor/icons/IconTrash';
 	import IconTypeBold from '@hyvor/icons/IconTypeBold';
 	import IconTypeItalic from '@hyvor/icons/IconTypeItalic';
 	import IconTypeStrikethrough from '@hyvor/icons/IconTypeStrikethrough';
+	import IconX from '@hyvor/icons/IconX';
 	import { Mark, type MarkType } from 'prosemirror-model';
 	import type { EditorState } from 'prosemirror-state';
 	import { toggleMark } from 'prosemirror-commands';
 	import LinkSelector from './LinkSelector/LinkSelector.svelte';
 	import { markExtend } from './mark-helpers';
 	import { suggestionsPluginKey } from '../suggestions/plugin-suggestions';
-	import CommentComposer from '../suggestions/CommentComposer.svelte';
+	import { addComment } from '../suggestions/commands';
 
 	interface Props {
 		view: EditorView;
@@ -29,7 +32,9 @@
 
 	let tooltip: HTMLSpanElement | undefined = $state();
 	let linkSelectorOpen = $state(false);
-	let commentComposerOpen = $state(false);
+	let commentInputOpen = $state(false);
+	let commentText = $state('');
+	let commentInputEl: HTMLInputElement | undefined = $state();
 
 	// only offer "comment" when the host installed the suggestions plugin
 	// (see src/lib/plugins/suggestions) - the mark itself always exists in
@@ -88,10 +93,24 @@
 	// position when show/view is changed
 	$effect(() => {
 		if (updateId && show) {
+			// a fresh, non-empty selection arrived - if a comment was mid-draft
+			// for the previous selection, drop it rather than leave it attached
+			// to a range that's no longer selected. Read untracked: this effect
+			// should only re-run on updateId/show changes (i.e. a real selection
+			// change), not merely because opening the comment box itself flips
+			// commentInputOpen - tracking that too would make it undo its own
+			// open on every click.
+			if (untrack(() => commentInputOpen)) {
+				commentInputOpen = false;
+				commentText = '';
+			}
 			(async () => {
 				await tick();
 				updatePosition();
 			})();
+		} else if (!show) {
+			commentInputOpen = false;
+			commentText = '';
 		}
 	});
 
@@ -125,7 +144,10 @@
 			return;
 		}
 		if (markName === 'comment') {
-			commentComposerOpen = true;
+			commentInputOpen = true;
+			await tick();
+			updatePosition();
+			commentInputEl?.focus();
 			return;
 		}
 		const markType = view.state.schema.marks[markName]!;
@@ -134,6 +156,31 @@
 		show = false;
 		await tick();
 		show = true;
+	}
+
+	function submitComment() {
+		const trimmed = commentText.trim();
+		if (!trimmed) return;
+		addComment(view, trimmed);
+		commentInputOpen = false;
+		commentText = '';
+		view.focus();
+	}
+
+	function cancelComment() {
+		commentInputOpen = false;
+		commentText = '';
+		view.focus();
+	}
+
+	function onCommentKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			submitComment();
+		} else if (e.key === 'Escape') {
+			e.preventDefault();
+			cancelComment();
+		}
 	}
 
 	function getTrimmedLink(link: string) {
@@ -191,43 +238,63 @@
 				</div>
 			{/if}
 
-			<div class="buttons-row">
-				<IconButton {...getProps('link')} on:click={() => handleClick('link')}>
-					<IconLink45deg />
-				</IconButton>
-
-				<IconButton {...getProps('strong')} on:click={() => handleClick('strong')}>
-					<IconTypeBold />
-				</IconButton>
-
-				<IconButton {...getProps('em')} on:click={() => handleClick('em')}>
-					<IconTypeItalic />
-				</IconButton>
-
-				<IconButton {...getProps('code')} on:click={() => handleClick('code')}>
-					<IconCode />
-				</IconButton>
-
-				<IconButton {...getProps('strike')} on:click={() => handleClick('strike')}>
-					<IconTypeStrikethrough />
-				</IconButton>
-
-				{#if commentsAvailable}
-					<IconButton {...getProps('comment')} on:click={() => handleClick('comment')}>
-						<IconChatRight />
+			{#if commentInputOpen}
+				<div class="comment-row" transition:slide={{ duration: 150, axis: 'x' }}>
+					<TextInput
+						size="small"
+						placeholder="Write a comment..."
+						bind:value={commentText}
+						bind:input={commentInputEl}
+						onkeydown={onCommentKeydown}
+					/>
+					<IconButton size="small" variant="invisible" color="gray" on:click={cancelComment}>
+						<IconX size={12} />
 					</IconButton>
-				{/if}
-			</div>
+					<IconButton
+						size="small"
+						variant="fill"
+						color="accent"
+						disabled={commentText.trim().length === 0}
+						on:click={submitComment}
+					>
+						<IconSend size={12} />
+					</IconButton>
+				</div>
+			{:else}
+				<div class="buttons-row">
+					<IconButton {...getProps('link')} on:click={(e) => handleClick('link')}>
+						<IconLink45deg />
+					</IconButton>
+
+					<IconButton {...getProps('strong')} on:click={(e) => handleClick('strong')}>
+						<IconTypeBold />
+					</IconButton>
+
+					<IconButton {...getProps('em')} on:click={(e) => handleClick('em')}>
+						<IconTypeItalic />
+					</IconButton>
+
+					<IconButton {...getProps('code')} on:click={(e) => handleClick('code')}>
+						<IconCode />
+					</IconButton>
+
+					<IconButton {...getProps('strike')} on:click={(e) => handleClick('strike')}>
+						<IconTypeStrikethrough />
+					</IconButton>
+
+					{#if commentsAvailable}
+						<IconButton {...getProps('comment')} on:click={(e) => handleClick('comment')}>
+							<IconChatRight />
+						</IconButton>
+					{/if}
+				</div>
+			{/if}
 		</span>
 	{/if}
 {/key}
 
 {#if linkSelectorOpen}
 	<LinkSelector bind:show={linkSelectorOpen} {view} edit={link ? link.attrs.href : undefined} />
-{/if}
-
-{#if commentsAvailable}
-	<CommentComposer bind:show={commentComposerOpen} {view} />
 {/if}
 
 <style>
@@ -280,5 +347,19 @@
 
 	.buttons-row {
 		padding: 10px 15px;
+	}
+
+	.comment-row {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 8px;
+		width: 240px;
+		overflow: hidden;
+	}
+
+	.comment-row :global(.input-wrap) {
+		flex: 1;
+		min-width: 0;
 	}
 </style>
