@@ -7,7 +7,6 @@
 		IconButton,
 		Tooltip
 	} from '@hyvor/design/components';
-	import IconCopy from '@hyvor/icons/IconCopy';
 	import IconTrash from '@hyvor/icons/IconTrash';
 	import type { EditorView } from 'prosemirror-view';
 	import { NodeSelection } from 'prosemirror-state';
@@ -15,7 +14,7 @@
 	import IconChatRight from '@hyvor/icons/IconChatRight';
 	import { deleteNode, moveNode, nodeMenuPos, topLevelBlockPosAt } from './node-menu';
 	import { suggestionsPluginKey } from '../suggestions/plugin-suggestions';
-	import CommentComposer from '../suggestions/CommentComposer.svelte';
+	import CommentInput from '../suggestions/CommentInput.svelte';
 
 	interface Props {
 		view: EditorView;
@@ -24,20 +23,30 @@
 	let { view }: Props = $props();
 
 	let show = $state(false);
-	let commentComposerOpen = $state(false);
+	let commentInputOpen = $state(false);
 
 	// static for the editor's lifetime - the suggestions plugin is either
 	// installed at creation or not (see src/lib/plugins/suggestions)
 	const commentsAvailable = !!suggestionsPluginKey.getState(view.state);
 
+	function selectNode(pos: number) {
+		if (!view.state.doc.nodeAt(pos)) return false;
+		view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos)));
+		return true;
+	}
+
 	function onComment() {
 		if ($nodeMenuPos === null) return;
-		const pos = $nodeMenuPos;
-		if (!view.state.doc.nodeAt(pos)) return;
-		view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos)));
-		show = false;
-		commentComposerOpen = true;
+		if (!selectNode($nodeMenuPos)) return;
+		commentInputOpen = true;
 	}
+
+	// reset back to the action list once the dropdown closes, so it doesn't
+	// reopen showing a stale comment box
+	$effect(() => {
+		if (!show) commentInputOpen = false;
+	});
+
 	let wrapEl: HTMLSpanElement | undefined = $state();
 
 	// how far the pointer needs to move (in px) before a mousedown on the
@@ -67,16 +76,57 @@
 		const domNode = view.nodeDOM($nodeMenuPos);
 		if (!(domNode instanceof HTMLElement)) return;
 
-		let { left, top, height } = domNode.getBoundingClientRect();
+		let { left, top } = domNode.getBoundingClientRect();
 
+		// align near the top-left corner of the node, rather than vertically
+		// centered on it
 		left -= 26;
-		top += height / 2 - 10;
+		top += 2;
 
 		wrapEl.style.top = `${top}px`;
 		wrapEl.style.left = `${left}px`;
 	}
 
-	onMount(position);
+	// how long the pointer can sit idle before the menu hides itself
+	const IDLE_HIDE_MS = 1000;
+	let idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function clearIdleTimer() {
+		if (idleTimer !== null) {
+			clearTimeout(idleTimer);
+			idleTimer = null;
+		}
+	}
+
+	// keeps the menu visible while the pointer is actively moving (over a
+	// node, or over the menu/dropdown itself) and hides it once the pointer
+	// has been still for IDLE_HIDE_MS - never while dragging or while the
+	// dropdown is open, since that would yank the menu away mid-interaction
+	function scheduleIdleHide() {
+		clearIdleTimer();
+		if ($nodeMenuPos === null || dragging || show) return;
+		idleTimer = setTimeout(() => {
+			idleTimer = null;
+			if (!dragging && !show) nodeMenuPos.set(null);
+		}, IDLE_HIDE_MS);
+	}
+
+	// hides the menu immediately once the user starts typing, so it doesn't
+	// linger over a node the pointer isn't near anymore
+	function onEditorKeydown(event: KeyboardEvent) {
+		if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(event.key)) return;
+		clearIdleTimer();
+		nodeMenuPos.set(null);
+	}
+
+	onMount(() => {
+		position();
+		view.dom.addEventListener('keydown', onEditorKeydown);
+		return () => {
+			view.dom.removeEventListener('keydown', onEditorKeydown);
+			clearIdleTimer();
+		};
+	});
 
 	nodeMenuPos.subscribe(async () => {
 		await tick();
@@ -208,6 +258,8 @@
 		lastClientX = event.clientX;
 		lastClientY = event.clientY;
 
+		scheduleIdleHide();
+
 		if (mouseDownAt && !dragging) {
 			const dx = event.clientX - mouseDownAt.x;
 			const dy = event.clientY - mouseDownAt.y;
@@ -235,6 +287,10 @@
 		if (justDragged) {
 			event.preventDefault();
 			event.stopPropagation();
+			return;
+		}
+		if ($nodeMenuPos !== null) {
+			selectNode($nodeMenuPos);
 		}
 	}
 </script>
@@ -248,40 +304,49 @@
 <div class="wrap" bind:this={wrapEl} class:show={$nodeMenuPos !== null && !dragging}>
 	<Dropdown bind:show width={250}>
 		{#snippet content()}
-			<ActionList>
-				{#if commentsAvailable}
-					<ActionListItem on:click={onComment}>
-						{#snippet start()}
-							<IconChatRight size={14} />
-						{/snippet}
-						Comment
-					</ActionListItem>
+			<!-- stop mousemove from reaching the container's hover-tracking listener, which would otherwise re-resolve $nodeMenuPos to the node under the dropdown -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div onmousemove={(e) => e.stopPropagation()}>
+				{#if commentInputOpen}
+					<CommentInput
+						{view}
+						onSubmit={() => {
+							commentInputOpen = false;
+							show = false;
+						}}
+						onCancel={() => (commentInputOpen = false)}
+					/>
+				{:else}
+					<ActionList>
+						{#if commentsAvailable}
+							<ActionListItem on:click={onComment}>
+								{#snippet start()}
+									<IconChatRight size={14} />
+								{/snippet}
+								Comment
+							</ActionListItem>
+						{/if}
+						<ActionListItem type="danger" on:click={onDelete}>
+							{#snippet start()}
+								<IconTrash size={14} />
+							{/snippet}
+							Delete
+						</ActionListItem>
+					</ActionList>
 				{/if}
-				<ActionListItem>
-					{#snippet start()}
-						<IconCopy size={14} />
-					{/snippet}
-					Duplicate
-				</ActionListItem>
-				<ActionListItem type="danger" on:click={onDelete}>
-					{#snippet start()}
-						<IconTrash size={14} />
-					{/snippet}
-					Delete
-				</ActionListItem>
-			</ActionList>
+			</div>
 		{/snippet}
 
 		{#snippet trigger()}
-			<Tooltip text="Click to open menu, drag to move">
+			<Tooltip text="Click to open menu, drag to move" maxWidth={175}>
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<span
 					onmousedown={onMouseDown}
 					onclickcapture={onTriggerClickCapture}
 					style="color: var(--text-light); cursor: grab;"
 				>
-					<IconButton size={20} color="input" variant="invisible">
-						<IconGripVertical size={14} />
+					<IconButton size={22} color="input" variant="invisible">
+						<IconGripVertical size={16} />
 					</IconButton>
 				</span>
 			</Tooltip>
@@ -289,25 +354,23 @@
 	</Dropdown>
 </div>
 
-{#if commentsAvailable}
-	<CommentComposer bind:show={commentComposerOpen} {view} />
-{/if}
-
 <style>
 	.wrap {
 		position: fixed;
-		z-index: 100;
-		display: none;
+		z-index: 1000;
+		opacity: 0;
+		pointer-events: none;
 	}
 	.wrap.show {
-		display: block;
+		opacity: 1;
+		pointer-events: auto;
 	}
 
 	.drag-wrap {
 		position: fixed;
 		top: 0;
 		left: 0;
-		z-index: 100;
+		z-index: 1000;
 		display: block;
 		pointer-events: none;
 		opacity: 0.85;
@@ -327,7 +390,7 @@
 
 	.drop-line {
 		position: fixed;
-		z-index: 100;
+		z-index: 1000;
 		display: none;
 		height: 3px;
 		border-radius: 3px;

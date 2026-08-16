@@ -178,7 +178,7 @@
 <style>
 	.pm-editor {
 		--prosemirror-hover-outline: 2px solid #8cf;
-		--prosemirror-selected-outline: 3px solid #299af3;
+		--prosemirror-selected-background: rgba(41, 154, 243, 0.15);
 		position: relative;
 		height: 100%;
 	}
@@ -219,7 +219,10 @@
 	}
 
 	.pm-editor :global(.ProseMirror-selectednode) {
-		outline: var(--prosemirror-selected-outline) !important;
+		outline: none !important;
+		border-radius: 6px;
+		background-color: var(--prosemirror-selected-background);
+		box-shadow: 0 0 0 4px var(--prosemirror-selected-background);
 	}
 
 	.pm-editor :global(img.ProseMirror-separator) {
@@ -359,8 +362,21 @@
 	}
 
 	.pm-editor :global(hr) {
-		margin: 30px 0;
-		border-top: 2px solid var(--grey);
+		box-sizing: border-box;
+		margin: 14px 0;
+		padding: 16px 0;
+		border: none;
+		position: relative;
+	}
+	.pm-editor :global(hr:before) {
+		content: '';
+		display: block;
+		height: 1px;
+		background-color: var(--text-light);
+		position: absolute;
+		top: 50%;
+		left: 0;
+		right: 0;
 	}
 
 	.pm-editor :global(blockquote),
@@ -411,10 +427,6 @@
 
 	.pm-editor :global(figure) {
 		margin-top: 45px;
-	}
-
-	.pm-editor :global(figure:hover) {
-		outline: var(--prosemirror-hover-outline);
 	}
 
 	.pm-editor :global(figure figcaption) {
