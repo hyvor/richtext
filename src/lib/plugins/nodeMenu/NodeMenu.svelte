@@ -394,7 +394,7 @@
 		display: none;
 		height: 3px;
 		border-radius: 3px;
-		background: #299af3;
+		background: #8cf;
 		pointer-events: none;
 		transform: translateY(-1.5px);
 	}
