@@ -9,6 +9,11 @@
 	import { importCodemirrorAll } from './codemirror';
 	import { getMarkViews } from './markviews/markviews';
 	import { defaultEditorConfig, type EditorConfig } from './config';
+	import {
+		getSuggestionMode,
+		setSuggestionMode,
+		type SuggestionMode
+	} from './plugins/suggestions/commands';
 
 	let props: Props = $props();
 
@@ -17,7 +22,9 @@
 	let isLoading = $state(true);
 	let view: EditorView | undefined;
 
-	const editorConfig: EditorConfig = $derived(Object.assign({}, defaultEditorConfig, props.editorConfig));
+	const editorConfig: EditorConfig = $derived(
+		Object.assign({}, defaultEditorConfig, props.editorConfig)
+	);
 
 	async function createEditor() {
 		isLoading = true;
@@ -30,15 +37,21 @@
 		let state = EditorState.create({
 			schema: props.schema,
 			plugins: [...getPlugins(props.schema, editorConfig), ...(props.plugins ?? [])],
-			doc: props.value ? props.schema.nodeFromJSON(jsonParsedValue) : undefined,
+			doc: props.value ? props.schema.nodeFromJSON(jsonParsedValue) : undefined
 		});
 
 		function getDomEvents() {
 			const events: (keyof HTMLElementEventMap)[] = [
-				'blur', 'focus',
-				'keydown', 'keyup', 'keypress',
-				'click', 'dblclick',
-				'paste', 'cut', 'copy',
+				'blur',
+				'focus',
+				'keydown',
+				'keyup',
+				'keypress',
+				'click',
+				'dblclick',
+				'paste',
+				'cut',
+				'copy'
 			];
 			return events.reduce(
 				(obj, e) => {
@@ -99,9 +112,11 @@
 	/**
 	 * @param content JSON string or object for the document
 	 */
-	export function setContent(content: string|object) {
+	export function setContent(content: string | object) {
 		if (!view) return;
-		const doc = props.schema.nodeFromJSON(typeof content === 'string' ? JSON.parse(content) : content);
+		const doc = props.schema.nodeFromJSON(
+			typeof content === 'string' ? JSON.parse(content) : content
+		);
 		const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, doc.content);
 		// Loading a whole new document programmatically is not a user edit - if
 		// the suggestions plugin (see src/lib/plugins/suggestions) is attached
@@ -154,10 +169,18 @@
 		return view.editable;
 	}
 
+	export const suggestions = {
+		getMode(): SuggestionMode {
+			return view ? getSuggestionMode(view.state) : 'editing';
+		},
+		setMode(mode: SuggestionMode) {
+			if (view) setSuggestionMode(view, mode);
+		}
+	};
+
 	onDestroy(() => {
 		view?.destroy();
 	});
-
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->

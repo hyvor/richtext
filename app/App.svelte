@@ -1,13 +1,5 @@
 <script lang="ts">
-	import {
-		Editor,
-		getSchema,
-		suggestionsPlugin,
-		setSuggestionMode,
-		type SuggestionMode,
-		type Author,
-		type AuthorInfo
-	} from '../src/lib';
+	import { Editor, getSchema, type SuggestionMode, type Author, type AuthorInfo } from '../src/lib';
 	import { createDemoSuggestionSource } from './demoSuggestionSource';
 	import { Base, Button } from '@hyvor/design/components';
 
@@ -32,19 +24,13 @@
 	// suggestion mark instead of applied directly, reviewable via the floating
 	// suggestions panel) against the same editor/document used for everything
 	// else on this page, rather than only being testable through the separate
-	// diff demo
+	// diff demo. Configured via editorConfig.suggestions below (like
+	// fileUploader) rather than built and passed through the `plugins` prop.
 	let suggestionMode: SuggestionMode = $state('editing');
-	const editorSuggestionsPlugin = suggestionsPlugin({
-		author: currentAuthor,
-		mode: suggestionMode,
-		resolveAuthor,
-		source: createDemoSuggestionSource('suggestions-source')
-	});
 
 	function setMode(newMode: SuggestionMode) {
 		suggestionMode = newMode;
-		const view = editor?.getView();
-		if (view) setSuggestionMode(view, newMode);
+		editor?.suggestions.setMode(newMode);
 	}
 
 	function setContent() {
@@ -103,7 +89,6 @@
 			value={localStorage.getItem('doc')}
 			onvaluechange={(val) => localStorage.setItem('doc', val)}
 			{schema}
-			plugins={[editorSuggestionsPlugin]}
 			editorConfig={{
 				codeBlockConfig: {
 					language: true,
@@ -116,6 +101,12 @@
 					return {
 						url: URL.createObjectURL(blob)
 					};
+				},
+				suggestions: {
+					author: currentAuthor,
+					mode: suggestionMode,
+					resolveAuthor,
+					source: createDemoSuggestionSource('suggestions-source')
 				}
 			}}
 		/>

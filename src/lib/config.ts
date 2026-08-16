@@ -1,3 +1,5 @@
+import type { SuggestionsPluginConfig } from './plugins/suggestions/plugin-suggestions';
+
 // all defaults to true
 export interface SchemaConfig {
     codeBlock: boolean;
@@ -9,6 +11,7 @@ export interface SchemaConfig {
     toc: boolean;
     table: boolean;
     button: boolean;
+    suggestions: boolean; // suggestions AND comments
 }
 
 export const defaultSchemaConfig: SchemaConfig = {
@@ -21,6 +24,7 @@ export const defaultSchemaConfig: SchemaConfig = {
     toc: true,
     table: true,
     button: true,
+    suggestions: true,
 };
 
 export interface EditorConfig {
@@ -42,6 +46,9 @@ export interface EditorConfig {
     // fileUploader must be provided if imageEnabled or audioEnabled is true
     fileUploader?: (file: Blob, name: string | null, type: 'image' | 'audio') => Promise<{ url: string } | null>;
     fileMaxSizeInMB?: number; // default: 10
+
+    // Suggestions plugin config
+    suggestions?: SuggestionsPluginConfig;
 
 }
 

@@ -15,7 +15,7 @@ import type { Schema } from 'prosemirror-model';
 import buttonTooltipPlugin from './button-tooltip/plugin-button-tooltip.svelte';
 import type { EditorConfig } from '$lib/config';
 import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
-// import { completionPlugin } from './completion/plugin-completion';
+import suggestionsPlugin from './suggestions/plugin-suggestions';
 
 export function getPlugins(schema: Schema, config: EditorConfig) {
 	const plugins = [
@@ -52,6 +52,10 @@ export function getPlugins(schema: Schema, config: EditorConfig) {
 			tableEditing(),
 			tableMenuPlugin(),
 		);
+	}
+
+	if (config.suggestions && schema.marks.suggestion) {
+		plugins.push(suggestionsPlugin(config.suggestions));
 	}
 
 	return plugins;

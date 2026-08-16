@@ -93,11 +93,8 @@ function getNodes(config: SchemaConfig): Record<string, NodeSpec> {
             inline: true,
             group: "inline",
             selectable: false,
-            // hard_break has no inline *content*, so ProseMirror doesn't allow it to
-            // carry marks by default - grant the suggestion mark explicitly so a
-            // line break can be part of a tracked insert/delete/format run, or a
-            // comment thread (see src/lib/plugins/suggestions and src/lib/diff).
-            marks: "suggestion",
+            // Prosemirror doesn't allow marks without content, so we force it here
+            marks: config.suggestions ? "suggestion" : "",
             parseDOM: [{ tag: "br" }],
             toDOM() { return ['br'] }
         }
@@ -329,7 +326,9 @@ function getNodes(config: SchemaConfig): Record<string, NodeSpec> {
 /**
  * Marks with background color should come first https://discuss.prosemirror.net/t/marks-priority/4463
  */
-export const marks = {
+function getMarks(config: SchemaConfig): Record<string, MarkSpec> {
+
+    const marks: Record<string, MarkSpec> = {
 
     // :: MarkSpec Code font mark. Represented as a `<code>` element.
     code: {
@@ -398,94 +397,64 @@ export const marks = {
         toDOM() { return ["sub", 0] }
     } as MarkSpec,
 
-    // :: MarkSpec Wraps inline content that carries a pending suggestion or a
-    // comment thread - track-changes and comments share this one mark type.
-    // `type` picks which of the four this instance represents:
-    //   - "insert"/"delete": inserted/"deleted" text while in suggesting mode
-    //     (deleted text is kept in place, struck through, until
-    //     accepted/rejected)
-    //   - "format": a run whose formatting (marks) changed while suggesting;
-    //     `add` holds the mark type names that were added, `remove` holds the
-    //     {type, attrs} of marks that were removed, so the change can be
-    //     reverted if rejected
-    //   - "comment": a plain comment thread over this range, not a proposed
-    //     edit - never produced by editing, only by explicit "Comment"
-    //     actions (see commands.ts's addComment)
-    // Who made the suggestion/comment (`author`) and its reply thread
-    // (`comments`) are NOT stored here - they're sourced from outside via the
-    // suggestions plugin's `source` callback (see SuggestionSource in
-    // plugin-suggestions.ts), keyed by `id`, the same way `fileUploader`
-    // keeps uploaded blobs out of the document and only stores a reference.
-    // Only `id`/`type` (and, for "format", `add`/`remove`) - all mechanical,
-    // not identity data - round-trip through the document.
-    // insert/delete/format are produced by the suggestions plugin and the
-    // diff renderer (src/lib/plugins/suggestions, src/lib/diff); "comment" is
-    // produced by commands.ts's addComment, triggered from the marks-tooltip
-    // and node-menu "Comment" actions. No parseDOM on purpose: pasting HTML
-    // from elsewhere shouldn't silently attach content to an existing
-    // suggestion/thread just because it happens to carry the same data
-    // attribute. `excludes: ""` lets multiple instances (any subtype/id)
-    // stack on the same range - e.g. two comment threads on the same word, or
-    // a comment alongside a pending suggestion.
-    suggestion: {
-        attrs: {
-            type: { default: "insert" },
-            id: { default: "" },
-            add: { default: [] },
-            remove: { default: [] },
-        },
-        inclusive: false,
-        excludes: "",
-        toDOM(mark: Mark) {
-            const { type, id } = mark.attrs;
-            if (type === "insert") {
-                return ["ins", {
-                    class: "suggestion-insert",
-                    "data-suggestion-id": id,
-                    title: "Suggested insertion"
-                }, 0];
-            }
-            if (type === "delete") {
-                return ["del", {
-                    class: "suggestion-delete",
-                    "data-suggestion-id": id,
-                    title: "Suggested deletion"
-                }, 0];
-            }
-            if (type === "format") {
+    };
+
+    if (config.suggestions) {
+
+        // Pending suggestion
+        // type: 'insert' | 'delete' | 'format' | 'comment'
+        // author and comments are sourced from outside via `id`
+        marks.suggestion = {
+            attrs: {
+                type: { default: "insert" },
+                id: { default: "" },
+                add: { default: [] },
+                remove: { default: [] },
+            },
+            inclusive: false,
+            // lets multiple instances stack on the same range.
+            excludes: "",
+            toDOM(mark: Mark) {
+                const { type, id } = mark.attrs;
+                if (type === "insert") {
+                    return ["ins", {
+                        class: "suggestion-insert",
+                        "data-suggestion-id": id,
+                        title: "Suggested insertion"
+                    }, 0];
+                }
+                if (type === "delete") {
+                    return ["del", {
+                        class: "suggestion-delete",
+                        "data-suggestion-id": id,
+                        title: "Suggested deletion"
+                    }, 0];
+                }
+                if (type === "format") {
+                    return ["span", {
+                        class: "suggestion-format",
+                        "data-suggestion-id": id,
+                        title: "Suggested formatting"
+                    }, 0];
+                }
                 return ["span", {
-                    class: "suggestion-format",
+                    class: "user-comment",
                     "data-suggestion-id": id,
-                    title: "Suggested formatting"
                 }, 0];
-            }
-            return ["span", {
-                class: "user-comment",
-                "data-suggestion-id": id,
-            }, 0];
-        }
-    } as MarkSpec,
+            },
+            // no parseDOM: pasting HTML from elsewhere shouldn't copy suggestions
+        } as MarkSpec;
+
+    } 
+
+    return marks;
 }
 
-// The suggestion mark above only applies to inline content (by default,
-// ProseMirror doesn't allow marks on nodes with block content, and leaf/atom
-// nodes like image have no content to carry a mark's range at all). So a
-// whole non-inline node that itself carries a pending suggestion or comment
-// thread - an inserted/deleted blockquote, an image whose src changed, a
-// table someone commented on, ... - can't be wrapped in the mark. Instead
-// every node except doc/text gets a `suggestions` attr: a list of
-// {type, id} objects (plus, for type "format", a snapshot of the node's
-// previous attrs so a reject can restore them), one per pending whole-node
-// suggestion/comment on that node - independent of any
-// suggestion marks its own inline content may carry. It's a list (not a
-// single object) because while a node never has more than one pending
-// insert/delete/format at a time, it can reasonably have several independent
-// comment threads attached to it at once; that business rule (at most one
-// non-comment entry) is enforced by the mutating code, not the schema. Reset
-// to null (not an empty array) when the last entry is removed. This
-// round-trips through JSON like any other attribute. See
-// src/lib/plugins/suggestions and src/lib/diff.
-function withSuggestionAttrs(nodes: ReturnType<typeof addListNodes>): ReturnType<typeof addListNodes> {
+// adding marks to nodes is buggy. mainly while editing, etc.
+// so, instead, for nodes (except doc and text), we use an additional attribute called `suggestions`
+// list of suggestions (same format as the mark)
+function withSuggestionAttrs(nodes: ReturnType<typeof addListNodes>, config: SchemaConfig): ReturnType<typeof addListNodes> {
+    if (!config.suggestions) return nodes;
     let result = nodes;
     nodes.forEach((name, spec) => {
         if (name === "doc" || name === "text") return;
@@ -503,6 +472,7 @@ function withSuggestionAttrs(nodes: ReturnType<typeof addListNodes>): ReturnType
 export function getSchema(config?: Partial<SchemaConfig>): Schema {
 
     const mergedConfig: SchemaConfig = Object.assign({}, defaultSchemaConfig, config);
+    const marks = getMarks(mergedConfig);
 
     const schemaWithoutList = new Schema({
         nodes: getNodes(mergedConfig),
@@ -510,7 +480,7 @@ export function getSchema(config?: Partial<SchemaConfig>): Schema {
     });
 
     return new Schema({
-        nodes: withSuggestionAttrs(addListNodes(schemaWithoutList.spec.nodes, "block+", "block")),
+        nodes: withSuggestionAttrs(addListNodes(schemaWithoutList.spec.nodes, "block+", "block"), mergedConfig),
         marks
     });
 }
