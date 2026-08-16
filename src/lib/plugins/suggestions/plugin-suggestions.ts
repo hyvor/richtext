@@ -3,14 +3,12 @@ import { AddMarkStep, Mapping, RemoveMarkStep, ReplaceStep } from "prosemirror-t
 import { Fragment, Slice, type Mark, type MarkType, type Node } from "prosemirror-model";
 import { Decoration, DecorationSet } from "prosemirror-view";
 import { isHistoryTransaction } from "prosemirror-history";
-import { SuggestionsPanelView } from "./plugin-suggestions-panel.svelte";
-import { SuggestionsSourceView } from "./plugin-suggestions-source";
+import { SuggestionsPanelView } from "./panel.svelte";
+import { SuggestionsSourceView } from "./source";
 
-// Identifies who made a suggestion or wrote a comment. A plain string rather
-// than an {id, name} object on purpose: the document only ever stores this
-// identifier, never a display name - see AuthorInfo/resolveAuthor below for
-// how it's turned into something renderable.
-export type Author = `user:${string}` | "ai";
+// author can be any host-given string
+// for HB, we have user:<id> and ai
+export type Author = string;
 
 // What a host app's resolveAuthor callback (see SuggestionsPluginState) turns
 // an Author into for display in the panel.

@@ -14,6 +14,7 @@
 		setSuggestionMode,
 		type SuggestionMode
 	} from './plugins/suggestions/commands';
+	import { SUGGESTIONS_SKIP_META } from './plugins/suggestions/plugin-suggestions';
 
 	let props: Props = $props();
 
@@ -80,12 +81,6 @@
 				const state = view!.state.apply(tr);
 				view!.updateState(state);
 
-				// fire after the view's state is updated, so listeners (e.g. a
-				// suggestions panel calling back into editorView.state) see the
-				// latest doc rather than the one before this transaction - a
-				// plugin's appendTransaction (see src/lib/plugins/suggestions) can
-				// add further changes on top of tr that view.state already
-				// reflects at this point, but tr.doc/docJson above do not
 				props.onvaluechange?.(docJson);
 			}
 		});
@@ -118,19 +113,8 @@
 			typeof content === 'string' ? JSON.parse(content) : content
 		);
 		const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, doc.content);
-		// Loading a whole new document programmatically is not a user edit - if
-		// the suggestions plugin (see src/lib/plugins/suggestions) is attached
-		// and in "suggesting" mode, it would otherwise treat a full-document
-		// replace as one giant tracked change (the entire previous doc marked
-		// deleted, the entire new one marked inserted) on every call, which -
-		// since the old "deleted" content is kept, not removed - makes the
-		// document grow without bound if setContent is called repeatedly (e.g.
-		// reactively, as app/DiffPage.svelte does). "suggestionsSkip" is that
-		// plugin's own convention meta key (see SUGGESTIONS_SKIP_META in
-		// plugin-suggestions.ts) for "apply this transaction as-is" - used by
-		// string value here rather than importing it, so this core component
-		// doesn't need to depend on an optional, opt-in plugin.
-		tr.setMeta('suggestionsSkip', true);
+		// settings the whole document is not a suggestion
+		tr.setMeta(SUGGESTIONS_SKIP_META, true);
 		view.dispatch(tr);
 	}
 
