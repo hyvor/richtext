@@ -5,6 +5,7 @@
 	import { Node } from 'prosemirror-model';
 	import { NodeSelection, TextSelection } from 'prosemirror-state';
 	import { editorStore } from '../../store';
+	import { SUGGESTIONS_SKIP_META } from '../suggestions/plugin-suggestions';
 
 	interface Props {
 		view: EditorView;
@@ -141,8 +142,10 @@
 		const nodeSel = NodeSelection.create(view.state.doc, pos);
 
 		const tr = view.state.tr;
+		view.dispatch(tr.delete(nodeSel.from, nodeSel.to).setMeta(SUGGESTIONS_SKIP_META, true));
 
-		view.dispatch(tr.replaceWith(nodeSel.from, nodeSel.to, node));
+		const tr1 = view.state.tr;
+		view.dispatch(tr1.insert(pos, node));
 
 		const tr2 = view.state.tr;
 

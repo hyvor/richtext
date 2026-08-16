@@ -48,56 +48,34 @@
 	}
 
 	function setContent() {
-		editor.setContent(JSON.stringify({
-			type: 'doc',
-			content: [
-				{
-					type: 'paragraph',
-					content: [
-						{
-							type: 'text',
-							text: 'This is a new content set programmatically.'
-						}
-					]
-				}
-			]
-		}));
+		editor.setContent(
+			JSON.stringify({
+				type: 'doc',
+				content: [
+					{
+						type: 'paragraph',
+						content: [
+							{
+								type: 'text',
+								text: 'This is a new content set programmatically.'
+							}
+						]
+					}
+				]
+			})
+		);
 	}
 </script>
-
-<Base>
-	<div class="container">
-		<Editor
-			bind:this={editor}
-			value={localStorage.getItem('doc')}
-			onvaluechange={(val) => localStorage.setItem('doc', val)}
-			{schema}
-			plugins={[editorSuggestionsPlugin]}
-			editorConfig={{
-				codeBlockConfig: {
-					language: true,
-					annotations: true,
-					annotationsUrl: null,
-					fileName: true,
-				},
-				colorButtonBackground: '#585895',
-				fileUploader: async (blob, name, type) => {
-					return {
-						url: URL.createObjectURL(blob)
-					};
-				}
-			}}
-		/>
-	</div>
-</Base>
 
 <div class="focus">
 	<button onclick={() => editor.focus()}>Focus</button>
 	<button onclick={setContent}>Set content</button>
-	<button onclick={() => {
-		editable = !editable;
-		editor.setEditable(editable);
-	}}>
+	<button
+		onclick={() => {
+			editable = !editable;
+			editor.setEditable(editable);
+		}}
+	>
 		{editable ? 'Set Readonly' : 'Set Editable'}
 	</button>
 	<div class="suggestion-mode-switch">
@@ -118,9 +96,35 @@
 	</div>
 </div>
 
+<Base>
+	<div class="container">
+		<Editor
+			bind:this={editor}
+			value={localStorage.getItem('doc')}
+			onvaluechange={(val) => localStorage.setItem('doc', val)}
+			{schema}
+			plugins={[editorSuggestionsPlugin]}
+			editorConfig={{
+				codeBlockConfig: {
+					language: true,
+					annotations: true,
+					annotationsUrl: null,
+					fileName: true
+				},
+				colorButtonBackground: '#585895',
+				fileUploader: async (blob, name, type) => {
+					return {
+						url: URL.createObjectURL(blob)
+					};
+				}
+			}}
+		/>
+	</div>
+</Base>
+
 <style>
 	.container {
-		margin: 60px auto;
+		margin: 10px auto;
 		min-height: 600px;
 		width: 650px;
 		background-color: #fff;

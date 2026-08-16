@@ -191,16 +191,15 @@
 		<ul>
 			{#each items as item (item.id)}
 				<li bind:this={itemEls[item.id]} class:active={item.id === activeId}>
-					<div class="item-wrap hds-box" 
+					<div
+						class="item-wrap hds-box"
 						onclick={() => jumpTo(item)}
 						onkeydown={(e) => jumpToOnKey(e, item)}
 						role="button"
 						tabindex="0"
 					>
-						<div
-							class="content"
-						>
-							{#if item.type !== "comment"}
+						<div class="content">
+							{#if item.type !== 'comment'}
 								<div class="meta">
 									<strong>{authorName(item.author)}</strong>
 									<span class="change">{label(item)}</span>
@@ -221,7 +220,10 @@
 									type="text"
 									placeholder="Reply..."
 									bind:value={replyDrafts[item.id]}
-									onkeydown={(e) => { e.stopPropagation(); e.key === 'Enter' && submitReply(item); }}
+									onkeydown={(e) => {
+										e.stopPropagation();
+										e.key === 'Enter' && submitReply(item);
+									}}
 									onclick={(e) => e.stopPropagation()}
 								/>
 								<button class="reply" onclick={() => submitReply(item)}>Reply</button>
@@ -229,15 +231,31 @@
 						{/if}
 
 						<div class="actions">
-							<Tooltip text={item.type === 'comment' ? 'Resolve comment' : 'Accept suggestion'} delay={500}>
-								<IconButton size={18} onclick={() => item.type === 'comment' ? resolveComment(view, item.id) : acceptSuggestion(view, item.id)} color="input" style="color:var(--green-dark)">
+							<Tooltip
+								text={item.type === 'comment' ? 'Resolve comment' : 'Accept suggestion'}
+								delay={500}
+							>
+								<IconButton
+									size={18}
+									onclick={() =>
+										item.type === 'comment'
+											? resolveComment(view, item.id)
+											: acceptSuggestion(view, item.id)}
+									color="input"
+									style="color:var(--green-dark)"
+								>
 									<IconCheck size={12} />
 								</IconButton>
 							</Tooltip>
 
 							{#if item.type !== 'comment'}
 								<Tooltip text={'Dismiss suggestion'} delay={500}>
-									<IconButton size={18} color="input" onclick={() => rejectSuggestion(view, item.id)} style="color:var(--red-dark)">
+									<IconButton
+										size={18}
+										color="input"
+										onclick={() => rejectSuggestion(view, item.id)}
+										style="color:var(--red-dark)"
+									>
 										<IconX size={12} />
 									</IconButton>
 								</Tooltip>
@@ -264,7 +282,7 @@
 		position: sticky;
 		top: 0;
 		gap: 8px;
-		padding: 10px 12px;
+		padding: 4px 12px;
 		font-weight: 600;
 		text-align: right;
 	}
@@ -276,11 +294,11 @@
 
 	ul {
 		list-style: none;
-		margin: 0!important;
+		margin: 0 !important;
 		padding: 8px;
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: 4px;
 	}
 
 	.item-wrap {
@@ -360,5 +378,4 @@
 		top: 12px;
 		right: 12px;
 	}
-
 </style>
