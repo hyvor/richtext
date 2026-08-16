@@ -13,8 +13,12 @@
 		type Author,
 		type AuthorInfo
 	} from './commands';
+	import { slide } from 'svelte/transition';
+	import { IconButton, Tooltip } from '@hyvor/design/components';
+	import IconCheck from '@hyvor/icons/IconCheck';
+	import IconX from '@hyvor/icons/IconX';
 	// bulk actions temporarily disabled, see the header below
-	// import { acceptAllSuggestions, rejectAllSuggestions } from './commands';
+	// import { acceptAllSuggestions, rejectAllSuggestions } from './command size={12}s';
 
 	interface Props {
 		view: EditorView;
@@ -183,69 +187,58 @@
 		<ul>
 			{#each items as item (item.id)}
 				<li bind:this={itemEls[item.id]} class:active={item.id === activeId}>
-					{#if item.type === 'comment'}
-						{@const opener = item.comments[0]}
+					<div class="item-wrap hds-box" 
+						onclick={() => jumpTo(item)}
+						onkeydown={(e) => jumpToOnKey(e, item)}
+						role="button"
+						tabindex="0"
+					>
 						<div
 							class="content"
-							role="button"
-							tabindex="0"
-							onclick={() => jumpTo(item)}
-							onkeydown={(e) => jumpToOnKey(e, item)}
 						>
-							{#if opener}
-								<div class="comment">
-									<strong>{authorName(opener.author)}</strong>
-									<span class="time">{formatTime(opener.timestamp)}</span>
-									<p>{opener.content}</p>
+							{#if item.type !== "comment"}
+								<div class="meta">
+									<strong>{authorName(item.author)}</strong>
+									<span class="change">{label(item)}</span>
 								</div>
 							{/if}
-							{#each item.comments.slice(1) as reply (reply.id)}
-								<div class="comment reply">
-									<strong>{authorName(reply.author)}</strong>
-									<span class="time">{formatTime(reply.timestamp)}</span>
-									<p>{reply.content}</p>
+							{#each item.comments as comment (comment.id)}
+								<div class="comment">
+									<strong>{authorName(comment.author)}</strong>
+									<span class="time">{formatTime(comment.timestamp)}</span>
+									<div class="comment-content">{comment.content}</div>
 								</div>
 							{/each}
 						</div>
-					{:else}
-						<div
-							class="content"
-							role="button"
-							tabindex="0"
-							onclick={() => jumpTo(item)}
-							onkeydown={(e) => jumpToOnKey(e, item)}
-						>
-							<div class="meta">
-								<strong>{authorName(item.author)}</strong>
-								<span class="change">{label(item)}</span>
+
+						{#if item.id === activeId}
+							<div class="reply-row" transition:slide>
+								<input
+									type="text"
+									placeholder="Reply..."
+									bind:value={replyDrafts[item.id]}
+									onkeydown={(e) => { e.stopPropagation(); e.key === 'Enter' && submitReply(item); }}
+									onclick={(e) => e.stopPropagation()}
+								/>
+								<button class="reply" onclick={() => submitReply(item)}>Reply</button>
 							</div>
-							{#each item.comments as reply (reply.id)}
-								<div class="comment reply">
-									<strong>{authorName(reply.author)}</strong>
-									<span class="time">{formatTime(reply.timestamp)}</span>
-									<p>{reply.content}</p>
-								</div>
-							{/each}
-						</div>
-					{/if}
-
-					<div class="reply-row">
-						<input
-							type="text"
-							placeholder="Reply..."
-							bind:value={replyDrafts[item.id]}
-							onkeydown={(e) => e.key === 'Enter' && submitReply(item)}
-						/>
-						<button class="reply" onclick={() => submitReply(item)}>Reply</button>
-					</div>
-
-					<div class="actions">
-						{#if item.type === 'comment'}
-							<button class="resolve" onclick={() => resolveComment(view, item.id)}>Resolve</button>
-						{:else}
-							<button class="dismiss" onclick={() => rejectSuggestion(view, item.id)}>Dismiss</button>
-							<button class="accept" onclick={() => acceptSuggestion(view, item.id)}>Accept</button>
 						{/if}
+
+						<div class="actions">
+							<Tooltip text={item.type === 'comment' ? 'Resolve comment' : 'Accept suggestion'} delay={500}>
+								<IconButton size={18} onclick={() => item.type === 'comment' ? resolveComment(view, item.id) : acceptSuggestion(view, item.id)} color="input" style="color:var(--green-dark)">
+									<IconCheck size={12} />
+								</IconButton>
+							</Tooltip>
+
+							{#if item.type !== 'comment'}
+								<Tooltip text={'Dismiss suggestion'} delay={500}>
+									<IconButton size={18} color="input" onclick={() => rejectSuggestion(view, item.id)} style="color:var(--red-dark)">
+										<IconX size={12} />
+									</IconButton>
+								</Tooltip>
+							{/if}
+						</div>
 					</div>
 				</li>
 			{/each}
@@ -259,10 +252,6 @@
 		width: 280px;
 		max-height: calc(100vh - 40px);
 		overflow-y: auto;
-		background: var(--box-background);
-		border: 1px solid var(--border);
-		border-radius: var(--box-radius);
-		box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 		font-size: 13px;
 		z-index: 100;
 	}
@@ -270,14 +259,10 @@
 	.header {
 		position: sticky;
 		top: 0;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
 		gap: 8px;
 		padding: 10px 12px;
-		background: var(--box-background);
-		border-bottom: 1px solid var(--border);
 		font-weight: 600;
+		text-align: right;
 	}
 
 	.bulk-actions {
@@ -287,33 +272,25 @@
 
 	ul {
 		list-style: none;
-		margin: 0;
+		margin: 0!important;
 		padding: 8px;
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
 
-	/* floating "chat bubble" look - no flat fill, just enough definition
-	   (border + shadow) to read as a card sitting on the panel's surface */
-	li {
-		padding: 8px 10px;
-		border: 1px solid var(--border);
-		border-radius: calc(var(--box-radius) - 4px);
+	.item-wrap {
+		padding: 8px 16px;
+		cursor: pointer;
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 		transition: box-shadow 0.15s ease;
+		position: relative;
 	}
 
-	li.active {
-		box-shadow: 0 0 0 2px var(--link);
+	li.active .item-wrap {
+		box-shadow: 0 0 0 2px var(--accent);
 	}
-
-	.content {
-		cursor: pointer;
-		border-radius: 4px;
-	}
-
-	.content:hover {
+	.item-wrap:hover {
 		background: var(--hover);
 	}
 
@@ -326,6 +303,7 @@
 
 	.meta strong {
 		font-size: 12px;
+		margin-top: 6px;
 	}
 
 	.change {
@@ -335,12 +313,6 @@
 
 	.comment {
 		margin-bottom: 6px;
-	}
-
-	.comment.reply {
-		margin-left: 10px;
-		padding-left: 8px;
-		border-left: 2px solid var(--border);
 	}
 
 	.comment strong {
@@ -353,7 +325,7 @@
 		margin-left: 6px;
 	}
 
-	.comment p {
+	.comment-content {
 		margin: 2px 0 0 0;
 		word-break: break-word;
 	}
@@ -380,41 +352,9 @@
 		display: flex;
 		justify-content: flex-end;
 		gap: 6px;
-		margin-top: 6px;
+		position: absolute;
+		top: 12px;
+		right: 12px;
 	}
 
-	button {
-		font-size: 12px;
-		font-family: inherit;
-		padding: 4px 8px;
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		background: var(--box-background);
-		cursor: pointer;
-		color: var(--text);
-	}
-
-	.actions button {
-		flex: 1;
-	}
-
-	button:hover {
-		background: var(--hover);
-	}
-
-	button.accept,
-	button.resolve {
-		border-color: #2e9e5b;
-		color: #1a7431;
-	}
-
-	button.dismiss {
-		border-color: #d64545;
-		color: #a51c2c;
-	}
-
-	button.reply {
-		border-color: #e0d32e;
-		color: #8a7a12;
-	}
 </style>
