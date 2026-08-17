@@ -10,17 +10,6 @@ export default function nodeMenuPlugin() {
     })
 }
 
-/**
- * Tracks which top-level block the pointer is currently over (so the drag
- * handle can be shown next to it) and mounts the NodeMenu component, which
- * renders the handle and implements the actual drag-to-reorder behavior.
- *
- * The handle lives outside view.dom (as a fixed-position sibling, so it can
- * sit in the gutter to the left of the editor content), which is why hover
- * tracking is done here with a plain DOM listener on the shared container
- * rather than via ProseMirror's handleDOMEvents - events on the handle
- * itself don't bubble through view.dom.
- */
 export class NodeMenuPluginView implements PluginView {
     private view: EditorView;
     private container: HTMLElement;
@@ -53,10 +42,7 @@ export class NodeMenuPluginView implements PluginView {
             return;
         }
 
-        // the pointer is over the menu's own handle/dropdown (a fixed-position
-        // overlay that visually sits on top of the document) - leave
-        // nodeMenuPos alone, since resolving *its* screen position against the
-        // document would hijack it to whatever node happens to be underneath
+        // ignore when the pointer is over the menu's own handle/dropdown
         if (event.target instanceof Node && this.wrap.contains(event.target)) {
             return;
         }

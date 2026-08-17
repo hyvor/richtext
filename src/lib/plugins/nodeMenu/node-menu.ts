@@ -4,19 +4,12 @@ import type { EditorView } from "prosemirror-view";
 import { writable } from "svelte/store";
 
 /**
- * Position (in the doc) right in front of the top-level block that the
- * pointer is currently over (or, while dragging, the block being targeted
- * as the drop location). `null` when the pointer isn't over any block.
+ * Prosemirror pos where the cursor is at.
+ * Top-level node only
  */
 export const nodeMenuPos = writable<null | number>(null);
 
-/**
- * Resolves any position in the document to the position right in front of
- * the top-level (depth 1) block that contains it, so hovering/clicking
- * anywhere inside a node - an image inside a <figure>, text inside a list
- * or table cell, a figcaption, etc. - resolves to the block that should
- * actually be shown/dragged as a whole.
- */
+
 export function topLevelBlockPosAt($pos: ResolvedPos): number {
     if ($pos.depth >= 1) {
         return $pos.before(1);
@@ -45,13 +38,11 @@ export function deleteNode(view: EditorView, pos: number) {
 /**
  * Moves the top-level block at `sourcePos` so that it ends up right before
  * (or, if `insertAfter`, right after) the top-level block at `targetPos`.
- * Both positions must point directly in front of a top-level block, e.g. as
- * returned by topLevelBlockPosAt().
+ * Both positions must point directly in front of a top-level block
  *
  * This dispatches a plain delete-then-insert transaction; if the suggestions
  * plugin is active in "suggesting" mode, it intercepts this (like any other
- * transaction) and rewrites it into a pending delete/insert suggestion pair -
- * see plugin-suggestions.ts.
+ * transaction) and rewrites it into a pending delete/insert suggestion pair
  */
 export function moveNode(
     view: EditorView,
