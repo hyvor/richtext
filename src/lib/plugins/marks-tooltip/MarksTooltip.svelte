@@ -32,10 +32,6 @@
 	let linkSelectorOpen = $state(false);
 	let commentInputOpen = $state(false);
 
-	// only offer "comment" when the host installed the suggestions plugin
-	// (see src/lib/plugins/suggestions) - the mark itself always exists in
-	// the schema, but there's no current author/mode to attribute a new
-	// comment to without the plugin's state
 	let commentsAvailable = $derived(!!suggestionsPluginKey.getState(view.state));
 
 	function getLink(_: number): Mark | null {
@@ -89,13 +85,6 @@
 	// position when show/view is changed
 	$effect(() => {
 		if (updateId && show) {
-			// a fresh, non-empty selection arrived - if a comment was mid-draft
-			// for the previous selection, drop it rather than leave it attached
-			// to a range that's no longer selected. Read untracked: this effect
-			// should only re-run on updateId/show changes (i.e. a real selection
-			// change), not merely because opening the comment box itself flips
-			// commentInputOpen - tracking that too would make it undo its own
-			// open on every click.
 			if (untrack(() => commentInputOpen)) {
 				commentInputOpen = false;
 			}
@@ -108,16 +97,10 @@
 		}
 	});
 
-	// 'comment' isn't a real schema mark name (comments are the "comment"
-	// subtype of the unified `suggestion` mark, see schema.ts) - it's kept
-	// here purely as a UI identifier for the button/composer below.
 	type MarkName = 'link' | 'strong' | 'em' | 'code' | 'strike' | 'comment';
 
 	function getProps(markName: MarkName) {
 		if (markName === 'comment') {
-			// an action button (opens the composer to start a new thread), not
-			// a toggle - there's no single "is this selection already
-			// commented" state to reflect here
 			return { size: 'small', variant: 'invisible', color: 'gray' } as {
 				size: 'small';
 				variant: 'fill' | 'invisible';
@@ -237,6 +220,7 @@
 					</IconButton>
 
 					{#if commentsAvailable}
+						<span class="mark-separator"></span>
 						<IconButton {...getProps('comment')} on:click={(e) => handleClick('comment')}>
 							<IconChatRight />
 						</IconButton>

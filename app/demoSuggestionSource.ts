@@ -24,16 +24,16 @@ export function createDemoSuggestionSource(storageKey: string): SuggestionSource
 			const all = read();
 			return Object.fromEntries(ids.map((id) => [id, all[id] ?? null]));
 		},
-		create(id: string, _type, author) {
+		create(id: string, _type, author, timestamp) {
 			const all = read();
 			if (!all[id]) {
-				all[id] = { author, comments: [] };
+				all[id] = { author, timestamp, comments: [] };
 				write(all);
 			}
 		},
 		reply(id: string, reply: SuggestionReply) {
 			const all = read();
-			const entry = all[id] ?? { author: reply.author, comments: [] };
+			const entry = all[id] ?? { author: reply.author, timestamp: reply.timestamp, comments: [] };
 			entry.comments = [...entry.comments, reply];
 			all[id] = entry;
 			write(all);
@@ -44,6 +44,22 @@ export function createDemoSuggestionSource(storageKey: string): SuggestionSource
 				delete all[id];
 				write(all);
 			}
+		},
+		editReply(id: string, replyId: string, content: string) {
+			const all = read();
+			const entry = all[id];
+			if (!entry) return;
+			entry.comments = entry.comments.map((c) => (c.id === replyId ? { ...c, content } : c));
+			all[id] = entry;
+			write(all);
+		},
+		deleteReply(id: string, replyId: string) {
+			const all = read();
+			const entry = all[id];
+			if (!entry) return;
+			entry.comments = entry.comments.filter((c) => c.id !== replyId);
+			all[id] = entry;
+			write(all);
 		}
 	};
 }

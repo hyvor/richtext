@@ -45,9 +45,17 @@ export class SuggestionsSourceView implements PluginView {
 
         for (const ev of pluginState.pendingEvents) {
             if (ev.kind === "create") {
-                this.notify(() => pluginState.source.create(ev.id, ev.type, ev.author));
+                this.notify(() => pluginState.source.create(ev.id, ev.type, ev.author, ev.timestamp));
             } else if (ev.kind === "reply") {
                 this.notify(() => pluginState.source.reply(ev.id, ev.reply));
+            } else if (ev.kind === "editReply") {
+                if (pluginState.source.editReply) {
+                    this.notify(() => pluginState.source.editReply!(ev.id, ev.replyId, ev.content));
+                }
+            } else if (ev.kind === "deleteReply") {
+                if (pluginState.source.deleteReply) {
+                    this.notify(() => pluginState.source.deleteReply!(ev.id, ev.replyId));
+                }
             } else if (ev.kind === "resolve") {
                 if (pluginState.source.resolve) {
                     const decision = ev.decision;

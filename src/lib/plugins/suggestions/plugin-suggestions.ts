@@ -107,6 +107,10 @@ export type SuggestionMode = "editing" | "suggesting";
 // marks.suggestion in schema.ts).
 export interface SuggestionSourceEntry {
     author: Author;
+    // when the suggestion/comment thread was created - mirrors each
+    // SuggestionReply's own `timestamp`, so the panel can show a date for a
+    // thread's opening entry the same way it does for replies.
+    timestamp: number;
     comments: SuggestionReply[];
 }
 
@@ -122,9 +126,11 @@ export interface SuggestionSourceEntry {
 // never allowed to crash the editor.
 export interface SuggestionSource {
     get: (ids: string[]) => Promise<Record<string, SuggestionSourceEntry | null>>;
-    create: (id: string, type: SuggestionSubtype, author: Author) => void;
+    create: (id: string, type: SuggestionSubtype, author: Author, timestamp: number) => void;
     reply: (id: string, reply: SuggestionReply) => void;
     resolve?: (id: string, decision: "accept" | "reject" | "resolve") => void;
+    editReply?: (id: string, replyId: string, content: string) => void;
+    deleteReply?: (id: string, replyId: string) => void;
 }
 
 // Describes a suggestion/comment mutation that just happened, attached to the
@@ -135,8 +141,10 @@ export interface SuggestionSource {
 // post-commit. "loaded" is the one kind never sent back to the host - it's
 // how a resolved source.get() batch reports back in.
 export type SuggestionEvent =
-    | { kind: "create"; id: string; type: SuggestionSubtype; author: Author }
+    | { kind: "create"; id: string; type: SuggestionSubtype; author: Author; timestamp: number }
     | { kind: "reply"; id: string; reply: SuggestionReply }
+    | { kind: "editReply"; id: string; replyId: string; content: string }
+    | { kind: "deleteReply"; id: string; replyId: string }
     | { kind: "resolve"; id: string; decision: "accept" | "reject" | "resolve" }
     | { kind: "loaded"; entries: Record<string, SuggestionSourceEntry | null> };
 
@@ -257,10 +265,23 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
                     const cache = { ...value.cache };
                     for (const ev of events) {
                         if (ev.kind === "create") {
-                            if (!cache[ev.id]) cache[ev.id] = { author: ev.author, comments: [] };
+                            if (!cache[ev.id]) cache[ev.id] = { author: ev.author, timestamp: ev.timestamp, comments: [] };
                         } else if (ev.kind === "reply") {
-                            const existing = cache[ev.id] ?? { author: ev.reply.author, comments: [] };
+                            const existing = cache[ev.id] ?? { author: ev.reply.author, timestamp: ev.reply.timestamp, comments: [] };
                             cache[ev.id] = { ...existing, comments: [...existing.comments, ev.reply] };
+                        } else if (ev.kind === "editReply") {
+                            const existing = cache[ev.id];
+                            if (existing) {
+                                cache[ev.id] = {
+                                    ...existing,
+                                    comments: existing.comments.map(c => c.id === ev.replyId ? { ...c, content: ev.content } : c)
+                                };
+                            }
+                        } else if (ev.kind === "deleteReply") {
+                            const existing = cache[ev.id];
+                            if (existing) {
+                                cache[ev.id] = { ...existing, comments: existing.comments.filter(c => c.id !== ev.replyId) };
+                            }
                         } else if (ev.kind === "resolve") {
                             delete cache[ev.id];
                         } else if (ev.kind === "loaded") {
@@ -551,7 +572,7 @@ function tryFastPureInsert(
     const id = reuseId ?? generateSuggestionId();
     if (!reuseId) {
         ownership.noteCreated(id);
-        events.push({ kind: "create", id, type: "insert", author });
+        events.push({ kind: "create", id, type: "insert", author, timestamp: Date.now() });
     }
 
     const tr = newState.tr;
@@ -735,7 +756,7 @@ function markNodesDeleted(
         tr.setNodeAttribute(pos, "suggestions", withNodeSuggestion(node, meta));
     }
     ownership.noteCreated(id);
-    events.push({ kind: "create", id, type: "delete", author });
+    events.push({ kind: "create", id, type: "delete", author, timestamp: Date.now() });
     return id;
 }
 
@@ -785,7 +806,7 @@ function markNodesInserted(
     }
     if (!reuseId) {
         ownership.noteCreated(id);
-        events.push({ kind: "create", id, type: "insert", author });
+        events.push({ kind: "create", id, type: "insert", author, timestamp: Date.now() });
     }
     return id;
 }
@@ -852,7 +873,7 @@ function handleReplaceStep(
     const id = reuseId ?? generateSuggestionId();
     if (!reuseId) {
         ownership.noteCreated(id);
-        events.push({ kind: "create", id, type: to > from ? "delete" : "insert", author });
+        events.push({ kind: "create", id, type: to > from ? "delete" : "insert", author, timestamp: Date.now() });
     }
 
     let insertAt = to;
@@ -974,7 +995,7 @@ function tagFormatChange(
 
     if (!existing) {
         ownership.noteCreated(id);
-        events.push({ kind: "create", id, type: "format", author });
+        events.push({ kind: "create", id, type: "format", author, timestamp: Date.now() });
     }
 
     const mark = suggestionType.create({ type: "format", id, add, remove });

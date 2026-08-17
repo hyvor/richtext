@@ -136,8 +136,9 @@
 		// silently no-op. Writing straight to the store has no such
 		// dependency - source.get() will find it whenever it's eventually
 		// called, mount order or not.
+		const now = Date.now();
 		for (const s of diffBuild.suggestions) {
-			diffSource.create(s.id, s.type, DIFF_AUTHOR);
+			diffSource.create(s.id, s.type, DIFF_AUTHOR, now);
 		}
 		diffEditor?.setContent(diffBuild.doc);
 	});

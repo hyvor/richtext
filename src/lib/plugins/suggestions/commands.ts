@@ -28,6 +28,9 @@ export interface SuggestionItem {
     // null while the host's SuggestionSource hasn't resolved this id yet
     // (see plugin-suggestions-source.ts) - never comes from the document.
     author: Author | null;
+    // when this suggestion/comment thread was created - null while the
+    // host's SuggestionSource hasn't resolved this id yet, same as author.
+    timestamp: number | null;
     from: number;
     to: number;
     insertedText: string;
@@ -92,7 +95,7 @@ export function getSuggestions(state: EditorState): SuggestionItem[] {
         if (!item) {
             const cached = cache[id];
             item = {
-                id, type, author: cached?.author ?? null, from, to,
+                id, type, author: cached?.author ?? null, timestamp: cached?.timestamp ?? null, from, to,
                 insertedText: "", deletedText: "", formatAdd: [], formatRemove: [],
                 comments: cached?.comments ?? []
             };
@@ -181,6 +184,13 @@ export function rejectAllSuggestions(view: EditorView) {
     for (const item of getSuggestions(view.state)) {
         if (item.type === "comment") continue;
         rejectSuggestion(view, item.id);
+    }
+}
+
+export function resolveAllComments(view: EditorView) {
+    for (const item of getSuggestions(view.state)) {
+        if (item.type !== "comment") continue;
+        resolveComment(view, item.id);
     }
 }
 
@@ -332,7 +342,7 @@ export function setNodeAttrs(view: EditorView, pos: number, attrs: Record<string
         tr.setNodeMarkup(pos, undefined, { ...attrs, suggestions: withNodeSuggestion(node, meta) });
         tr.setMeta(SUGGESTIONS_SKIP_META, true);
         tr.setMeta(suggestionsPluginKey, {
-            events: [{ kind: "create", id, type: "format", author: pluginState.author } satisfies SuggestionEvent]
+            events: [{ kind: "create", id, type: "format", author: pluginState.author, timestamp: Date.now() } satisfies SuggestionEvent]
         });
     }
 
@@ -359,11 +369,12 @@ export function addComment(view: EditorView, text: string): SuggestionItem | nul
     if (!suggestionType) return null;
 
     const id = generateSuggestionId();
+    const now = Date.now();
     const opening: SuggestionReply = {
         id: generateSuggestionId(),
         author: pluginState.author,
         content: text,
-        timestamp: Date.now()
+        timestamp: now
     };
 
     const tr = state.tr;
@@ -376,7 +387,7 @@ export function addComment(view: EditorView, text: string): SuggestionItem | nul
     }
 
     const events: SuggestionEvent[] = [
-        { kind: "create", id, type: "comment", author: pluginState.author },
+        { kind: "create", id, type: "comment", author: pluginState.author, timestamp: now },
         { kind: "reply", id, reply: opening }
     ];
     tr.setMeta(SUGGESTIONS_SKIP_META, true);
@@ -384,7 +395,7 @@ export function addComment(view: EditorView, text: string): SuggestionItem | nul
     dispatch(tr);
 
     return {
-        id, type: "comment", author: pluginState.author,
+        id, type: "comment", author: pluginState.author, timestamp: now,
         from: sel.from, to: sel.to,
         insertedText: "", deletedText: "", formatAdd: [], formatRemove: [],
         comments: [opening]
@@ -417,6 +428,40 @@ export function replyToSuggestion(view: EditorView, id: string, text: string): S
 
     dispatch(state.tr.setMeta(suggestionsPluginKey, { events: [{ kind: "reply", id, reply } satisfies SuggestionEvent] }));
     return reply;
+}
+
+/**
+ * Edits the text of an existing reply (including a comment thread's opening
+ * reply) in its discussion thread. Same zero-step-transaction shape as
+ * replyToSuggestion - the edit lives entirely in the host's SuggestionSource,
+ * keyed by `id`+`replyId`. Callers (the panel) are responsible for only
+ * offering this when the current author owns the reply.
+ */
+export function editSuggestionReply(view: EditorView, id: string, replyId: string, content: string): void {
+    const { state, dispatch } = view;
+    const pluginState = suggestionsPluginKey.getState(state);
+    if (!pluginState) return;
+
+    dispatch(state.tr.setMeta(suggestionsPluginKey, {
+        events: [{ kind: "editReply", id, replyId, content } satisfies SuggestionEvent]
+    }));
+}
+
+/**
+ * Deletes a single reply (including a comment thread's opening reply) from
+ * its discussion thread - distinct from resolveComment, which removes the
+ * whole thread's document marks. Callers (the panel) are responsible for
+ * only offering this when the current author owns the reply, and for
+ * confirming with the user first.
+ */
+export function deleteSuggestionReply(view: EditorView, id: string, replyId: string): void {
+    const { state, dispatch } = view;
+    const pluginState = suggestionsPluginKey.getState(state);
+    if (!pluginState) return;
+
+    dispatch(state.tr.setMeta(suggestionsPluginKey, {
+        events: [{ kind: "deleteReply", id, replyId } satisfies SuggestionEvent]
+    }));
 }
 
 /**
@@ -474,6 +519,7 @@ export function seedSuggestionSource(
     entries: { id: string; type: SuggestionSubtype; author: Author }[]
 ): void {
     if (!entries.length) return;
-    const events: SuggestionEvent[] = entries.map(e => ({ kind: "create", ...e }));
+    const now = Date.now();
+    const events: SuggestionEvent[] = entries.map(e => ({ kind: "create", ...e, timestamp: now }));
     view.dispatch(view.state.tr.setMeta(suggestionsPluginKey, { events }));
 }
