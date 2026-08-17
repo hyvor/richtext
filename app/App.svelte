@@ -14,10 +14,27 @@
 
 	let editor: Editor;
 
+	// `doc` and `doc-collab-version` are always written together (see
+	// saveDoc below) so a reload resumes from a (doc, version) pair that's
+	// actually consistent with each other, instead of re-sending/re-applying
+	// steps the saved doc already reflects.
+	const COLLAB_VERSION_KEY = 'doc-collab-version';
+	const initialCollabVersion = Number(localStorage.getItem(COLLAB_VERSION_KEY) ?? 0);
+
+	function saveDoc(val: string) {
+		localStorage.setItem('doc', val);
+		localStorage.setItem(COLLAB_VERSION_KEY, String(editor?.collab.getVersion() ?? 0));
+	}
+
 	const collabClientID: CollabClientID = Math.random().toString(36).slice(2);
 	let collabSocket: WebSocket | undefined;
 
 	collabSocket = new WebSocket('ws://localhost:8989');
+	collabSocket.addEventListener('open', () => {
+		// tells the server which steps (if any) this client is still missing -
+		// see dev-server/collab-server.mjs's 'hello' handling
+		collabSocket?.send(JSON.stringify({ type: 'hello', version: initialCollabVersion }));
+	});
 	collabSocket.addEventListener('message', (event) => {
 		const msg = JSON.parse(event.data);
 		if ((msg.type === 'init' || msg.type === 'steps') && msg.steps.length) {
@@ -119,7 +136,7 @@
 		<Editor
 			bind:this={editor}
 			value={localStorage.getItem('doc')}
-			onvaluechange={(val) => localStorage.setItem('doc', val)}
+			onvaluechange={saveDoc}
 			{schema}
 			editorConfig={{
 				codeBlockConfig: {
@@ -140,7 +157,7 @@
 					resolveAuthor,
 					source: createDemoSuggestionSource('suggestions-source')
 				},
-				collab: { version: 0, clientID: collabClientID, onSendable: sendCollabSteps }
+				collab: { version: initialCollabVersion, clientID: collabClientID, onSendable: sendCollabSteps }
 			}}
 		/>
 	</div>
