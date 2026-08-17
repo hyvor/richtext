@@ -1,19 +1,20 @@
-// Minimal local WebSocket server for exercising editorConfig.collab during
-// development - see DEV.md. This is NOT the "server-side implementation"
-// referenced by CollabPluginConfig; a real host is expected to build its own
-// authority (with auth, persistence, multiple documents, etc). This one only
-// relays prosemirror-collab steps between whatever browser tabs are
-// connected, for a single "document" - it doesn't hold the document itself
-// (this process has no schema to apply steps with), only the ordered step
-// history, persisted to a JSON file on disk (see historyFile below) so
-// restarting this process doesn't desync it from clients that already
-// caught up to a later version (they persist {doc, version} themselves -
-// see App.svelte).
+// Minimal local WebSocket server for exercising editorConfig.collab and
+// editorConfig.cursors during development - see DEV.md. This is NOT the
+// "server-side implementation" referenced by CollabPluginConfig; a real host
+// is expected to build its own authority (with auth, persistence, multiple
+// documents, etc). This one only relays prosemirror-collab steps and cursor
+// presence between whatever browser tabs are connected, for a single
+// "document" - it doesn't hold the document itself (this process has no
+// schema to apply steps with), only the ordered step history, persisted to a
+// JSON file on disk (see historyFile below) so restarting this process
+// doesn't desync it from clients that already caught up to a later version
+// (they persist {doc, version} themselves - see App.svelte).
 //
 // Protocol (JSON messages over the WebSocket):
-//   client -> server  { type: 'hello', version }
+//   client -> server  { type: 'hello', version, clientId }
 //     sent right after connecting: the version the client's own (locally
-//     persisted) document already reflects.
+//     persisted) document already reflects, and the id it'll use for both
+//     collab steps and cursor presence (see clientID/RemoteCursor.clientId).
 //   server -> client  { type: 'init', version, steps, clientIDs }
 //     reply to 'hello' - only the steps *after* the client's stated version,
 //     so an already-caught-up client doesn't get steps it has already
@@ -26,6 +27,16 @@
 //   server -> client  { type: 'steps', version, steps, clientIDs }
 //     broadcast to every connected client (including the sender) whenever a
 //     submitted batch is accepted - see Editor.svelte's collab.receiveSteps.
+//   client -> server  { type: 'cursor', from, to, user } | { type: 'cursor', clear: true }
+//     upserts (or, with `clear`, removes) the sender's own entry in the
+//     cursor roster, as produced by editorConfig.cursors' onLocalCursorChange
+//     callback. Not versioned/ordered like steps - presence is ephemeral and
+//     never persisted, so the latest update always wins.
+//   server -> client  { type: 'cursors', cursors }
+//     the full current roster (everyone's cursor, sender included), sent to
+//     every connected client whenever it changes - see Editor.svelte's
+//     `editor.cursors.set()`. Each client is expected to filter out its own
+//     clientId before rendering (see App.svelte).
 
 import { WebSocketServer } from 'ws';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -56,6 +67,20 @@ function saveHistory() {
 	writeFileSync(historyFile, JSON.stringify(history));
 }
 
+// cursor presence roster - ephemeral, never persisted, keyed by clientId
+const cursors = new Map();
+
+function broadcast(payload) {
+	const raw = JSON.stringify(payload);
+	for (const client of wss.clients) {
+		if (client.readyState === client.OPEN) client.send(raw);
+	}
+}
+
+function broadcastCursors() {
+	broadcast({ type: 'cursors', cursors: [...cursors.values()] });
+}
+
 const wss = new WebSocketServer({ port });
 
 wss.on('connection', (ws) => {
@@ -68,6 +93,7 @@ wss.on('connection', (ws) => {
 		}
 
 		if (msg.type === 'hello') {
+			ws.clientId = msg.clientId;
 			// clamp: a client can be "ahead" if the server's history file was
 			// reset without also clearing the client's localStorage - there's
 			// no way to reconcile that here, so it just won't have anything
@@ -79,6 +105,14 @@ wss.on('connection', (ws) => {
 				steps: history.steps.slice(from),
 				clientIDs: history.clientIDs.slice(from)
 			}));
+			return;
+		}
+
+		if (msg.type === 'cursor') {
+			if (!ws.clientId) return;
+			if (msg.clear) cursors.delete(ws.clientId);
+			else cursors.set(ws.clientId, { clientId: ws.clientId, from: msg.from, to: msg.to, user: msg.user });
+			broadcastCursors();
 			return;
 		}
 
@@ -96,15 +130,16 @@ wss.on('connection', (ws) => {
 		history.version += msg.steps.length;
 		saveHistory();
 
-		const payload = JSON.stringify({
+		broadcast({
 			type: 'steps',
 			version: history.version,
 			steps: msg.steps,
 			clientIDs
 		});
-		for (const client of wss.clients) {
-			if (client.readyState === client.OPEN) client.send(payload);
-		}
+	});
+
+	ws.on('close', () => {
+		if (ws.clientId && cursors.delete(ws.clientId)) broadcastCursors();
 	});
 });
 

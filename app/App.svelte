@@ -7,7 +7,8 @@
 		type AuthorInfo,
 		type CollabSendable,
 		type CollabStepJSON,
-		type CollabClientID
+		type CollabClientID,
+		type RemoteCursor
 	} from '../src/lib';
 	import { createDemoSuggestionSource } from './demoSuggestionSource';
 	import { Base, Button } from '@hyvor/design/components';
@@ -26,19 +27,33 @@
 		localStorage.setItem(COLLAB_VERSION_KEY, String(editor?.collab.getVersion() ?? 0));
 	}
 
+	// identifies this tab for both collab steps (CollabPluginConfig.clientID)
+	// and cursor presence (RemoteCursor.clientId) - see plugin-cursors.ts
 	const collabClientID: CollabClientID = Math.random().toString(36).slice(2);
+	// a stand-in for whatever identity/color a real host would attach - see
+	// resolveAuthor above for the same idea applied to suggestions/comments
+	const collabUser = {
+		name: 'User ' + collabClientID.slice(0, 4).toUpperCase(),
+		color: `hsl(${Math.floor(Math.random() * 360)}, 70%, 40%)`
+	};
 	let collabSocket: WebSocket | undefined;
 
 	collabSocket = new WebSocket('ws://localhost:8989');
 	collabSocket.addEventListener('open', () => {
-		// tells the server which steps (if any) this client is still missing -
-		// see dev-server/collab-server.mjs's 'hello' handling
-		collabSocket?.send(JSON.stringify({ type: 'hello', version: initialCollabVersion }));
+		// tells the server which steps (if any) this client is still missing,
+		// and which clientId to associate with this connection - see
+		// dev-server/collab-server.mjs's 'hello' handling
+		collabSocket?.send(
+			JSON.stringify({ type: 'hello', version: initialCollabVersion, clientId: collabClientID })
+		);
 	});
 	collabSocket.addEventListener('message', (event) => {
 		const msg = JSON.parse(event.data);
 		if ((msg.type === 'init' || msg.type === 'steps') && msg.steps.length) {
 			editor?.collab.receiveSteps(msg.steps as CollabStepJSON[], msg.clientIDs as CollabClientID[]);
+		} else if (msg.type === 'cursors') {
+			const others = (msg.cursors as RemoteCursor[]).filter((c) => c.clientId !== collabClientID);
+			editor?.cursors.set(others);
 		}
 	});
 	collabSocket.addEventListener('error', () => {
@@ -50,6 +65,15 @@
 	function sendCollabSteps(sendable: CollabSendable) {
 		if (!collabSocket || collabSocket.readyState !== WebSocket.OPEN) return;
 		collabSocket.send(JSON.stringify({ type: 'steps', ...sendable }));
+	}
+
+	function sendCollabCursor(cursor: { from: number; to: number } | null) {
+		if (!collabSocket || collabSocket.readyState !== WebSocket.OPEN) return;
+		collabSocket.send(
+			JSON.stringify(
+				cursor ? { type: 'cursor', ...cursor, user: collabUser } : { type: 'cursor', clear: true }
+			)
+		);
 	}
 
 	let editable = $state(true);
@@ -157,7 +181,8 @@
 					resolveAuthor,
 					source: createDemoSuggestionSource('suggestions-source')
 				},
-				collab: { version: initialCollabVersion, clientID: collabClientID, onSendable: sendCollabSteps }
+				collab: { version: initialCollabVersion, clientID: collabClientID, onSendable: sendCollabSteps },
+				cursors: { onLocalCursorChange: sendCollabCursor, debounceMs: 300 }
 			}}
 		/>
 	</div>

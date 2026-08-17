@@ -1,7 +1,8 @@
 # Testing collaboration locally
 
 This repo includes a minimal WebSocket relay (`dev-server/collab-server.mjs`) for trying out
-`editorConfig.collab` (see README.md) without a real server-side authority.
+`editorConfig.collab` and `editorConfig.cursors` (see README.md) without a real server-side
+authority.
 
 1. Start the relay:
 
@@ -11,7 +12,8 @@ This repo includes a minimal WebSocket relay (`dev-server/collab-server.mjs`) fo
 
    Listens on `ws://localhost:8989` (override with `COLLAB_PORT`). Its step history persists
    to `dev-server/.collab-history.json`, so restarting it doesn't lose sync with clients that
-   already caught up to a later version.
+   already caught up to a later version. Cursor presence is not persisted - it's cleared for
+   a tab as soon as it disconnects.
 
 2. Start the app:
 
@@ -21,7 +23,11 @@ This repo includes a minimal WebSocket relay (`dev-server/collab-server.mjs`) fo
 
 3. Open the printed URL in **two tabs of the same browser** - they need to share
    `localStorage` so both start from the same document/version. Edits in one tab should
-   appear in the other shortly after.
+   appear in the other shortly after, and moving the cursor/selection in one tab should show
+   up (with a name tooltip on hover) in the other.
+
+Each tab gets a random name (`User XXXX`) and color for its cursor, generated once on load -
+see `collabUser` in `app/App.svelte`.
 
 The app persists its `(doc, version)` pair together in `localStorage` on every change, so
 reloading a tab resumes correctly instead of resending steps the server already has.

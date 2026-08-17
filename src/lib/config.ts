@@ -1,5 +1,6 @@
 import type { SuggestionsPluginConfig } from './plugins/suggestions/plugin-suggestions';
 import type { CollabPluginConfig } from './plugins/collab/plugin-collab';
+import type { CursorsPluginConfig } from './plugins/cursors/plugin-cursors';
 
 // all defaults to true
 export interface SchemaConfig {
@@ -57,6 +58,12 @@ export interface EditorConfig {
     // remote steps back in via the Editor component's collab.receiveSteps().
     // Omit to disable collaboration entirely. See plugin-collab.ts and DEV.md.
     collab?: CollabPluginConfig;
+
+    // Shows other users' cursors/selections (a caret + tinted selection,
+    // name tooltip on hover) and reports the local user's own selection
+    // changes via onLocalCursorChange, for the host to broadcast. Also never
+    // talks to a server itself - see plugin-cursors.ts and DEV.md.
+    cursors?: CursorsPluginConfig;
 
 }
 

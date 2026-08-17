@@ -342,3 +342,46 @@ editor.collab.receiveSteps(steps, clientIDs);
 `editor.collab.getVersion()` returns the editor's current collab version.
 
 See `DEV.md` for a minimal local WebSocket relay used to try this out during development.
+
+### Cursors (other users' selections)
+
+Shows other users' cursors/selections as a colored caret + tinted selection, with a name
+tooltip on hovering the caret. Same split as collaboration: the editor never talks to a
+server - the host provides `editorConfig.cursors` and feeds remote cursors in via
+`editor.cursors.set()`.
+
+```svelte
+<script lang="ts">
+  import { Editor, getSchema, type RemoteCursor } from '@hyvor/richtext';
+
+  const schema = getSchema();
+  let editor: Editor;
+</script>
+
+<Editor
+  {schema}
+  editorConfig={{
+    cursors: {
+      debounceMs: 250, // default
+      onLocalCursorChange(cursor) {
+        // cursor: { from, to } | null (null on blur) - send it to your server
+        connection.send(cursor);
+      },
+    },
+  }}
+  bind:this={editor}
+/>
+```
+
+Whenever your transport tells you about other users' cursors, pass the full current list to:
+
+```ts
+editor.cursors.set(cursors); // RemoteCursor[]: { clientId, from, to, user: { name, color, picture? } }
+```
+
+`clientId` identifies which user a given entry belongs to across updates - reusing
+`editorConfig.collab`'s `clientID` is the natural choice if you're running both together.
+`user.color` is any CSS color, used for the caret, tooltip, and (tinted) selection
+highlight.
+
+See `DEV.md` for how the local WebSocket relay also relays cursor presence.
