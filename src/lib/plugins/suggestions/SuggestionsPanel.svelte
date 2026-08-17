@@ -15,7 +15,7 @@
 		type AuthorInfo
 	} from './commands';
 	import { slide } from 'svelte/transition';
-	import { IconButton, Tooltip, confirm } from '@hyvor/design/components';
+	import { Button, IconButton, TextInput, Tooltip, confirm } from '@hyvor/design/components';
 	import IconCheck from '@hyvor/icons/IconCheck';
 	import IconX from '@hyvor/icons/IconX';
 
@@ -257,6 +257,18 @@
 	</span>
 {/snippet}
 
+{#snippet authorRow(author: Author | null, timestamp?: number)}
+	<div class="author-row">
+		{@render avatar(author)}
+		<div class="right">
+			<strong>{authorName(author)}</strong>
+			{#if timestamp}
+				<span class="time">{formatTime(timestamp)}</span>
+			{/if}
+		</div>
+	</div>
+{/snippet}
+
 {#if items.length > 0 && view.editable}
 	<div class="suggestions-panel" bind:this={panel}>
 		<div class="header">
@@ -279,10 +291,7 @@
 							{#if item.type !== 'comment'}
 								{@const change = describeChange(item)}
 								<div class="meta">
-									<div class="author-row">
-										{@render avatar(item.author)}
-										<strong>{authorName(item.author)}</strong>
-									</div>
+									{@render authorRow(item.author)}
 									{#if change}
 										<span class="change"
 											>{change.prefix}:
@@ -299,29 +308,28 @@
 							{/if}
 							{#each item.comments as comment (comment.id)}
 								<div class="comment">
-									<div class="author-row">
-										{@render avatar(comment.author)}
-										<strong>{authorName(comment.author)}</strong>
-										<span class="time">{formatTime(comment.timestamp)}</span>
-									</div>
+									{@render authorRow(comment.author, comment.timestamp)}
 									<div class="comment-content">{comment.content}</div>
 								</div>
 							{/each}
 						</div>
 
 						{#if item.id === activeId}
-							<div class="reply-row" transition:slide>
-								<input
+							<div class="reply-row" transition:slide={{duration: 150}}>
+								<TextInput 
 									type="text"
 									placeholder="Reply..."
 									bind:value={replyDrafts[item.id]}
+									size="small"
 									onkeydown={(e) => {
 										e.stopPropagation();
 										e.key === 'Enter' && submitReply(item);
 									}}
 									onclick={(e) => e.stopPropagation()}
 								/>
-								<button class="reply" onclick={() => submitReply(item)}>Reply</button>
+								<Button size="x-small"onclick={() => submitReply(item)}>
+									Reply
+								</Button>
 							</div>
 						{/if}
 
@@ -407,7 +415,7 @@
 	}
 
 	.item-wrap {
-		padding: 8px 16px;
+		padding: 12px 16px;
 		cursor: pointer;
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 		transition: box-shadow 0.15s ease;
@@ -435,8 +443,19 @@
 		margin-top: 6px;
 	}
 
+	.author-row .right {
+		display: flex;
+		flex-direction: column;
+    	line-height: 12px;
+	}
+
 	.author-row strong {
-		font-size: 12px;
+		font-size: 11px;
+	}
+
+	.author-row .time {
+		font-size: 10px;
+		color: var(--text-light);
 	}
 
 	.avatar {
@@ -470,12 +489,7 @@
 	}
 
 	.comment {
-		margin-bottom: 6px;
-	}
-
-	.comment .time {
-		color: var(--text-light);
-		font-size: 11px;
+		margin-bottom: 10px;
 	}
 
 	.comment-content {
@@ -487,18 +501,6 @@
 		display: flex;
 		gap: 6px;
 		margin-top: 6px;
-	}
-
-	.reply-row input {
-		flex: 1;
-		min-width: 0;
-		font-size: 12px;
-		font-family: inherit;
-		padding: 4px 8px;
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		background: var(--box-background);
-		color: var(--text);
 	}
 
 	.actions {
