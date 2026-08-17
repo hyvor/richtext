@@ -408,10 +408,10 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
             if (transactions.some(tr =>
                 tr.getMeta(REWRITTEN_META) || tr.getMeta(SUGGESTIONS_SKIP_META) || isHistoryTransaction(tr)
             )) {
-                // undo/redo transactions are already the exact inverse of a previous,
-                // already-rewritten transaction (or a plain edit from before suggestion
-                // marks existed) - reprocessing them here would wrap that inverse in
-                // suggestion marks too, so let them apply untouched
+                // skip:
+                // - our own rewritten transactions (REWRITTEN_META)
+                // - skipped manually (SUGGESTIONS_SKIP_META)
+                // - history transactions (undo/redo) - already the inverse of a previous transaction, so don't rewrap in suggestion marks
                 return null;
             }
 
@@ -419,7 +419,7 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
 
             const schema = oldState.schema;
             if (!schema.marks.suggestion) {
-                // suggestion mark not available in this schema
+                console.warn("suggestions plugin: schema has no suggestion mark, but plugin is active - ignoring edits");
                 return null;
             }
 
@@ -427,25 +427,17 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
             const ownership = makeOwnershipCheck(suggestionState.cache, suggestionState.author);
 
             try {
-                // Fast path for the common case: a single plain-text insertion (i.e.
-                // ordinary typing). The typed content is already sitting correctly in
-                // newState.doc, so just mark it in place - no need for the undo+replay
-                // round trip below. This isn't just an optimization: undoing then
-                // reinserting at the same position produces a transaction whose mapping
-                // "crosses" (its reported start ends up after its end), which
-                // prosemirror-history's adjacency check silently can't use, so it would
-                // otherwise file every keystroke as its own undo step instead of
-                // grouping consecutive typing into one.
+                // inserting one character is the most common case
+                // this handles it fast without additional undo+replay round trip
                 const fast = tryFastPureInsert(transactions, newState, suggestionState.author, ownership, events);
                 if (fast) {
                     if (events.length) fast.setMeta(suggestionsPluginKey, { events });
                     return fast;
                 }
 
-                // appendTransaction must return a transaction starting from newState.doc,
-                // so we build it from newState.tr, first undo the original edits in exact
-                // reverse order (restoring oldState.doc), then replay them with suggestion
-                // marks applied on top of that restored content.
+                // for other cases, we undo the original transactions and
+                // replay them with suggestion marks applied on top of the restored content
+                // note: tr has to start with newState
                 const tr = newState.tr;
 
                 for (let ti = transactions.length - 1; ti >= 0; ti--) {
@@ -507,13 +499,7 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
             }
         },
 
-        // floating accept/dismiss/reply panel, plus the host-source bridge (fetch
-        // author/comments for unknown ids, notify the host of local
-        // creates/replies/resolves) - shown/run whenever there's at least one
-        // pending suggestion or comment thread, so reviewing them is part of the
-        // editor itself rather than something every app has to build (see
-        // ./plugin-suggestions-panel.svelte.ts, ./plugin-suggestions-source.ts and
-        // ./SuggestionsPanel.svelte)
+        // show panel and wire up source view for host communication
         view(editorView) {
             const panel = new SuggestionsPanelView(editorView);
             const source = new SuggestionsSourceView(editorView);
