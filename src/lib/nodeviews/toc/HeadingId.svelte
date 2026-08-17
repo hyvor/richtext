@@ -7,6 +7,7 @@
   import { tick } from "svelte";
   import IconExclamationCircle from "@hyvor/icons/IconExclamationCircle";
   import { editorStore } from "../../store";
+  import { setNodeAttrs } from "../../plugins/suggestions/commands";
 
   interface Props {
     heading: TocEntry;
@@ -34,12 +35,10 @@
 
     if (!editorView) return;
 
-    editorView.dispatch(
-      editorView.state.tr.setNodeMarkup(heading.pos, undefined, {
-        level: heading.level,
-        id: newId,
-      })
-    );
+    const node = editorView.state.doc.nodeAt(heading.pos);
+    if (!node) return;
+
+    setNodeAttrs(editorView, heading.pos, { ...node.attrs, id: newId });
   }
 
   async function startEditing() {

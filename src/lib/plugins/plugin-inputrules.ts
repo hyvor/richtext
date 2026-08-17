@@ -62,8 +62,8 @@ function inlineRules(marks: any) {
 			return { href: match[2] };
 		}),
 
-		// code (prosemirror-codemark adds this)
-		// markInputRule(/(?:`)([^`]+)(?:`)$/, marks.code),
+		// code
+		markInputRule(/(?:`)([^`]+)(?:`)$/, marks.code),
 
 		// strikethrough
 		markInputRule(/(?:~~)([^~]+)(?:~~)$/, marks.strike),

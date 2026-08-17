@@ -7,6 +7,7 @@
 	import { onMount } from 'svelte';
 	import type { EditorConfig, ImageUploadResult } from '$lib/config';
 	import { getFigureNode, uploadImage } from './image-upload';
+	import { setNodeAttrs } from '../../plugins/suggestions/commands';
 
 	interface Props {
 		src: string | null;
@@ -47,17 +48,15 @@
 		const pos = getPos();
 		if (pos === undefined) return;
 
-		view.dispatch(
-			view.state.tr.setNodeMarkup(pos, undefined, {
-				...{
-					src,
-					alt,
-					width,
-					height
-				},
-				...props
-			})
-		);
+		setNodeAttrs(view, pos, {
+			...{
+				src,
+				alt,
+				width,
+				height
+			},
+			...props
+		});
 	}
 
 	function handleAltInput(e: any) {

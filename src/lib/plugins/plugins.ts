@@ -16,6 +16,7 @@ import buttonTooltipPlugin from './button-tooltip/plugin-button-tooltip.svelte';
 import type { EditorConfig } from '$lib/config';
 import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
 import suggestionsPlugin from './suggestions/plugin-suggestions';
+import headingFocusPlugin from './plugin-heading-focus';
 
 export function getPlugins(schema: Schema, config: EditorConfig) {
 	const plugins = [
@@ -23,6 +24,7 @@ export function getPlugins(schema: Schema, config: EditorConfig) {
 		...keymapPlugins(schema),
 
 		placeholderPlugin('Start writing...'),
+		headingFocusPlugin(),
 		marksTooltipPlugin(),
 		buttonTooltipPlugin(),
 		wordCountPlugin(),
@@ -37,10 +39,6 @@ export function getPlugins(schema: Schema, config: EditorConfig) {
 		history(),
 
 		pasteImagesPlugin(),
-
-		// https://github.com/curvenote/prosemirror-codemark
-		// ...codemark({ markType: schema.marks.code }),
-
 
 		nodeMenuPlugin(),
 		// completionPlugin(),

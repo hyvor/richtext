@@ -3,6 +3,7 @@ import { type Node as ProsemirrorNode } from 'prosemirror-model';
 import CalloutColors from "./CalloutColors.svelte";
 import { mount } from "svelte";
 import EmojiPicker from "./EmojiPicker.svelte";
+import { setNodeAttrs } from "../../plugins/suggestions/commands";
 
 export class CalloutNodeView implements NodeView {
 
@@ -126,13 +127,7 @@ export class CalloutNodeView implements NodeView {
         if (pos === undefined)
             return;
 
-        this.view.dispatch(
-            this.view.state.tr.setNodeMarkup(
-                pos,
-                undefined,
-                attrs
-            )
-        )
+        setNodeAttrs(this.view, pos, attrs);
     }
 
 }

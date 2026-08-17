@@ -286,6 +286,60 @@ function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "r
 }
 
 /**
+ * Updates a node's attrs (heading level/id, image src/width, callout
+ * emoji/color, ...). While suggesting, this is recorded as a "format"
+ * suggestion on the node (see SuggestionFormatNodeMeta) instead of applying
+ * directly - the node-attr equivalent of how inline formatting is tracked via
+ * the suggestion mark's format subtype. Repeated edits to the same node by
+ * the same author (typing an id char by char, clicking through heading
+ * levels) collapse into one suggestion rather than spawning a new one each
+ * time. A node that's itself still a pending insert/delete isn't separately
+ * tracked here - accepting/rejecting that suggestion already covers whatever
+ * attrs it ends up with (a node can only carry one non-comment suggestion at
+ * a time - see withNodeSuggestion).
+ */
+export function setNodeAttrs(view: EditorView, pos: number, attrs: Record<string, unknown>): void {
+    const { state } = view;
+    const node = state.doc.nodeAt(pos);
+    if (!node) return;
+
+    const changed = Object.keys(attrs).some(key => attrs[key] !== node.attrs[key]);
+    if (!changed) return;
+
+    const pluginState = suggestionsPluginKey.getState(state);
+    if (!pluginState || pluginState.mode !== "suggesting" || !state.schema.marks.suggestion) {
+        view.dispatch(state.tr.setNodeMarkup(pos, undefined, attrs));
+        return;
+    }
+
+    const primary = getNodeSuggestions(node).find(s => s.type !== "comment");
+    if (primary && primary.type !== "format") {
+        // the node itself is still a pending insert/delete - not separately tracked
+        view.dispatch(state.tr.setNodeMarkup(pos, undefined, attrs));
+        return;
+    }
+
+    const tr = state.tr;
+    const mine = primary && pluginState.cache[primary.id]?.author === pluginState.author;
+
+    if (primary && mine) {
+        tr.setNodeMarkup(pos, undefined, { ...attrs, suggestions: node.attrs.suggestions });
+        tr.setMeta(SUGGESTIONS_SKIP_META, true);
+    } else {
+        const id = generateSuggestionId();
+        const oldAttrs = { ...node.attrs, suggestions: null };
+        const meta: SuggestionFormatNodeMeta = { type: "format", id, oldAttrs };
+        tr.setNodeMarkup(pos, undefined, { ...attrs, suggestions: withNodeSuggestion(node, meta) });
+        tr.setMeta(SUGGESTIONS_SKIP_META, true);
+        tr.setMeta(suggestionsPluginKey, {
+            events: [{ kind: "create", id, type: "format", author: pluginState.author } satisfies SuggestionEvent]
+        });
+    }
+
+    view.dispatch(tr);
+}
+
+/**
  * Attaches a new comment thread (type "comment") to the current selection (a
  * text range, or a whole selected node like an image). Returns the new
  * thread's opening SuggestionItem, or null if there's nothing selected / the
