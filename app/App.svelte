@@ -1,9 +1,39 @@
 <script lang="ts">
-	import { Editor, getSchema, type SuggestionMode, type Author, type AuthorInfo } from '../src/lib';
+	import {
+		Editor,
+		getSchema,
+		type SuggestionMode,
+		type Author,
+		type AuthorInfo,
+		type CollabSendable,
+		type CollabStepJSON,
+		type CollabClientID
+	} from '../src/lib';
 	import { createDemoSuggestionSource } from './demoSuggestionSource';
 	import { Base, Button } from '@hyvor/design/components';
 
 	let editor: Editor;
+
+	const collabClientID: CollabClientID = Math.random().toString(36).slice(2);
+	let collabSocket: WebSocket | undefined;
+
+	collabSocket = new WebSocket('ws://localhost:8989');
+	collabSocket.addEventListener('message', (event) => {
+		const msg = JSON.parse(event.data);
+		if ((msg.type === 'init' || msg.type === 'steps') && msg.steps.length) {
+			editor?.collab.receiveSteps(msg.steps as CollabStepJSON[], msg.clientIDs as CollabClientID[]);
+		}
+	});
+	collabSocket.addEventListener('error', () => {
+		console.warn(
+			'[richtext] collab server not reachable at ws://localhost:8989 - run `npm run dev:collab-server` (see DEV.md)'
+		);
+	});
+
+	function sendCollabSteps(sendable: CollabSendable) {
+		if (!collabSocket || collabSocket.readyState !== WebSocket.OPEN) return;
+		collabSocket.send(JSON.stringify({ type: 'steps', ...sendable }));
+	}
 
 	let editable = $state(true);
 
@@ -109,7 +139,8 @@
 					mode: suggestionMode,
 					resolveAuthor,
 					source: createDemoSuggestionSource('suggestions-source')
-				}
+				},
+				collab: { version: 0, clientID: collabClientID, onSendable: sendCollabSteps }
 			}}
 		/>
 	</div>

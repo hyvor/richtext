@@ -1,4 +1,5 @@
 import type { SuggestionsPluginConfig } from './plugins/suggestions/plugin-suggestions';
+import type { CollabPluginConfig } from './plugins/collab/plugin-collab';
 
 // all defaults to true
 export interface SchemaConfig {
@@ -50,6 +51,12 @@ export interface EditorConfig {
 
     // Suggestions plugin config
     suggestions?: SuggestionsPluginConfig;
+
+    // Collaborative editing (prosemirror-collab) config. The editor never
+    // talks to a server itself - the host provides onSendable and pushes
+    // remote steps back in via the Editor component's collab.receiveSteps().
+    // Omit to disable collaboration entirely. See plugin-collab.ts and DEV.md.
+    collab?: CollabPluginConfig;
 
 }
 

@@ -17,6 +17,7 @@ import type { EditorConfig } from '$lib/config';
 import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
 import suggestionsPlugin from './suggestions/plugin-suggestions';
 import headingFocusPlugin from './plugin-heading-focus';
+import collabPlugin from './collab/plugin-collab';
 
 export function getPlugins(schema: Schema, config: EditorConfig) {
 	const plugins = [
@@ -54,6 +55,10 @@ export function getPlugins(schema: Schema, config: EditorConfig) {
 
 	if (config.suggestions && schema.marks.suggestion) {
 		plugins.push(suggestionsPlugin(config.suggestions));
+	}
+
+	if (config.collab) {
+		plugins.push(...collabPlugin(config.collab));
 	}
 
 	return plugins;

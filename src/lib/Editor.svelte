@@ -15,6 +15,12 @@
 		type SuggestionMode
 	} from './plugins/suggestions/commands';
 	import { SUGGESTIONS_SKIP_META } from './plugins/suggestions/plugin-suggestions';
+	import {
+		receiveCollabSteps,
+		getCollabVersion,
+		type CollabStepJSON,
+		type CollabClientID
+	} from './plugins/collab/plugin-collab';
 
 	let props: Props = $props();
 
@@ -159,6 +165,19 @@
 		},
 		setMode(mode: SuggestionMode) {
 			if (view) setSuggestionMode(view, mode);
+		}
+	};
+
+	/**
+	 * Feeds remote steps from the host's server-side collab authority into the
+	 * editor. See editorConfig.collab and plugin-collab.ts.
+	 */
+	export const collab = {
+		receiveSteps(steps: CollabStepJSON[], clientIDs: CollabClientID[]) {
+			if (view) receiveCollabSteps(view, steps, clientIDs);
+		},
+		getVersion(): number {
+			return view ? getCollabVersion(view) : 0;
 		}
 	};
 
