@@ -7,7 +7,9 @@
 
 	let editable = $state(true);
 
-	const schema = getSchema();
+	const schema = getSchema({
+		suggestions: true
+	});
 
 	const currentAuthor: Author = 'user:demo-user';
 

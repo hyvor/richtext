@@ -24,7 +24,8 @@ export const defaultSchemaConfig: SchemaConfig = {
     toc: true,
     table: true,
     button: true,
-    suggestions: true,
+    
+    suggestions: false,
 };
 
 export interface EditorConfig {

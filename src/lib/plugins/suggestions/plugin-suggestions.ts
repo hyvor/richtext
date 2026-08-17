@@ -60,12 +60,8 @@ export function findSuggestionMark(
     return marks.find(m => m.type === suggestionType && m.attrs.type === subtype);
 }
 
-// Node-attr equivalents of findSuggestionMark, for the whole-node case (see
-// SuggestionNodeMeta above). A node holds at most one pending
-// insert/delete/format at a time, but can hold several independent comment
-// threads - withNodeSuggestion/withoutNodeSuggestion enforce that: setting a
-// non-comment entry replaces any existing non-comment entry, while comment
-// entries just accumulate.
+// returns suggestions in a node
+// note: only one non-comment suggestion, but multiple comments can be present
 export function getNodeSuggestions(node: Node): SuggestionNodeMeta[] {
     return (node.attrs.suggestions as SuggestionNodeMeta[] | null) ?? [];
 }
@@ -216,25 +212,24 @@ function makeOwnershipCheck(cache: SuggestionsPluginState["cache"], author: Auth
 }
 
 /**
- * Track-changes ("suggesting" mode) and comment threads, unified: while
- * suggesting, edits are rewritten into a `suggestion` mark (type:
- * "insert"/"delete"/"format") on inline content, or, for whole deleted
- * block/atom nodes, a `suggestion` node attr entry with type "delete" -
- * instead of being applied directly, see schema.ts. Comment threads (type
- * "comment") are never produced by editing - only by explicit "Comment"
- * actions (see commands.ts's addComment), available regardless of mode.
- * Every subtype can carry a reply thread, sourced from outside the document
- * via `config.source` (see SuggestionSource) rather than stored in it. Pair
- * with the commands in ./commands.ts to list/accept/reject/reply/resolve.
- *
- * This plugin only ever *produces* a whole-node suggestion entry of type
- * "delete" (deleting an existing block/atom while suggesting); it never
- * produces type "insert" or "format" on whole nodes - those are only ever
- * produced by src/lib/diff's buildDiffDoc (comparing two documents can
- * propose a whole new node, or one whose attrs changed, in a way live typing
- * never does). This plugin does render decorations for, and its commands do
- * accept/reject, whole-node "insert"/"format" suggestions too, so a diff's
- * output is just as interactive as a live-typed suggestion.
+ * Provides suggestions & comments features.
+ * 
+ * ## Suggestion Mode
+ * When suggestion mode is on (config.mode === 'suggestion' for initial or later suggestions.setMode()),
+ * all edits are rewritten into suggestion marks (insert/delete/format type).
+ * 
+ * For nodes, suggestion mode is applied via suggestions attribute added to the node.
+ * Supported by all nodes except doc and text.
+ * 
+ * The document only saves a suggestion ID. It's the host app's responsibility to
+ * save suggestions & replies in a persistent store.
+ * 
+ * This plugin only produces "delete" type for nodes. insert or format for whole nodes
+ * are only provided by the diff lib.
+ * 
+ * ## Comments
+ * Comments are built on top of suggestions.
+ * They can be created using the node menu or the marks tooltip.
  */
 export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
     return new Plugin<SuggestionsPluginState>({
@@ -324,32 +319,17 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
                 const id = handleReplaceStep(tr, new ReplaceStep(from, to, Slice.empty), suggestionState.author, ownership, events);
                 tr.setMeta(REWRITTEN_META, true);
                 if (events.length) tr.setMeta(suggestionsPluginKey, { events });
-                // Because this dispatches a single mark-only transaction directly
-                // (bypassing the root+appended pair the normal flow produces),
-                // prosemirror-history's default adjacency check - which looks at real
-                // position-shifting steps - can't tell that consecutive backspaces
-                // belong together, and would file each one as its own undo step.
-                // Tagging them with the (stable, reused) suggestion id as the
-                // "composition" keeps history grouping them into one.
+                // allow history plugin to group consecutive backspaces/deletes into one undo step
                 if (id) tr.setMeta("composition", id);
                 view.dispatch(tr);
                 return true;
             },
 
-            // Marks only apply to inline content, so a whole deleted/inserted/
-            // reformatted/commented block/atom node is tracked via the `suggestions`
-            // node attr (see schema.ts) instead of a mark. Render those attrs as
-            // visual decorations here rather than baking them into every node type's
-            // toDOM, and independent of suggesting/editing mode (like the inline
-            // suggestion marks, they stay visible until accepted/rejected/resolved).
+            // apply decorations to nodes that have suggestions attribute
+            // we try to group delete+insert into a 'replace' using the suggestion id when possible.
             decorations(state) {
                 const decorations: Decoration[] = [];
 
-                // A whole-node "replace" (see mergeDiffs's 'replace' case in diff/render.ts)
-                // is a deleted node immediately followed by its replacement, the two sharing
-                // one suggestion id. Collect which ids have both halves up front so those two
-                // nodes can be styled as one connected pair below, instead of looking like two
-                // unrelated changes that happen to sit next to each other.
                 const deleteIds = new Set<string>();
                 const insertIds = new Set<string>();
                 state.doc.descendants((node) => {
