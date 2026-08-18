@@ -51,7 +51,7 @@
 		fileUploader: async (blob: Blob) => ({ url: URL.createObjectURL(blob) })
 	};
 
-	const schema = getSchema();
+	const schema = getSchema({ suggestions: true });
 
 	let valueA = $state(readStored(STORAGE_KEY_A, defaultDocA));
 	let valueB = $state(readStored(STORAGE_KEY_B, defaultDocB));
