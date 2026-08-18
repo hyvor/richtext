@@ -169,11 +169,8 @@
 		}
 	};
 
-	/**
-	 * Feeds remote steps from the host's server-side collab authority into the
-	 * editor. See editorConfig.collab and plugin-collab.ts.
-	 */
 	export const collab = {
+		// feed remote steps from authority to the editor
 		receiveSteps(steps: CollabStepJSON[], clientIDs: CollabClientID[]) {
 			if (view) receiveCollabSteps(view, steps, clientIDs);
 		},

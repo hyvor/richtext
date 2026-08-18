@@ -31,8 +31,9 @@ export interface CollabPluginConfig {
     // server-side debugging easier
     clientID?: CollabClientID;
     // Called whenever local edits produce steps ready to send to the
-    // server-side authority. The host owns actual transport (WebSocket,
-    // HTTP, ...) and retry behavior - e.g. if the authority rejects a batch
+    // server-side authority.
+    // 
+    // if the authority rejects a batch
     // for being out of date, the host is expected to feed the resulting
     // steps back in via the Editor component's `collab.receiveSteps()`,
     // which causes prosemirror-collab to rebase the pending edits and this
@@ -43,14 +44,7 @@ export interface CollabPluginConfig {
 export const collabPluginKey = new PluginKey("collabSendable");
 
 /**
- * Wraps prosemirror-collab's `collab` plugin so the host only has to supply
- * a transport (onSendable) and feed remote steps back in via the Editor
- * component's `collab.receiveSteps()` method - see Editor.svelte.
- *
- * This plugin never talks to a server itself. The server-side authority
- * (assigning versions, rebroadcasting steps to other clients, persisting the
- * document) is entirely up to the host app. See DEV.md for a minimal example
- * server used for local development.
+ * Wraps prosemirror-collab's `collab` plugin to support `onSendable()` callback and `receiveSteps()` method.
  */
 export default function collabPlugin(config: CollabPluginConfig) {
     const base = collab({ version: config.version ?? 0, clientID: config.clientID });

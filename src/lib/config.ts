@@ -53,10 +53,10 @@ export interface EditorConfig {
     // Suggestions plugin config
     suggestions?: SuggestionsPluginConfig;
 
-    // Collaborative editing (prosemirror-collab) config. The editor never
-    // talks to a server itself - the host provides onSendable and pushes
+    // Collaborative editing (prosemirror-collab) config. 
+    // the host provides onSendable and pushes
     // remote steps back in via the Editor component's collab.receiveSteps().
-    // Omit to disable collaboration entirely. See plugin-collab.ts and DEV.md.
+    // Omit to disable collaboration entirely.
     collab?: CollabPluginConfig;
 
     // when set, enables the cursor plugin.
