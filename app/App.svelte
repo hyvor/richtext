@@ -15,16 +15,18 @@
 
 	let editor: Editor;
 
-	// `doc` and `doc-collab-version` are always written together (see
-	// saveDoc below) so a reload resumes from a (doc, version) pair that's
-	// actually consistent with each other, instead of re-sending/re-applying
-	// steps the saved doc already reflects.
-	const COLLAB_VERSION_KEY = 'doc-collab-version';
-	const initialCollabVersion = Number(localStorage.getItem(COLLAB_VERSION_KEY) ?? 0);
+	// populated from the collab server's 'init' reply below - the editor
+	// isn't rendered until then, so it always starts from the server's
+	// current (doc, version) instead of an empty/stale local guess
+	let initialDoc: string | null = $state(null);
+	let initialCollabVersion = $state(0);
+	let ready = $state(false);
 
 	function saveDoc(val: string) {
-		localStorage.setItem('doc', val);
-		localStorage.setItem(COLLAB_VERSION_KEY, String(editor?.collab.getVersion() ?? 0));
+		if (!collabSocket || collabSocket.readyState !== WebSocket.OPEN) return;
+		collabSocket.send(
+			JSON.stringify({ type: 'save', doc: JSON.parse(val), version: editor?.collab.getVersion() ?? 0 })
+		);
 	}
 
 	// identifies this tab for both collab steps (CollabPluginConfig.clientID)
@@ -40,16 +42,15 @@
 
 	collabSocket = new WebSocket('ws://localhost:8989');
 	collabSocket.addEventListener('open', () => {
-		// tells the server which steps (if any) this client is still missing,
-		// and which clientId to associate with this connection - see
-		// dev-server/collab-server.mjs's 'hello' handling
-		collabSocket?.send(
-			JSON.stringify({ type: 'hello', version: initialCollabVersion, clientId: collabClientID })
-		);
+		collabSocket?.send(JSON.stringify({ type: 'hello', clientId: collabClientID }));
 	});
 	collabSocket.addEventListener('message', (event) => {
 		const msg = JSON.parse(event.data);
-		if ((msg.type === 'init' || msg.type === 'steps') && msg.steps.length) {
+		if (msg.type === 'init') {
+			initialDoc = msg.doc ? JSON.stringify(msg.doc) : null;
+			initialCollabVersion = msg.version;
+			ready = true;
+		} else if (msg.type === 'steps' && msg.steps.length) {
 			editor?.collab.receiveSteps(msg.steps as CollabStepJSON[], msg.clientIDs as CollabClientID[]);
 		} else if (msg.type === 'cursors') {
 			const others = (msg.cursors as RemoteCursor[]).filter((c) => c.clientId !== collabClientID);
@@ -60,6 +61,8 @@
 		console.warn(
 			'[richtext] collab server not reachable at ws://localhost:8989 - run `npm run dev:collab-server` (see DEV.md)'
 		);
+		// fall back to a plain empty local editor instead of leaving the page blank
+		ready = true;
 	});
 
 	function sendCollabSteps(sendable: CollabSendable) {
@@ -157,34 +160,36 @@
 
 <Base>
 	<div class="container">
-		<Editor
-			bind:this={editor}
-			value={localStorage.getItem('doc')}
-			onvaluechange={saveDoc}
-			{schema}
-			editorConfig={{
-				codeBlockConfig: {
-					language: true,
-					annotations: true,
-					annotationsUrl: null,
-					fileName: true
-				},
-				colorButtonBackground: '#585895',
-				fileUploader: async (blob, name, type) => {
-					return {
-						url: URL.createObjectURL(blob)
-					};
-				},
-				suggestions: {
-					author: currentAuthor,
-					mode: suggestionMode,
-					resolveAuthor,
-					source: createDemoSuggestionSource('suggestions-source')
-				},
-				collab: { version: initialCollabVersion, clientID: collabClientID, onSendable: sendCollabSteps },
-				cursors: { onLocalCursorChange: sendCollabCursor, debounceMs: 300 }
-			}}
-		/>
+		{#if ready}
+			<Editor
+				bind:this={editor}
+				value={initialDoc}
+				onvaluechange={saveDoc}
+				{schema}
+				editorConfig={{
+					codeBlockConfig: {
+						language: true,
+						annotations: true,
+						annotationsUrl: null,
+						fileName: true
+					},
+					colorButtonBackground: '#585895',
+					fileUploader: async (blob, name, type) => {
+						return {
+							url: URL.createObjectURL(blob)
+						};
+					},
+					suggestions: {
+						author: currentAuthor,
+						mode: suggestionMode,
+						resolveAuthor,
+						source: createDemoSuggestionSource('suggestions-source')
+					},
+					collab: { version: initialCollabVersion, clientID: collabClientID, onSendable: sendCollabSteps },
+					cursors: { onLocalCursorChange: sendCollabCursor, debounceMs: 300 }
+				}}
+			/>
+		{/if}
 	</div>
 </Base>
 

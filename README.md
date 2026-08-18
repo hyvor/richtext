@@ -341,7 +341,7 @@ editor.collab.receiveSteps(steps, clientIDs);
 
 `editor.collab.getVersion()` returns the editor's current collab version.
 
-See `DEV.md` for a minimal local WebSocket relay used to try this out during development.
+See `DEV.md` for a minimal local WebSocket server used to try this out during development.
 
 ### Cursors (other users' selections)
 
@@ -384,4 +384,4 @@ editor.cursors.set(cursors); // RemoteCursor[]: { clientId, from, to, user: { na
 `user.color` is any CSS color, used for the caret, tooltip, and (tinted) selection
 highlight.
 
-See `DEV.md` for how the local WebSocket relay also relays cursor presence.
+See `DEV.md` for how the local WebSocket server also relays cursor presence.

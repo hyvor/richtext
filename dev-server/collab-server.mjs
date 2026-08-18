@@ -2,23 +2,21 @@
 // editorConfig.cursors during development - see DEV.md. This is NOT the
 // "server-side implementation" referenced by CollabPluginConfig; a real host
 // is expected to build its own authority (with auth, persistence, multiple
-// documents, etc). This one only relays prosemirror-collab steps and cursor
-// presence between whatever browser tabs are connected, for a single
-// "document" - it doesn't hold the document itself (this process has no
-// schema to apply steps with), only the ordered step history, persisted to a
-// JSON file on disk (see historyFile below) so restarting this process
-// doesn't desync it from clients that already caught up to a later version
-// (they persist {doc, version} themselves - see App.svelte).
+// documents, etc). This one acts as a single shared "document" for whatever
+// browser tabs/windows connect to it - relaying prosemirror-collab steps and
+// cursor presence, and storing the current (doc, version) itself so a fresh
+// client (no localStorage involved at all) can bootstrap straight from here
+// instead of needing to share a browser profile with an already-caught-up
+// tab. Persisted to a JSON file on disk (see storeFile below) so restarting
+// this process doesn't lose the document or desync clients from it.
 //
 // Protocol (JSON messages over the WebSocket):
-//   client -> server  { type: 'hello', version, clientId }
-//     sent right after connecting: the version the client's own (locally
-//     persisted) document already reflects, and the id it'll use for both
+//   client -> server  { type: 'hello', clientId }
+//     sent right after connecting: the id this connection will use for both
 //     collab steps and cursor presence (see clientID/RemoteCursor.clientId).
-//   server -> client  { type: 'init', version, steps, clientIDs }
-//     reply to 'hello' - only the steps *after* the client's stated version,
-//     so an already-caught-up client doesn't get steps it has already
-//     applied replayed on top of itself.
+//   server -> client  { type: 'init', doc, version }
+//     reply to 'hello' - the current document and the version it reflects,
+//     used to create the client's editor (editorConfig.collab.version).
 //   client -> server  { type: 'steps', version, steps, clientID }
 //     submits a batch of local steps, as produced by editorConfig.collab's
 //     onSendable callback. Ignored if `version` doesn't match the server's
@@ -27,6 +25,10 @@
 //   server -> client  { type: 'steps', version, steps, clientIDs }
 //     broadcast to every connected client (including the sender) whenever a
 //     submitted batch is accepted - see Editor.svelte's collab.receiveSteps.
+//   client -> server  { type: 'save', doc, version }
+//     persists the sender's current document as the new central copy, as
+//     long as `version` still matches the server's current version (i.e. the
+//     sender is fully caught up) - see App.svelte's onvaluechange.
 //   client -> server  { type: 'cursor', from, to, user } | { type: 'cursor', clear: true }
 //     upserts (or, with `clear`, removes) the sender's own entry in the
 //     cursor roster, as produced by editorConfig.cursors' onLocalCursorChange
@@ -45,26 +47,25 @@ import { dirname, join } from 'node:path';
 
 const port = Number(process.env.COLLAB_PORT ?? 8989);
 
-// persisted across restarts so the server's version stays valid for clients
-// that already caught up to it in a previous run - delete this file (and
-// clear the app's localStorage, so both reset together) to start over
-const historyFile = join(dirname(fileURLToPath(import.meta.url)), '.collab-history.json');
+// persisted across restarts - delete this file to reset the document back to
+// empty (version 0)
+const storeFile = join(dirname(fileURLToPath(import.meta.url)), '.collab-store.json');
 
-function loadHistory() {
-	if (existsSync(historyFile)) {
+function loadStore() {
+	if (existsSync(storeFile)) {
 		try {
-			return JSON.parse(readFileSync(historyFile, 'utf-8'));
+			return JSON.parse(readFileSync(storeFile, 'utf-8'));
 		} catch {
-			// fall through to a fresh history below
+			// fall through to a fresh store below
 		}
 	}
-	return { version: 0, steps: [], clientIDs: [] };
+	return { version: 0, doc: null };
 }
 
-const history = loadHistory();
+const store = loadStore();
 
-function saveHistory() {
-	writeFileSync(historyFile, JSON.stringify(history));
+function saveStore() {
+	writeFileSync(storeFile, JSON.stringify(store));
 }
 
 // cursor presence roster - ephemeral, never persisted, keyed by clientId
@@ -94,17 +95,7 @@ wss.on('connection', (ws) => {
 
 		if (msg.type === 'hello') {
 			ws.clientId = msg.clientId;
-			// clamp: a client can be "ahead" if the server's history file was
-			// reset without also clearing the client's localStorage - there's
-			// no way to reconcile that here, so it just won't have anything
-			// new to catch up on (see the desync note in DEV.md)
-			const from = Math.max(0, Math.min(msg.version ?? 0, history.version));
-			ws.send(JSON.stringify({
-				type: 'init',
-				version: history.version,
-				steps: history.steps.slice(from),
-				clientIDs: history.clientIDs.slice(from)
-			}));
+			ws.send(JSON.stringify({ type: 'init', version: store.version, doc: store.doc }));
 			return;
 		}
 
@@ -116,23 +107,30 @@ wss.on('connection', (ws) => {
 			return;
 		}
 
+		if (msg.type === 'save') {
+			// only accept a snapshot from a client that's fully caught up -
+			// otherwise it'd be missing steps other clients already applied
+			if (msg.version !== store.version) return;
+			store.doc = msg.doc;
+			saveStore();
+			return;
+		}
+
 		if (msg.type !== 'steps') return;
-		if (msg.version !== history.version) {
+		if (msg.version !== store.version) {
 			// stale submission - the client is behind and will resubmit
 			// once it catches up via the next broadcast it receives
-			console.log(`[collab] rejected steps at version ${msg.version}, current version is ${history.version}`);
+			console.log(`[collab] rejected steps at version ${msg.version}, current version is ${store.version}`);
 			return;
 		}
 
 		const clientIDs = msg.steps.map(() => msg.clientID);
-		history.steps.push(...msg.steps);
-		history.clientIDs.push(...clientIDs);
-		history.version += msg.steps.length;
-		saveHistory();
+		store.version += msg.steps.length;
+		saveStore();
 
 		broadcast({
 			type: 'steps',
-			version: history.version,
+			version: store.version,
 			steps: msg.steps,
 			clientIDs
 		});
@@ -143,4 +141,4 @@ wss.on('connection', (ws) => {
 	});
 });
 
-console.log(`Collab dev server listening on ws://localhost:${port} (version ${history.version})`);
+console.log(`Collab dev server listening on ws://localhost:${port} (version ${store.version})`);

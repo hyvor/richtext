@@ -26,4 +26,4 @@ dist-ssr
 tmp/
 
 # local collab dev server state - see DEV.md
-dev-server/.collab-history.json
+dev-server/.collab-store.json
