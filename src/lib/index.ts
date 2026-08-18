@@ -23,3 +23,9 @@ export type {
 	CollabStepJSON,
 	CollabClientID
 } from './plugins/collab/plugin-collab';
+
+export type {
+	CursorsPluginConfig,
+	RemoteCursor,
+	RemoteCursorUser
+} from './plugins/cursors/plugin-cursors';

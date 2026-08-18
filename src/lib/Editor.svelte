@@ -21,6 +21,7 @@
 		type CollabStepJSON,
 		type CollabClientID
 	} from './plugins/collab/plugin-collab';
+	import { setRemoteCursors, type RemoteCursor } from './plugins/cursors/plugin-cursors';
 
 	let props: Props = $props();
 
@@ -178,6 +179,12 @@
 		},
 		getVersion(): number {
 			return view ? getCollabVersion(view) : 0;
+		}
+	};
+
+	export const cursors = {
+		set(remoteCursors: RemoteCursor[]) {
+			if (view) setRemoteCursors(view, remoteCursors);
 		}
 	};
 
@@ -834,5 +841,56 @@
 		height: 1px;
 		background: currentColor;
 		opacity: 0.35;
+	}
+
+	/* other users' cursors/selections - see plugin-cursors.ts. --cursor-color
+	   is set per-instance from RemoteCursorUser.color via decoration style */
+
+	.pm-editor :global(.remote-cursor-selection) {
+		background-color: color-mix(in srgb, var(--cursor-color) 30%, transparent);
+		border-radius: 2px;
+	}
+
+	.pm-editor :global(.remote-cursor-caret) {
+		position: relative;
+		display: inline-block;
+		width: 0;
+		height: 1.2em;
+		vertical-align: text-bottom;
+		padding: 0 4px;
+		margin: 0 -4px;
+	}
+
+	.pm-editor :global(.remote-cursor-caret::before) {
+		content: '';
+		position: absolute;
+		left: 4px;
+		top: 0;
+		width: 2px;
+		height: 100%;
+		background-color: var(--cursor-color);
+	}
+
+	.pm-editor :global(.remote-cursor-flag) {
+		position: absolute;
+		left: 3px;
+		bottom: 100%;
+		transform: translateY(-4px);
+		white-space: nowrap;
+		padding: 2px 6px;
+		border-radius: 4px;
+		background-color: var(--cursor-color);
+		color: #fff;
+		font-size: 11px;
+		font-family: inherit;
+		line-height: 1.4;
+		pointer-events: none;
+		opacity: 0;
+		transition: opacity 0.15s ease-in-out;
+		z-index: 20;
+	}
+
+	.pm-editor :global(.remote-cursor-caret:hover .remote-cursor-flag) {
+		opacity: 1;
 	}
 </style>

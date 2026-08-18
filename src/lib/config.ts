@@ -1,5 +1,6 @@
 import type { SuggestionsPluginConfig } from './plugins/suggestions/plugin-suggestions';
 import type { CollabPluginConfig } from './plugins/collab/plugin-collab';
+import type { CursorsPluginConfig } from './plugins/cursors/plugin-cursors';
 
 // all defaults to true
 export interface SchemaConfig {
@@ -57,6 +58,13 @@ export interface EditorConfig {
     // remote steps back in via the Editor component's collab.receiveSteps().
     // Omit to disable collaboration entirely. See plugin-collab.ts and DEV.md.
     collab?: CollabPluginConfig;
+
+    // when set, enables the cursor plugin.
+    // callback `onLocalCursorChange` is called (debounced by `debounceMs`) whenever 
+    // the local user's selection moves. Host should distribute this to other clients
+    // for example via WebSocket.
+    // to set other users' cursors, use `editor.cursors.set()`
+    cursors?: CursorsPluginConfig;
 
 }
 
