@@ -1,8 +1,8 @@
-import type { Config, ImageUploadResult } from "$lib/config";
+import type { EditorConfig, ImageUploadResult } from "$lib/config";
 import { uploadFile } from "@hyvor/design/components";
 import { DOMParser, type Schema } from "prosemirror-model";
 
-export async function uploadImage(fileUploader: Config['fileUploader'], fileMaxSizeInMB: Config['fileMaxSizeInMB']) {
+export async function uploadImage(fileUploader: EditorConfig['fileUploader'], fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB']) {
     const image = await uploadFile({
         type: 'image',
         uploader: (file, name) => fileUploader(file, name, 'image'),
@@ -23,8 +23,8 @@ export async function uploadImage(fileUploader: Config['fileUploader'], fileMaxS
 
 export async function uploadImageGetFigureNode(
     schema: Schema,
-    fileUploader: Config['fileUploader'],
-    fileMaxSizeInMB: Config['fileMaxSizeInMB']
+    fileUploader: EditorConfig['fileUploader'],
+    fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB']
 ) {
     const image = await uploadImage(fileUploader, fileMaxSizeInMB);
 

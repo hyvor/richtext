@@ -1,5 +1,6 @@
 import { keymap } from 'prosemirror-keymap';
 import { clearAndChangeNode, baseKeymap } from './commands';
+import { setNodeAttrs } from './suggestions/commands';
 import {
 	setBlockType,
 	chainCommands,
@@ -154,7 +155,7 @@ export default function keymapPlugins(schema: Schema) {
 
 	bind('ArrowDown', downArrowBehavior);
 
-	bind('}', (state, dispatch) => {
+	bind('}', (state, dispatch, view) => {
 		/**
 		 * Heading IDS
 		 * ===========
@@ -172,15 +173,12 @@ export default function keymapPlugins(schema: Schema) {
 			const match = text.match(/(.+{#([^}\s]+)$)/);
 			const spacesMatch = text.match(/\s*{#([^}\s]+)$/);
 
-			if (match && dispatch) {
-				dispatch(
-					state.tr
-						.setNodeMarkup(selection.to - match[1]!.length - 1, undefined, {
-							...parent.attrs,
-							id: match[2]
-						})
-						.replaceWith(selection.to - (spacesMatch ? spacesMatch[0].length : 0), selection.to, [])
-				);
+			if (match && dispatch && view) {
+				const idPos = selection.to - match[1]!.length - 1;
+				setNodeAttrs(view, idPos, { ...parent.attrs, id: match[2] });
+
+				const delFrom = selection.to - (spacesMatch ? spacesMatch[0].length : 0);
+				view.dispatch(view.state.tr.replaceWith(delFrom, selection.to, []));
 				return true;
 			}
 		}

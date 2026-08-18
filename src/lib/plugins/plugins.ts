@@ -12,17 +12,21 @@ import slashPlugin from './slash/plugin-slash.svelte.js';
 import slashTipPlugin from './slash/plugin-slash-tip';
 import tableMenuPlugin from './table/plugin-table-menu.svelte.js';
 import type { Schema } from 'prosemirror-model';
-import type { Config } from '../config';
 import buttonTooltipPlugin from './button-tooltip/plugin-button-tooltip.svelte';
-// import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
-// import { completionPlugin } from './completion/plugin-completion';
+import type { EditorConfig } from '$lib/config';
+import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
+import suggestionsPlugin from './suggestions/plugin-suggestions';
+import headingFocusPlugin from './plugin-heading-focus';
+import collabPlugin from './collab/plugin-collab';
+import cursorsPlugin from './cursors/plugin-cursors';
 
-export function getPlugins(schema: Schema, config: Config) {
+export function getPlugins(schema: Schema, config: EditorConfig) {
 	const plugins = [
 		inputRulesPlugin(schema),
 		...keymapPlugins(schema),
 
 		placeholderPlugin('Start writing...'),
+		headingFocusPlugin(),
 		marksTooltipPlugin(),
 		buttonTooltipPlugin(),
 		wordCountPlugin(),
@@ -38,20 +42,28 @@ export function getPlugins(schema: Schema, config: Config) {
 
 		pasteImagesPlugin(),
 
-		// https://github.com/curvenote/prosemirror-codemark
-		// ...codemark({ markType: schema.marks.code }),
-
-
-		// nodeMenuPlugin(),
+		nodeMenuPlugin(),
 		// completionPlugin(),
 	];
 
-	if (config.tableEnabled) {
+	if (schema.nodes.table) {
 		plugins.push(
 			columnResizing({ cellMinWidth: 20 }),
 			tableEditing(),
 			tableMenuPlugin(),
 		);
+	}
+
+	if (config.suggestions && schema.marks.suggestion) {
+		plugins.push(suggestionsPlugin(config.suggestions));
+	}
+
+	if (config.collab) {
+		plugins.push(...collabPlugin(config.collab));
+	}
+
+	if (config.cursors) {
+		plugins.push(cursorsPlugin(config.cursors));
 	}
 
 	return plugins;

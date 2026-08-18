@@ -1,73 +1,70 @@
-import { EditorState, Plugin, type PluginView } from "prosemirror-state";
+import { Plugin, type PluginView } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import { mount } from "svelte";
+import { mount, unmount } from "svelte";
 import NodeMenu from "./NodeMenu.svelte";
-import { nodeMenuPos, nodeMenuUpdateId, resolveNodeMenuPos } from "./node-menu";
-
-function unsetNear() {
-    nodeMenuPos.set(null);
-}
+import { nodeMenuPos, topLevelBlockPosAt } from "./node-menu";
 
 export default function nodeMenuPlugin() {
     return new Plugin({
-        props: {
-            handleDOMEvents: {
-                mouseover(view, event) {
-                    return;
-                    const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
-                    if (!pos) {
-                        return unsetNear();
-                    }
-
-                    // const dom = view.nodeDOM(pos.pos);
-
-                    // if (
-                    //     dom === null ||
-                    //     dom.nodeType !== Node.ELEMENT_NODE
-                    // )
-                    // {
-                    //     return unsetNear();
-                    // }
-
-                    console.log("pos", pos.pos)
-                    nodeMenuPos.set(pos.pos);
-                }
-            }
-        },
-        view(editorView) { return new NodeMenuPlugin(editorView) }
+        view(editorView) { return new NodeMenuPluginView(editorView) }
     })
 }
 
-export class NodeMenuPlugin implements PluginView {
-    public view: EditorView;
+export class NodeMenuPluginView implements PluginView {
+    private view: EditorView;
+    private container: HTMLElement;
     private wrap: HTMLElement;
+    private component: object;
 
     constructor(view: EditorView) {
         this.view = view;
+        this.container = view.dom.parentNode as HTMLElement;
 
-        this.wrap = document.createElement("div")
-        view.dom!.parentNode!.appendChild(this.wrap);
+        this.wrap = document.createElement("div");
+        this.container.appendChild(this.wrap);
 
-        mount(NodeMenu, {
+        this.onMouseMove = this.onMouseMove.bind(this);
+        this.onMouseLeave = this.onMouseLeave.bind(this);
+        this.container.addEventListener("mousemove", this.onMouseMove);
+        this.container.addEventListener("mouseleave", this.onMouseLeave);
+
+        this.component = mount(NodeMenu, {
             target: this.wrap,
             props: {
                 view: this.view,
             }
         });
     }
-    
 
-    update(view: EditorView, prevState: EditorState) {
-        if (prevState.selection.eq(view.state.selection)) return;
+    private onMouseMove(event: MouseEvent) {
+        if (!this.view.editable) {
+            nodeMenuPos.set(null);
+            return;
+        }
 
-        const correctPos = resolveNodeMenuPos(view.state.selection.$from);
+        // ignore when the pointer is over the menu's own handle/dropdown
+        if (event.target instanceof Node && this.wrap.contains(event.target)) {
+            return;
+        }
 
-        nodeMenuPos.set(correctPos);
+        const result = this.view.posAtCoords({ left: event.clientX, top: event.clientY });
+        if (!result) {
+            nodeMenuPos.set(null);
+            return;
+        }
+
+        const resolvedPos = this.view.state.doc.resolve(result.pos);
+        nodeMenuPos.set(topLevelBlockPosAt(resolvedPos));
     }
 
+    private onMouseLeave() {
+        nodeMenuPos.set(null);
+    }
 
     destroy() {
+        this.container.removeEventListener("mousemove", this.onMouseMove);
+        this.container.removeEventListener("mouseleave", this.onMouseLeave);
+        unmount(this.component);
         this.wrap.remove();
     }
-
-} 
+}

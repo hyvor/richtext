@@ -2,7 +2,7 @@ import type { Node } from 'prosemirror-model';
 import type { EditorView, NodeView } from 'prosemirror-view';
 import AudioNodeView from './AudioNodeView.svelte';
 import { mount } from 'svelte';
-import type { Config } from '$lib/config';
+import type { EditorConfig } from '$lib/config';
 
 export default class AudioView implements NodeView {
 	private node: Node;
@@ -15,7 +15,7 @@ export default class AudioView implements NodeView {
 		src: string;
 		getPos: () => number | undefined;
 		view: EditorView;
-		fileUploader: Config['fileUploader'];
+		fileUploader: EditorConfig['fileUploader'];
 		fileMaxSizeInMB?: number;
 	} = $state({} as any);
 
@@ -23,7 +23,7 @@ export default class AudioView implements NodeView {
 		node: Node,
 		view: EditorView,
 		getPos: () => number | undefined,
-		fileUploader: Config['fileUploader'],
+		fileUploader: EditorConfig['fileUploader'],
 		fileMaxSizeInMB: number | undefined
 	) {
 		this.node = node;

@@ -2,7 +2,7 @@ import type { Node } from "prosemirror-model";
 import type { EditorView, NodeView } from "prosemirror-view";
 import ImageNodeview from "./ImageNodeview.svelte";
 import { mount } from "svelte";
-import type { Config } from "$lib/config";
+import type { EditorConfig } from "$lib/config";
 
 export default class ImageView implements NodeView {
 
@@ -14,8 +14,8 @@ export default class ImageView implements NodeView {
 
     private props: {
         view: EditorView;
-        fileUploader: Config['fileUploader'];
-        fileMaxSizeInMB: Config['fileMaxSizeInMB'];
+        fileUploader: EditorConfig['fileUploader'];
+        fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'];
         getPos: () => number | undefined;
         src: string;
         alt: string;
@@ -28,8 +28,8 @@ export default class ImageView implements NodeView {
         node: Node,
         view: EditorView,
         getPos: () => number | undefined,
-        fileUploader: Config['fileUploader'],
-        fileMaxSizeInMB: Config['fileMaxSizeInMB']
+        fileUploader: EditorConfig['fileUploader'],
+        fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB']
     ) {
         this.node = node;
         this.view = view;

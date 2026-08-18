@@ -11,13 +11,13 @@ import ImageView from './image/nodeview-image.svelte.js';
 import TocView from './toc/nodeview-toc.svelte.js';
 import AudioView from './audio/nodeview-audio.svelte.js';
 import ButtonNodeView from './button/nodeview-button.svelte.js';
-import type { Config } from '$lib/config';
+import type { EditorConfig } from '$lib/config';
 
 interface NodeViewsType {
 	[key: string]: NodeViewConstructor;
 }
 
-export function getNodeViews(config: Config): NodeViewsType {
+export function getNodeViews(config: EditorConfig): NodeViewsType {
 	return {
 		embed(node, view, getPos) {
 			return new EmbedView(node);

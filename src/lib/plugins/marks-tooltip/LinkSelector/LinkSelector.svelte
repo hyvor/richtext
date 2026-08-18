@@ -30,7 +30,7 @@
 		toggleMark(view.state.schema.marks.link!, { href: e.detail })(view.state, view.dispatch);
 		show = false;
 		view.focus();
-0
+		0;
 		if (!isEditing) focusAtLinkEnd();
 	}
 
@@ -44,14 +44,18 @@
 
 <Modal bind:show>
 	{#snippet title()}
-		<TabNav bind:active={activeTab}>
-			<TabNavItem name="paste">
+		<TabNav>
+			<TabNavItem name="paste" active={activeTab === 'paste'} onclick={() => (activeTab = 'paste')}>
 				{#snippet start()}
 					<IconLink45deg />
 				{/snippet}
 				Paste Link
 			</TabNavItem>
-			<TabNavItem name="anchors">
+			<TabNavItem
+				name="anchors"
+				active={activeTab === 'anchors'}
+				onclick={() => (activeTab = 'anchors')}
+			>
 				{#snippet start()}
 					<IconHash />
 				{/snippet}
@@ -70,7 +74,7 @@
 		<Paste on:add={handleAdd} bind:input={inputValue} />
 	{:else if activeTab === 'anchors'}
 		<Anchors on:add={handleAdd} />
-	<!-- {:else if activeTab === 'posts'}
+		<!-- {:else if activeTab === 'posts'}
 		<SearchPosts on:add={handleAdd} /> -->
 	{/if}
 </Modal>

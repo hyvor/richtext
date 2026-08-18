@@ -1,5 +1,6 @@
 import type { Node as ProsemirrorNode } from 'prosemirror-model';
 import { EditorView, type NodeView } from 'prosemirror-view';
+import { setNodeAttrs } from '../plugins/suggestions/commands';
 
 export default class HeadingNodeView implements NodeView {
 
@@ -9,6 +10,8 @@ export default class HeadingNodeView implements NodeView {
 	private selection: any;
 	private input: HTMLInputElement;
 	private inputWrap: HTMLDivElement;
+	private headingDetails: HTMLDivElement;
+	private compactLabel: HTMLDivElement;
 
 	private node: ProsemirrorNode;
 
@@ -20,7 +23,9 @@ export default class HeadingNodeView implements NodeView {
 		this.dom.classList.add('heading-wrap');
 
 		const headingDetails = document.createElement('div');
-		headingDetails.classList.add('heading-details');	
+		headingDetails.classList.add('heading-details');
+		headingDetails.contentEditable = 'false';
+		this.headingDetails = headingDetails;
 
 		// Create headingSelectorsWrap before inputWrap
 		const headingSelectorsWrap = document.createElement('div');
@@ -34,17 +39,16 @@ export default class HeadingNodeView implements NodeView {
 				this.selection = view.state.tr.selection;
 			});
 			selector.addEventListener('click', () => {
-				const { state, dispatch } = view;
-				const { tr } = state;
+				const pos = getPos();
+				if (pos === undefined) return;
 
-				tr.setNodeMarkup(getPos()!, null, { ...this.node.attrs, level });
-				dispatch(tr);
+				setNodeAttrs(view, pos, { ...this.node.attrs, level });
 
 				// Restore selection
 				const posInNode = this.selection.from;
 				let mappedPos = view.state.tr.mapping.map(posInNode);
 				const newSelection = this.selection.constructor.create(view.state.tr.doc, mappedPos);
-				dispatch(view.state.tr.setSelection(newSelection));
+				view.dispatch(view.state.tr.setSelection(newSelection));
 				view.focus();
 			});
 
@@ -60,9 +64,16 @@ export default class HeadingNodeView implements NodeView {
 		// Create inputWrap for the input field
 		this.inputWrap = document.createElement("div");
 		this.inputWrap.classList.add("input-wrap");
-		this.inputWrap.contentEditable = "false";
 		headingDetails.appendChild(this.inputWrap);
 		this.dom.appendChild(headingDetails);
+
+		// Compact label, shown by default; the details bar above is only
+		// shown while the cursor is inside this heading (see
+		// plugin-heading-focus.ts / .heading-focused in Editor.svelte)
+		this.compactLabel = document.createElement('div');
+		this.compactLabel.classList.add('heading-compact');
+		this.compactLabel.contentEditable = 'false';
+		this.dom.appendChild(this.compactLabel);
 
 		// Create contentDOM
 		this.contentDOM = document.createElement('h' + this.node.attrs.level);
@@ -70,7 +81,6 @@ export default class HeadingNodeView implements NodeView {
 		this.contentDOM.id = id;
 		this.dom.appendChild(this.contentDOM);
 
-		
 		const type = document.createElement("span");
 		type.innerHTML = "#";
 		this.inputWrap.appendChild(type);
@@ -85,17 +95,12 @@ export default class HeadingNodeView implements NodeView {
 			if (pos === undefined)
 				return;
 
-			view.dispatch(
-				view.state.tr.setNodeMarkup(
-					pos,
-					null,
-					{ ...this.node.attrs, id: (e.target as HTMLInputElement).value }
-				)
-			);
+			setNodeAttrs(view, pos, { ...this.node.attrs, id: (e.target as HTMLInputElement).value });
 		};
 
 		this.inputWrap.appendChild(this.input);
-		
+
+		this.updateCompactLabel();
 	}
 
     update(node: ProsemirrorNode) {
@@ -108,16 +113,22 @@ export default class HeadingNodeView implements NodeView {
 
         if (Number(node.attrs.level) === Number(this.contentDOM.tagName[1])) {
             // changing ID
-			
+
 			this.contentDOM.id = node.attrs.id;
             this.input.value = node.attrs.id;
+            this.updateCompactLabel();
             return true;
         }
 
         return false;
     }
 
+	private updateCompactLabel() {
+		const { level, id } = this.node.attrs;
+		this.compactLabel.textContent = `H${level}` + (id ? ` #${id}` : '');
+	}
+
 	stopEvent(e: Event) {
-		return (e.target as Node).isEqualNode(this.input);
+		return this.headingDetails.contains(e.target as Node);
 	}
 }

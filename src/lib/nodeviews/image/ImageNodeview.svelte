@@ -5,8 +5,9 @@
 	import IconPencil from '@hyvor/icons/IconPencil';
 	import IconTrash from '@hyvor/icons/IconTrash';
 	import { onMount } from 'svelte';
-	import type { Config, ImageUploadResult } from '$lib/config';
+	import type { EditorConfig, ImageUploadResult } from '$lib/config';
 	import { getFigureNode, uploadImage } from './image-upload';
+	import { setNodeAttrs } from '../../plugins/suggestions/commands';
 
 	interface Props {
 		src: string | null;
@@ -14,8 +15,8 @@
 		width: number | null;
 		height: number | null;
 		getPos: () => number | undefined;
-		fileUploader: Config['fileUploader'];
-		fileMaxSizeInMB: Config['fileMaxSizeInMB'];
+		fileUploader: EditorConfig['fileUploader'];
+		fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'];
 		view: EditorView;
 	}
 
@@ -47,17 +48,15 @@
 		const pos = getPos();
 		if (pos === undefined) return;
 
-		view.dispatch(
-			view.state.tr.setNodeMarkup(pos, undefined, {
-				...{
-					src,
-					alt,
-					width,
-					height
-				},
-				...props
-			})
-		);
+		setNodeAttrs(view, pos, {
+			...{
+				src,
+				alt,
+				width,
+				height
+			},
+			...props
+		});
 	}
 
 	function handleAltInput(e: any) {

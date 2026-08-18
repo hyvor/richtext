@@ -1,8 +1,10 @@
 <script lang="ts">
 	import type { EditorView } from 'prosemirror-view';
-	import { tick, onMount, onDestroy } from 'svelte';
+	import { tick, onMount, onDestroy, untrack } from 'svelte';
+	import { slide } from 'svelte/transition';
 	import { IconButton } from '@hyvor/design/components';
 	import IconBoxArrowUpRight from '@hyvor/icons/IconBoxArrowUpRight';
+	import IconChatRight from '@hyvor/icons/IconChatRight';
 	import IconCode from '@hyvor/icons/IconCode';
 	import IconLink45deg from '@hyvor/icons/IconLink45deg';
 	import IconPencil from '@hyvor/icons/IconPencil';
@@ -15,6 +17,8 @@
 	import { toggleMark } from 'prosemirror-commands';
 	import LinkSelector from './LinkSelector/LinkSelector.svelte';
 	import { markExtend } from './mark-helpers';
+	import { suggestionsPluginKey } from '../suggestions/plugin-suggestions';
+	import CommentInput from '../suggestions/CommentInput.svelte';
 
 	interface Props {
 		view: EditorView;
@@ -26,6 +30,9 @@
 
 	let tooltip: HTMLSpanElement | undefined = $state();
 	let linkSelectorOpen = $state(false);
+	let commentInputOpen = $state(false);
+
+	let commentsAvailable = $derived(!!suggestionsPluginKey.getState(view.state));
 
 	function getLink(_: number): Mark | null {
 		const sel = view.state.selection;
@@ -78,16 +85,27 @@
 	// position when show/view is changed
 	$effect(() => {
 		if (updateId && show) {
+			if (untrack(() => commentInputOpen)) {
+				commentInputOpen = false;
+			}
 			(async () => {
 				await tick();
 				updatePosition();
 			})();
+		} else if (!show) {
+			commentInputOpen = false;
 		}
 	});
 
 	type MarkName = 'link' | 'strong' | 'em' | 'code' | 'strike' | 'comment';
 
 	function getProps(markName: MarkName) {
+		if (markName === 'comment') {
+			return { size: 'small', variant: 'invisible', color: 'gray' } as {
+				size: 'small';
+				variant: 'fill' | 'invisible';
+			};
+		}
 		const markType = view.state.schema.marks[markName]!;
 		const isActive = isMarkActive(view.state, markType);
 		return {
@@ -100,6 +118,12 @@
 	async function handleClick(markName: MarkName) {
 		if (markName === 'link') {
 			linkSelectorOpen = true;
+			return;
+		}
+		if (markName === 'comment') {
+			commentInputOpen = true;
+			await tick();
+			updatePosition();
 			return;
 		}
 		const markType = view.state.schema.marks[markName]!;
@@ -165,31 +189,44 @@
 				</div>
 			{/if}
 
-			<div class="buttons-row">
-				<IconButton {...getProps('link')} on:click={() => handleClick('link')}>
-					<IconLink45deg />
-				</IconButton>
+			{#if commentInputOpen}
+				<div transition:slide={{ duration: 150, axis: 'x' }}>
+					<CommentInput
+						{view}
+						onSubmit={() => (commentInputOpen = false)}
+						onCancel={() => (commentInputOpen = false)}
+					/>
+				</div>
+			{:else}
+				<div class="buttons-row">
+					<IconButton {...getProps('link')} on:click={(e) => handleClick('link')}>
+						<IconLink45deg />
+					</IconButton>
 
-				<IconButton {...getProps('strong')} on:click={() => handleClick('strong')}>
-					<IconTypeBold />
-				</IconButton>
+					<IconButton {...getProps('strong')} on:click={(e) => handleClick('strong')}>
+						<IconTypeBold />
+					</IconButton>
 
-				<IconButton {...getProps('em')} on:click={() => handleClick('em')}>
-					<IconTypeItalic />
-				</IconButton>
+					<IconButton {...getProps('em')} on:click={(e) => handleClick('em')}>
+						<IconTypeItalic />
+					</IconButton>
 
-				<IconButton {...getProps('code')} on:click={() => handleClick('code')}>
-					<IconCode />
-				</IconButton>
+					<IconButton {...getProps('code')} on:click={(e) => handleClick('code')}>
+						<IconCode />
+					</IconButton>
 
-				<IconButton {...getProps('strike')} on:click={() => handleClick('strike')}>
-					<IconTypeStrikethrough />
-				</IconButton>
+					<IconButton {...getProps('strike')} on:click={(e) => handleClick('strike')}>
+						<IconTypeStrikethrough />
+					</IconButton>
 
-				<!-- <IconButton {...getProps('comment')} on:click={() => handleClick('comment')}>
-					<IconChatRight />
-				</IconButton> -->
-			</div>
+					{#if commentsAvailable}
+						<span class="mark-separator"></span>
+						<IconButton {...getProps('comment')} on:click={(e) => handleClick('comment')}>
+							<IconChatRight />
+						</IconButton>
+					{/if}
+				</div>
+			{/if}
 		</span>
 	{/if}
 {/key}

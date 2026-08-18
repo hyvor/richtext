@@ -3,9 +3,9 @@ import type { EditorView } from "prosemirror-view";
 import  { mount } from "svelte";
 import Slash from "./Slash.svelte";
 import { findOptions, getOptions, type SlashOption } from "./options";
-import type { Config } from "../../config";
+import type { EditorConfig } from "$lib/config";
 
-export default function slashPlugin(config: Config) {
+export default function slashPlugin(config: EditorConfig) {
     return new Plugin({
         view(editorView) {
             return new SlashPlugin(editorView, config);
@@ -25,7 +25,7 @@ class SlashPlugin implements PluginView {
         options: SlashOption[]|undefined;
     } = $state({} as any);
 
-    constructor(view: EditorView, config: Config) {
+    constructor(view: EditorView, config: EditorConfig) {
         this.view = view;
         this.allOptions = getOptions(view, config);
         

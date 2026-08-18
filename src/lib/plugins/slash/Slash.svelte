@@ -5,6 +5,7 @@
 	import { Node } from 'prosemirror-model';
 	import { NodeSelection, TextSelection } from 'prosemirror-state';
 	import { editorStore } from '../../store';
+	import { SUGGESTIONS_SKIP_META } from '../suggestions/plugin-suggestions';
 
 	interface Props {
 		view: EditorView;
@@ -140,24 +141,20 @@
 		pos = sel.$from.before(same);
 		const nodeSel = NodeSelection.create(view.state.doc, pos);
 
-		const tr = view.state.tr;
+		// delete + insert is used instead of replace
+		// to make it work with the suggestions plugin
+		// (deleting / paragraph is not a suggestion)
 
-		view.dispatch(tr.replaceWith(nodeSel.from, nodeSel.to, node));
+		const tr = view.state.tr;
+		view.dispatch(tr.delete(nodeSel.from, nodeSel.to).setMeta(SUGGESTIONS_SKIP_META, true));
+
+		const tr1 = view.state.tr;
+		view.dispatch(tr1.insert(pos, node));
 
 		const tr2 = view.state.tr;
 
 		view.dispatch(
-			tr2.setSelection(TextSelection.create(tr.doc, pos + 1)).scrollIntoView()
-			/*  tr2
-                .setSelection(
-                    m.focusInput ? NodeSelection.create(tr2.doc, pos + 1) :
-                    m.focusCell
-                    ? TextSelection.create(tr2.doc, pos + 2)
-                    :   m.selectNode
-                        ? NodeSelection.create(tr.doc, pos)
-                        : TextSelection.create(tr.doc, pos + 1)
-                )
-                .scrollIntoView() */
+			tr2.setSelection(TextSelection.create(tr2.doc, pos + 1)).scrollIntoView()
 		);
 
 		view.focus();

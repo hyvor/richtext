@@ -1,18 +1,10 @@
 import { Mark, type MarkSpec, Node, type NodeSpec, Schema } from "prosemirror-model"
 import { addListNodes } from "prosemirror-schema-list"
 import { tableNodes } from "prosemirror-tables"
-import type { Config } from "./config";
+import { defaultSchemaConfig,  type SchemaConfig } from "./config";
 
 // mostly from https://github.com/ProseMirror/prosemirror-schema-basic
-function getNodes(config: Config): Record<string, NodeSpec> {
-
-    // validate fileUploader
-    if (
-        (config.imageEnabled || config.audioEnabled) &&
-        config.fileUploader === undefined
-    ) {
-        throw new Error("fileUploader must be provided if imageEnabled or audioEnabled is true");
-    }
+function getNodes(config: SchemaConfig): Record<string, NodeSpec> {
 
     const nodes: Record<string, NodeSpec> = {
 
@@ -101,12 +93,14 @@ function getNodes(config: Config): Record<string, NodeSpec> {
             inline: true,
             group: "inline",
             selectable: false,
+            // Prosemirror doesn't allow marks without content, so we force it here
+            marks: config.suggestions ? "suggestion" : "",
             parseDOM: [{ tag: "br" }],
             toDOM() { return ['br'] }
         }
     };
 
-    if (config.codeBlockEnabled) {
+    if (config.codeBlock) {
         nodes.code_block = {
             attrs: {
                 language: { default: null },
@@ -124,7 +118,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (config.customHtmlEnabled) {
+    if (config.customHtml) {
         nodes.custom_html = {
             content: "text*",
             marks: "",
@@ -137,8 +131,8 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    const imageEnabled = config.imageEnabled;
-    const embedEnabled = config.embedEnabled;
+    const imageEnabled = config.image;
+    const embedEnabled = config.embed;
 
     if (imageEnabled || embedEnabled) {
 
@@ -219,7 +213,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
 
     }
 
-    if (config.audioEnabled) {
+    if (config.audio) {
         nodes.audio = {
             attrs: {
                 src: { default: null }
@@ -242,7 +236,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (config.bookmarkEnabled) {
+    if (config.bookmark) {
         nodes.bookmark = {
             attrs: {
                 url: { default: null }
@@ -267,7 +261,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (config.tocEnabled) {
+    if (config.toc) {
         nodes.toc = {
             attrs: {
                 levels: { default: [1, 2, 3, 4, 5, 6] }
@@ -280,7 +274,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         }
     }
 
-    if (config.tableEnabled) {
+    if (config.table) {
         const tableNodess = tableNodes({
             tableGroup: "block",
             cellContent: "block+",
@@ -289,7 +283,7 @@ function getNodes(config: Config): Record<string, NodeSpec> {
         Object.assign(nodes, tableNodess);
     }
 
-    if (config.buttonEnabled) {
+    if (config.button) {
         nodes.button = {
             attrs: {
                 href: { default: null },
@@ -332,7 +326,9 @@ function getNodes(config: Config): Record<string, NodeSpec> {
 /**
  * Marks with background color should come first https://discuss.prosemirror.net/t/marks-priority/4463
  */
-export const marks = {
+function getMarks(config: SchemaConfig): Record<string, MarkSpec> {
+
+    const marks: Record<string, MarkSpec> = {
 
     // :: MarkSpec Code font mark. Represented as a `<code>` element.
     code: {
@@ -401,21 +397,90 @@ export const marks = {
         toDOM() { return ["sub", 0] }
     } as MarkSpec,
 
-    /*  comment: {
-         parseDOM: [{tag: "comment"}],
-         toDOM() { return ["comment", 0] }
-     } as MarkSpec, */
+    };
+
+    if (config.suggestions) {
+
+        // Pending suggestion
+        // type: 'insert' | 'delete' | 'format' | 'comment'
+        // author and comments are sourced from outside via `id`
+        marks.suggestion = {
+            attrs: {
+                type: { default: "insert" },
+                id: { default: "" },
+                add: { default: [] },
+                remove: { default: [] },
+            },
+            inclusive: false,
+            // lets multiple instances stack on the same range.
+            excludes: "",
+            toDOM(mark: Mark) {
+                const { type, id } = mark.attrs;
+                if (type === "insert") {
+                    return ["ins", {
+                        class: "suggestion-insert",
+                        "data-suggestion-id": id,
+                        title: "Suggested insertion"
+                    }, 0];
+                }
+                if (type === "delete") {
+                    return ["del", {
+                        class: "suggestion-delete",
+                        "data-suggestion-id": id,
+                        title: "Suggested deletion"
+                    }, 0];
+                }
+                if (type === "format") {
+                    return ["span", {
+                        class: "suggestion-format",
+                        "data-suggestion-id": id,
+                        title: "Suggested formatting"
+                    }, 0];
+                }
+                return ["span", {
+                    class: "user-comment",
+                    "data-suggestion-id": id,
+                }, 0];
+            },
+            // no parseDOM: pasting HTML from elsewhere shouldn't copy suggestions
+        } as MarkSpec;
+
+    } 
+
+    return marks;
 }
 
-export function getSchema(config: Config): Schema {
+// adding marks to nodes is buggy. mainly while editing, etc.
+// so, instead, for nodes (except doc and text), we use an additional attribute called `suggestions`
+// list of suggestions (same format as the mark)
+function withSuggestionAttrs(nodes: ReturnType<typeof addListNodes>, config: SchemaConfig): ReturnType<typeof addListNodes> {
+    if (!config.suggestions) return nodes;
+    let result = nodes;
+    nodes.forEach((name, spec) => {
+        if (name === "doc" || name === "text") return;
+        result = result.update(name, {
+            ...spec,
+            attrs: {
+                ...(spec.attrs ?? {}),
+                suggestions: { default: null },
+            }
+        });
+    });
+    return result;
+}
+
+export function getSchema(config?: Partial<SchemaConfig>): Schema {
+
+    const mergedConfig: SchemaConfig = Object.assign({}, defaultSchemaConfig, config);
+    const marks = getMarks(mergedConfig);
 
     const schemaWithoutList = new Schema({
-        nodes: getNodes(config),
+        nodes: getNodes(mergedConfig),
         marks
     });
 
     return new Schema({
-        nodes: addListNodes(schemaWithoutList.spec.nodes, "block+", "block"),
+        nodes: withSuggestionAttrs(addListNodes(schemaWithoutList.spec.nodes, "block+", "block"), mergedConfig),
         marks
     });
 }

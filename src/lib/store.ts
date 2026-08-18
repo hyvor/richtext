@@ -1,11 +1,22 @@
 import type { EditorView } from "prosemirror-view";
 import type { Plugin } from "prosemirror-state";
 import { writable } from "svelte/store";
-import type { Config } from "./config";
+import type { Schema } from "prosemirror-model";
+import type { EditorConfig } from "./config";
 
 export interface Props {
 
     editorView?: EditorView;
+
+    /**
+     * Editor schema built from getSchema(config)
+     */
+    schema: Schema;
+
+    /**
+     * Editor configuration. See config.ts for all options.
+     */
+    editorConfig?: Partial<EditorConfig>;
 
     /**
      * The initial value of the editor.
@@ -39,11 +50,6 @@ export interface Props {
      * Whether the current language is right-to-left.
      */
     rtl?: boolean;
-
-    /**
-     * The configuration for the editor.
-     */
-    config?: Partial<Config>;
 
     /**
      * Additional ProseMirror plugins to use, on top of the built-in ones.

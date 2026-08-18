@@ -3,14 +3,14 @@
 	import type { EditorView } from 'prosemirror-view';
 	import IconPencil from '@hyvor/icons/IconPencil';
 	import IconTrash from '@hyvor/icons/IconTrash';
-	import type { Config } from '$lib/config';
+	import type { EditorConfig } from '$lib/config';
 	import { uploadAudio } from './audio-upload';
 
 	interface Props {
 		src: string;
 		getPos: () => number | undefined;
 		view: EditorView;
-		fileUploader: Config['fileUploader'];
+		fileUploader: EditorConfig['fileUploader'];
 		fileMaxSizeInMB?: number;
 	}
 

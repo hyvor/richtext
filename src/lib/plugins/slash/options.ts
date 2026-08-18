@@ -1,5 +1,5 @@
 import type { Node, Schema } from 'prosemirror-model';
-import { type Component, mount, unmount } from 'svelte';
+import { type Component } from 'svelte';
 import IconBookmark from '@hyvor/icons/IconBookmark';
 import IconCardImage from '@hyvor/icons/IconCardImage';
 import IconCode from '@hyvor/icons/IconCode';
@@ -15,11 +15,11 @@ import IconTypeH2 from '@hyvor/icons/IconTypeH2';
 import IconTypeH3 from '@hyvor/icons/IconTypeH3';
 import EmbedCreator from './Embed/EmbedCreator.svelte';
 import BookmarkCreator from './Bookmark/BookmarkCreator.svelte';
-import type { Config } from '../../config';
 import type { EditorView } from 'prosemirror-view';
 import IconHandIndexThumb from '@hyvor/icons/IconHandIndexThumb';
 import { uploadImageGetFigureNode } from '../../nodeviews/image/image-upload'
 import { uploadAudioGetAudioNode } from '../../nodeviews/audio/audio-upload';
+import type { EditorConfig } from '$lib/config';
 
 export interface SlashOption {
 	name: string;
@@ -30,7 +30,7 @@ export interface SlashOption {
 	attrs?: Record<string, unknown>;
 }
 
-export function getOptions(view: EditorView, config: Config): SlashOption[] {
+export function getOptions(view: EditorView, config: EditorConfig): SlashOption[] {
 
 	const schema = view.state.schema;
 
@@ -74,7 +74,7 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 		}
 	]
 
-	if (config.imageEnabled && config.fileUploader) {
+	if (schema.nodes.image && config.fileUploader) {
 		options.push({
 			name: 'Image',
 			description: 'Add an image',
@@ -84,7 +84,7 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 		});
 	}
 
-	if (config.buttonEnabled) {
+	if (schema.nodes.button) {
 		options.push({
 			name: 'Button',
 			description: 'Add a button',
@@ -94,7 +94,7 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 		});
 	}
 
-	if (config.codeBlockEnabled) {
+	if (schema.nodes.code_block) {
 		options.push({
 			name: 'Code Block',
 			description: 'A block of code',
@@ -104,7 +104,7 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 		})
 	}
 
-	if (config.customHtmlEnabled) {
+	if (schema.nodes.custom_html) {
 		options.push({
 			name: 'Custom HTML/Twig',
 			description: 'Add custom HTML (or Twig)',
@@ -114,7 +114,7 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 		})
 	}
 
-	if (config.embedEnabled) {
+	if (schema.nodes.embed) {
 		options.push({
 			name: 'Embed',
 			description: 'Embed content from YouTube, Twitter, etc.',
@@ -130,21 +130,21 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 				'reddit',
 				'github'
 			],
-			node: () => null, // TODO
+			node: async () => null, // TODO
 		});
 	}
 
-	if (config.bookmarkEnabled) {
+	if (schema.nodes.bookmark) {
 		options.push({
 			name: 'Link Bookmark',
 			description: 'Link preview as a bookmark',
 			icon: IconBookmark,
 			keywords: ['bookmark', 'link'],
-			node: () => null // TODO:
+			node: async () => null // TODO:
 		});
 	}
 
-	if (config.audioEnabled && config.fileUploader) {
+	if (schema.nodes.audio && config.fileUploader) {
 		options.push({
 			name: 'Audio',
 			description: 'Add an audio',
@@ -154,7 +154,7 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 		});
 	}
 
-	if (config.tocEnabled) {
+	if (schema.nodes.toc) {
 		options.push({
 			name: 'Table of Contents',
 			description: 'Add a table of contents',
@@ -164,13 +164,13 @@ export function getOptions(view: EditorView, config: Config): SlashOption[] {
 		});
 	}
 
-	if (config.tableEnabled) {
+	if (schema.nodes.table) {
 		options.push({
 			name: 'Table',
 			description: 'Add a table',
 			icon: IconTable,
 			keywords: ['table', 'spreadsheet'],
-			node: () => null, // TODO:
+			node: async () => null, // TODO:
 		});
 	}
 
