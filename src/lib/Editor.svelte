@@ -182,10 +182,6 @@
 		}
 	};
 
-	/**
-	 * Shows other users' cursors/selections. See editorConfig.cursors and
-	 * plugin-cursors.ts.
-	 */
 	export const cursors = {
 		set(remoteCursors: RemoteCursor[]) {
 			if (view) setRemoteCursors(view, remoteCursors);

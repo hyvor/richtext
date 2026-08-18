@@ -59,10 +59,11 @@ export interface EditorConfig {
     // Omit to disable collaboration entirely. See plugin-collab.ts and DEV.md.
     collab?: CollabPluginConfig;
 
-    // Shows other users' cursors/selections (a caret + tinted selection,
-    // name tooltip on hover) and reports the local user's own selection
-    // changes via onLocalCursorChange, for the host to broadcast. Also never
-    // talks to a server itself - see plugin-cursors.ts and DEV.md.
+    // when set, enables the cursor plugin.
+    // callback `onLocalCursorChange` is called (debounced by `debounceMs`) whenever 
+    // the local user's selection moves. Host should distribute this to other clients
+    // for example via WebSocket.
+    // to set other users' cursors, use `editor.cursors.set()`
     cursors?: CursorsPluginConfig;
 
 }

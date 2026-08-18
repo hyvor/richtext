@@ -4,35 +4,25 @@ import type { EditorView } from "prosemirror-view";
 
 export interface RemoteCursorUser {
     name: string;
-    // any valid CSS color - used for the caret, the tooltip, and (tinted) the
-    // selection highlight
+    // any valid CSS color
+    // recommended to use a dark color.
     color: string;
     picture?: string;
 }
 
-// One other user's current cursor/selection, as last reported to
-// `editor.cursors.set()`. `clientId` identifies which user this is across
-// updates - a later call replaces, rather than adds to, that same user's
-// cursor. It doesn't have to match editorConfig.collab's clientID, though
-// reusing it is the natural choice if you're running collab and cursors
-// together (see DEV.md).
+// One other user's current cursor
+// set via `editor.cursors.set()` in Editor.svelte. 
+// `clientId` identifies which user this is across updates
 export interface RemoteCursor {
     clientId: string;
     from: number;
-    // equal to `from` for a collapsed caret. If you track selection
-    // direction yourself, put the selection's head here - that's where the
-    // caret is rendered.
     to: number;
     user: RemoteCursorUser;
 }
 
 export interface CursorsPluginConfig {
-    // Called (debounced by debounceMs) whenever the local user's selection
-    // moves, so the host can broadcast it to other clients over its own
-    // transport - the same "editor never talks to a server" split as
-    // editorConfig.collab. Called with `null` on blur (immediately, not
-    // debounced) so peers can be told this user stepped away, and again with
-    // the current selection on focus.
+    // called when the user's selection changes
+    // called with null when the user blurs the editor
     onLocalCursorChange: (cursor: { from: number; to: number } | null) => void;
     // default 250
     debounceMs?: number;
@@ -47,11 +37,8 @@ export const cursorsPluginKey = new PluginKey<CursorsPluginState>("cursors");
 const SET_CURSORS_META = "setCursors";
 
 /**
- * Renders other users' cursors/selections as decorations (a caret + tinted
- * selection range, with a name tooltip on hovering the caret) and reports
- * the local user's own selection changes via `onLocalCursorChange` so the
- * host can broadcast them. This plugin never talks to a server itself - see
- * `editor.cursors.set()` in Editor.svelte for feeding remote cursors in.
+ * Renders other user's cursors as decorations (caret + tinted selection range + tooltip on hovering)
+ * and, reports the current user's own selection changes to the host app via `onLocalCursorChange`
  */
 export default function cursorsPlugin(config: CursorsPluginConfig) {
     const debounceMs = config.debounceMs ?? 250;
@@ -155,12 +142,7 @@ function buildCaret(cursor: RemoteCursor): HTMLElement {
     return caret;
 }
 
-/**
- * Replaces the full set of remote cursors shown in the editor. The host is
- * expected to track the current roster itself (from whatever its transport
- * broadcasts) and call this with the whole list on every change - see
- * Editor.svelte's `editor.cursors.set()`.
- */
+// sets all external cursors at once
 export function setRemoteCursors(view: EditorView, cursors: RemoteCursor[]) {
     const tr = view.state.tr.setMeta(SET_CURSORS_META, cursors);
     tr.setMeta("addToHistory", false);
