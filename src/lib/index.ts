@@ -16,3 +16,16 @@ export type {
 	SuggestionEvent
 } from './plugins/suggestions/plugin-suggestions';
 export type { SuggestionItem } from './plugins/suggestions/commands';
+
+export type {
+	CollabPluginConfig,
+	CollabSendable,
+	CollabStepJSON,
+	CollabClientID
+} from './plugins/collab/plugin-collab';
+
+export type {
+	CursorsPluginConfig,
+	RemoteCursor,
+	RemoteCursorUser
+} from './plugins/cursors/plugin-cursors';

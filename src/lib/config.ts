@@ -1,4 +1,6 @@
 import type { SuggestionsPluginConfig } from './plugins/suggestions/plugin-suggestions';
+import type { CollabPluginConfig } from './plugins/collab/plugin-collab';
+import type { CursorsPluginConfig } from './plugins/cursors/plugin-cursors';
 
 // all defaults to true
 export interface SchemaConfig {
@@ -50,6 +52,19 @@ export interface EditorConfig {
 
     // Suggestions plugin config
     suggestions?: SuggestionsPluginConfig;
+
+    // Collaborative editing (prosemirror-collab) config. 
+    // the host provides onSendable and pushes
+    // remote steps back in via the Editor component's collab.receiveSteps().
+    // Omit to disable collaboration entirely.
+    collab?: CollabPluginConfig;
+
+    // when set, enables the cursor plugin.
+    // callback `onLocalCursorChange` is called (debounced by `debounceMs`) whenever 
+    // the local user's selection moves. Host should distribute this to other clients
+    // for example via WebSocket.
+    // to set other users' cursors, use `editor.cursors.set()`
+    cursors?: CursorsPluginConfig;
 
 }
 

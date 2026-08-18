@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 .svelte-kit
 tmp/
+
+# local collab dev server state - see DEV.md
+dev-server/.collab-store.json

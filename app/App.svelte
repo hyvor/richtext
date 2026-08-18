@@ -1,9 +1,83 @@
 <script lang="ts">
-	import { Editor, getSchema, type SuggestionMode, type Author, type AuthorInfo } from '../src/lib';
+	import {
+		Editor,
+		getSchema,
+		type SuggestionMode,
+		type Author,
+		type AuthorInfo,
+		type CollabSendable,
+		type CollabStepJSON,
+		type CollabClientID,
+		type RemoteCursor
+	} from '../src/lib';
 	import { createDemoSuggestionSource } from './demoSuggestionSource';
 	import { Base, Button } from '@hyvor/design/components';
 
 	let editor: Editor;
+
+	// populated from the collab server's 'init' reply below - the editor
+	// isn't rendered until then, so it always starts from the server's
+	// current (doc, version) instead of an empty/stale local guess
+	let initialDoc: string | null = $state(null);
+	let initialCollabVersion = $state(0);
+	let ready = $state(false);
+
+	function saveDoc(val: string) {
+		if (!collabSocket || collabSocket.readyState !== WebSocket.OPEN) return;
+		collabSocket.send(
+			JSON.stringify({ type: 'save', doc: JSON.parse(val), version: editor?.collab.getVersion() ?? 0 })
+		);
+	}
+
+	// identifies this tab for both collab steps (CollabPluginConfig.clientID)
+	// and cursor presence (RemoteCursor.clientId) - see plugin-cursors.ts
+	const collabClientID: CollabClientID = Math.random().toString(36).slice(2);
+	// a stand-in for whatever identity/color a real host would attach - see
+	// resolveAuthor above for the same idea applied to suggestions/comments
+	const collabUser = {
+		name: 'User ' + collabClientID.slice(0, 4).toUpperCase(),
+		color: `hsl(${Math.floor(Math.random() * 360)}, 70%, 40%)`
+	};
+	let collabSocket: WebSocket | undefined;
+
+	collabSocket = new WebSocket('ws://localhost:8989');
+	collabSocket.addEventListener('open', () => {
+		collabSocket?.send(JSON.stringify({ type: 'hello', clientId: collabClientID }));
+	});
+	collabSocket.addEventListener('message', (event) => {
+		const msg = JSON.parse(event.data);
+		if (msg.type === 'init') {
+			initialDoc = msg.doc ? JSON.stringify(msg.doc) : null;
+			initialCollabVersion = msg.version;
+			ready = true;
+		} else if (msg.type === 'steps' && msg.steps.length) {
+			editor?.collab.receiveSteps(msg.steps as CollabStepJSON[], msg.clientIDs as CollabClientID[]);
+		} else if (msg.type === 'cursors') {
+			const others = (msg.cursors as RemoteCursor[]).filter((c) => c.clientId !== collabClientID);
+			editor?.cursors.set(others);
+		}
+	});
+	collabSocket.addEventListener('error', () => {
+		console.warn(
+			'[richtext] collab server not reachable at ws://localhost:8989 - run `npm run dev:collab-server` (see DEV.md)'
+		);
+		// fall back to a plain empty local editor instead of leaving the page blank
+		ready = true;
+	});
+
+	function sendCollabSteps(sendable: CollabSendable) {
+		if (!collabSocket || collabSocket.readyState !== WebSocket.OPEN) return;
+		collabSocket.send(JSON.stringify({ type: 'steps', ...sendable }));
+	}
+
+	function sendCollabCursor(cursor: { from: number; to: number } | null) {
+		if (!collabSocket || collabSocket.readyState !== WebSocket.OPEN) return;
+		collabSocket.send(
+			JSON.stringify(
+				cursor ? { type: 'cursor', ...cursor, user: collabUser } : { type: 'cursor', clear: true }
+			)
+		);
+	}
 
 	let editable = $state(true);
 
@@ -86,32 +160,36 @@
 
 <Base>
 	<div class="container">
-		<Editor
-			bind:this={editor}
-			value={localStorage.getItem('doc')}
-			onvaluechange={(val) => localStorage.setItem('doc', val)}
-			{schema}
-			editorConfig={{
-				codeBlockConfig: {
-					language: true,
-					annotations: true,
-					annotationsUrl: null,
-					fileName: true
-				},
-				colorButtonBackground: '#585895',
-				fileUploader: async (blob, name, type) => {
-					return {
-						url: URL.createObjectURL(blob)
-					};
-				},
-				suggestions: {
-					author: currentAuthor,
-					mode: suggestionMode,
-					resolveAuthor,
-					source: createDemoSuggestionSource('suggestions-source')
-				}
-			}}
-		/>
+		{#if ready}
+			<Editor
+				bind:this={editor}
+				value={initialDoc}
+				onvaluechange={saveDoc}
+				{schema}
+				editorConfig={{
+					codeBlockConfig: {
+						language: true,
+						annotations: true,
+						annotationsUrl: null,
+						fileName: true
+					},
+					colorButtonBackground: '#585895',
+					fileUploader: async (blob, name, type) => {
+						return {
+							url: URL.createObjectURL(blob)
+						};
+					},
+					suggestions: {
+						author: currentAuthor,
+						mode: suggestionMode,
+						resolveAuthor,
+						source: createDemoSuggestionSource('suggestions-source')
+					},
+					collab: { version: initialCollabVersion, clientID: collabClientID, onSendable: sendCollabSteps },
+					cursors: { onLocalCursorChange: sendCollabCursor, debounceMs: 300 }
+				}}
+			/>
+		{/if}
 	</div>
 </Base>
 

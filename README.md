@@ -298,3 +298,90 @@ document from a two-document diff, for a track-changes-style merged view. It ret
 have no author of their own (a diff has no per-change authorship) and must be attributed
 by the caller, typically via `seedSuggestionSource` or by writing directly into your
 `source`'s backing store.
+
+
+## Collaboration
+
+Real-time collaborative editing is built on [`prosemirror-collab`](https://prosemirror.net/docs/ref/#collab).
+The editor never talks to a server itself - the host provides a transport via
+`editorConfig.collab` and feeds remote steps back in via `editor.collab.receiveSteps()`.
+Server-side implementation (assigning versions, rebroadcasting steps to other clients,
+persisting the document) is entirely up to the host app.
+
+```svelte
+<script lang="ts">
+  import { Editor, getSchema } from '@hyvor/richtext';
+
+  const schema = getSchema();
+  let editor: Editor;
+</script>
+
+<Editor
+  {schema}
+  editorConfig={{
+    collab: {
+      version: 0, // the version this initial doc corresponds to
+      clientID: currentUserId, // optional, random by default
+      onSendable(sendable) {
+        // sendable: { version, steps, clientID } - send it to your server
+        connection.send(sendable);
+      },
+    },
+  }}
+  bind:this={editor}
+/>
+```
+
+Whenever your transport receives a batch of steps from the server (including batches made
+up of this client's own steps being confirmed), pass them to:
+
+```ts
+editor.collab.receiveSteps(steps, clientIDs);
+```
+
+`editor.collab.getVersion()` returns the editor's current collab version.
+
+See `DEV.md` for a minimal local WebSocket server used to try this out during development.
+
+### Cursors (other users' selections)
+
+Shows other users' cursors/selections as a colored caret + tinted selection, with a name
+tooltip on hovering the caret. Same split as collaboration: the editor never talks to a
+server - the host provides `editorConfig.cursors` and feeds remote cursors in via
+`editor.cursors.set()`.
+
+```svelte
+<script lang="ts">
+  import { Editor, getSchema, type RemoteCursor } from '@hyvor/richtext';
+
+  const schema = getSchema();
+  let editor: Editor;
+</script>
+
+<Editor
+  {schema}
+  editorConfig={{
+    cursors: {
+      debounceMs: 250, // default
+      onLocalCursorChange(cursor) {
+        // cursor: { from, to } | null (null on blur) - send it to your server
+        connection.send(cursor);
+      },
+    },
+  }}
+  bind:this={editor}
+/>
+```
+
+Whenever your transport tells you about other users' cursors, pass the full current list to:
+
+```ts
+editor.cursors.set(cursors); // RemoteCursor[]: { clientId, from, to, user: { name, color, picture? } }
+```
+
+`clientId` identifies which user a given entry belongs to across updates - reusing
+`editorConfig.collab`'s `clientID` is the natural choice if you're running both together.
+`user.color` is any CSS color, used for the caret, tooltip, and (tinted) selection
+highlight.
+
+See `DEV.md` for how the local WebSocket server also relays cursor presence.
