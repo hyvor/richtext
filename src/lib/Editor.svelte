@@ -288,7 +288,17 @@
 		margin: 30px 0 0 0;
 	}
 
-	.pm-editor :global(p) {
+	.pm-editor :global(p),
+	.pm-editor :global(h1),
+	.pm-editor :global(h2),
+	.pm-editor :global(h3),
+	.pm-editor :global(h4),
+	.pm-editor :global(h5),
+	.pm-editor :global(h6),
+	.pm-editor :global(blockquote),
+	.pm-editor :global(aside),
+	.pm-editor :global(figure)
+	{
 		line-height: 30px;
 		margin-top: 30px;
 		letter-spacing: 0.2px;

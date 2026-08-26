@@ -107,7 +107,9 @@ export function receiveCollabSteps(
 ) {
     const schema = view.state.schema;
     const parsedSteps = steps.map(s => Step.fromJSON(schema, s));
-    const tr = receiveTransaction(view.state, parsedSteps, clientIDs);
+    const tr = receiveTransaction(view.state, parsedSteps, clientIDs, {
+        mapSelectionBackward: true
+    });
     view.dispatch(tr);
 }
 
