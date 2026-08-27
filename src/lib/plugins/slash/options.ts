@@ -170,7 +170,7 @@ export function getOptions(view: EditorView, config: EditorConfig): SlashOption[
 			description: 'Add a table',
 			icon: IconTable,
 			keywords: ['table', 'spreadsheet'],
-			node: async () => null, // TODO:
+			node: () => createTable(schema),
 		});
 	}
 
@@ -287,15 +287,22 @@ function createQuote(schema: Schema) {
 // 	});
 // }
 
-// function createTable() {
-// 	const rows = [];
-// 	for (let i = 0; i < 3; i++) {
-// 		const cells = [];
-// 		for (let j = 0; j < 3; j++) {
-// 			cells.push(schema.nodes.table_cell!.create({}, [schema.nodes.paragraph!.create()]));
-// 		}
-// 		rows.push(schema.nodes.table_row!.create({}, cells));
-// 	}
+function createTable(schema: Schema, rowCount = 3, colCount = 3) {
+	const headerRow = schema.nodes.table_row!.create(
+		{},
+		Array.from({ length: colCount }, () =>
+			schema.nodes.table_header!.create({}, schema.nodes.paragraph!.create())
+		)
+	);
 
-// 	return Promise.resolve(schema.nodes.table!.create({}, [...rows]));
-// }
+	const bodyRows = Array.from({ length: rowCount - 1 }, () =>
+		schema.nodes.table_row!.create(
+			{},
+			Array.from({ length: colCount }, () =>
+				schema.nodes.table_cell!.create({}, schema.nodes.paragraph!.create())
+			)
+		)
+	);
+
+	return Promise.resolve(schema.nodes.table!.create({}, [headerRow, ...bodyRows]));
+}

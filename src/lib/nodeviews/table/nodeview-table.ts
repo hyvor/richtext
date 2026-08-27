@@ -4,6 +4,7 @@ import TableTop from "./TableTop.svelte";
 import { updateColumnsOnResize } from "prosemirror-tables";
 import { mount } from "svelte";
 
+export const DEFAULT_CELL_MIN_WIDTH = 150;
 
 export default class TableNodeView implements NodeView {
 
@@ -18,9 +19,6 @@ export default class TableNodeView implements NodeView {
     private table: HTMLTableElement;
     private colgroup: HTMLTableColElement;
 
-
-    private readonly MIN_COL_WIDTH = 20;
-
     constructor(node: Node, view: EditorView, getPos: () => number | undefined) {
 
         this.node = node;
@@ -32,7 +30,7 @@ export default class TableNodeView implements NodeView {
         this.top = this.dom.appendChild(document.createElement("div"));
         this.top.className = "table-top";
         this.top.contentEditable = "false";
-        
+
         mount(TableTop, {target: this.top});
         // this.createRowMenuComponent();
 
@@ -43,13 +41,13 @@ export default class TableNodeView implements NodeView {
         this.colgroup = this.table.appendChild(document.createElement("colgroup"));
         this.contentDOM = this.table.appendChild(document.createElement("tbody"));
 
-        updateColumnsOnResize(node, this.colgroup, this.table, this.MIN_COL_WIDTH);
+        updateColumnsOnResize(node, this.colgroup, this.table, DEFAULT_CELL_MIN_WIDTH);
 
     }
 
     update(node: Node) {
         if (node.type.name === 'table') {
-            updateColumnsOnResize(node, this.colgroup, this.table, this.MIN_COL_WIDTH);
+            updateColumnsOnResize(node, this.colgroup, this.table, DEFAULT_CELL_MIN_WIDTH);
             return true;
         }
         return false

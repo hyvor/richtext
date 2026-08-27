@@ -11,6 +11,7 @@ import wordCountPlugin from './plugin-wordcount';
 import slashPlugin from './slash/plugin-slash.svelte.js';
 import slashTipPlugin from './slash/plugin-slash-tip';
 import tableMenuPlugin from './table/plugin-table-menu.svelte.js';
+import { DEFAULT_CELL_MIN_WIDTH } from '../nodeviews/table/nodeview-table';
 import type { Schema } from 'prosemirror-model';
 import buttonTooltipPlugin from './button-tooltip/plugin-button-tooltip.svelte';
 import type { EditorConfig } from '$lib/config';
@@ -48,7 +49,7 @@ export function getPlugins(schema: Schema, config: EditorConfig) {
 
 	if (schema.nodes.table) {
 		plugins.push(
-			columnResizing({ cellMinWidth: 20 }),
+			columnResizing({ cellMinWidth: 20, defaultCellMinWidth: DEFAULT_CELL_MIN_WIDTH }),
 			tableEditing(),
 			tableMenuPlugin(),
 		);

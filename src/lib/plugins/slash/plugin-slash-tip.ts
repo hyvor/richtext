@@ -44,7 +44,11 @@ class SlashTipPlugin implements PluginView {
 
 		const parent = selection.$from.parent;
 		const grandParent = selection.$from.node(-1);
-		if (parent.type.name !== 'paragraph' || grandParent.type.name == 'table_cell')
+
+		if (
+			parent.type.name !== 'paragraph' || 
+			grandParent?.type.spec.tableRole !== undefined  // covers both table_cell and table_header
+		)
 			return this.hide();
 
 		if (parent.content.size > 0) return this.hide();
