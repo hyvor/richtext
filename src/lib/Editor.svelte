@@ -285,10 +285,12 @@
 	.pm-editor :global(figure),
 	.pm-editor :global(pre),
 	.pm-editor :global(ul),
-	.pm-editor :global(ol)
+	.pm-editor :global(ol),
+	.pm-editor :global(bookmark)
 	{
 		line-height: 30px;
 		margin-top: 20px;
+		margin-bottom: 0;
 		letter-spacing: 0.2px;
 		font-family: var(--font-serif);
 	}
@@ -401,6 +403,7 @@
 	.pm-editor :global(h5),
 	.pm-editor :global(h6) {
 		margin-top: 35px;
+		line-height: 1.3;
 	}
 
 	.pm-editor :global(h1) {
@@ -499,7 +502,6 @@
 		padding: 7px;
 		font-size: 14px;
 		text-align: center;
-		margin-top: 22px;
 	}
 
 	.pm-editor :global(figure figcaption.empty:before) {
