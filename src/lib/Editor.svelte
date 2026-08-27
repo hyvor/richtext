@@ -273,21 +273,6 @@
 		margin-top: 0 !important;
 	}
 
-	.pm-editor :global(blockquote),
-	.pm-editor :global(figure),
-	.pm-editor :global(h1),
-	.pm-editor :global(h2),
-	.pm-editor :global(h3),
-	.pm-editor :global(h4),
-	.pm-editor :global(h5),
-	.pm-editor :global(h6),
-	.pm-editor :global(p),
-	.pm-editor :global(pre),
-	.pm-editor :global(ul),
-	.pm-editor :global(ol) {
-		margin: 30px 0 0 0;
-	}
-
 	.pm-editor :global(p),
 	.pm-editor :global(h1),
 	.pm-editor :global(h2),
@@ -297,10 +282,13 @@
 	.pm-editor :global(h6),
 	.pm-editor :global(blockquote),
 	.pm-editor :global(aside),
-	.pm-editor :global(figure)
+	.pm-editor :global(figure),
+	.pm-editor :global(pre),
+	.pm-editor :global(ul),
+	.pm-editor :global(ol)
 	{
 		line-height: 30px;
-		margin-top: 30px;
+		margin-top: 20px;
 		letter-spacing: 0.2px;
 		font-family: var(--font-serif);
 	}
