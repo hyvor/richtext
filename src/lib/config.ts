@@ -13,6 +13,7 @@ export interface SchemaConfig {
     toc: boolean;
     table: boolean;
     button: boolean;
+    footnotes: boolean;
     suggestions: boolean; // suggestions AND comments
 }
 
@@ -26,7 +27,8 @@ export const defaultSchemaConfig: SchemaConfig = {
     toc: true,
     table: true,
     button: true,
-    
+
+    footnotes: false,
     suggestions: false,
 };
 

@@ -17,6 +17,7 @@ import buttonTooltipPlugin from './button-tooltip/plugin-button-tooltip.svelte';
 import type { EditorConfig } from '$lib/config';
 import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
 import suggestionsPlugin from './suggestions/plugin-suggestions';
+import footnotesPlugin from './footnotes/plugin-footnotes';
 import headingFocusPlugin from './plugin-heading-focus';
 import collabPlugin from './collab/plugin-collab';
 import cursorsPlugin from './cursors/plugin-cursors';
@@ -53,6 +54,10 @@ export function getPlugins(schema: Schema, config: EditorConfig) {
 			tableEditing(),
 			tableMenuPlugin(),
 		);
+	}
+
+	if (schema.nodes.footnote_ref) {
+		plugins.push(footnotesPlugin());
 	}
 
 	if (config.suggestions && schema.marks.suggestion) {
