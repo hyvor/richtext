@@ -715,6 +715,59 @@
 		cursor: default;
 	}
 
+	.pm-editor :global(.ProseMirror) {
+		counter-reset: footnote-ref;
+	}
+
+	.pm-editor :global(.footnote-ref) {
+		counter-increment: footnote-ref;
+		cursor: pointer;
+		color: var(--link);
+	}
+
+	.pm-editor :global(.footnote-ref::before) {
+		content: counter(footnote-ref);
+	}
+
+	.pm-editor :global(.footnotes) {
+		margin-top: 40px;
+		padding-top: 15px;
+		border-top: 1px solid var(--border);
+		counter-reset: footnote-item;
+	}
+
+	.pm-editor :global(.footnotes-label) {
+		font-weight: 600;
+		font-size: 13px;
+		color: var(--text-light);
+		margin-bottom: 10px;
+	}
+
+	.pm-editor :global(.footnote-item) {
+		counter-increment: footnote-item;
+		display: flex;
+		gap: 6px;
+		font-size: 14px;
+		margin-bottom: 6px;
+	}
+
+	.pm-editor :global(.footnote-item::before) {
+		content: counter(footnote-item) '.';
+		flex-shrink: 0;
+		color: var(--text-light);
+	}
+
+	.pm-editor :global(.footnote-content) {
+		flex: 1;
+	}
+
+	.pm-editor :global(.footnote-back) {
+		all: unset;
+		cursor: pointer;
+		flex-shrink: 0;
+		color: var(--link);
+	}
+
 	.pm-editor :global(.user-comment) {
 		border-bottom: 3px solid #e0d32e;
 		background-color: rgba(224, 211, 46, 0.15);

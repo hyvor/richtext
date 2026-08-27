@@ -29,3 +29,6 @@ export type {
 	RemoteCursor,
 	RemoteCursorUser
 } from './plugins/cursors/plugin-cursors';
+
+export { insertFootnote, getFootnotes } from './plugins/footnotes/commands';
+export type { FootnoteItem } from './plugins/footnotes/commands';

@@ -82,7 +82,8 @@
 	let editable = $state(true);
 
 	const schema = getSchema({
-		suggestions: true
+		suggestions: true,
+		footnotes: true
 	});
 
 	const currentAuthor: Author = 'user:demo-user';

@@ -283,6 +283,61 @@ function getNodes(config: SchemaConfig): Record<string, NodeSpec> {
         Object.assign(nodes, tableNodess);
     }
 
+    if (config.footnotes) {
+        nodes.footnote_ref = {
+            attrs: {
+                id: { default: null }
+            },
+            group: "inline",
+            inline: true,
+            atom: true,
+            selectable: true,
+            draggable: false,
+            parseDOM: [{
+                tag: "sup.footnote-ref[data-id]",
+                getAttrs(sup: HTMLElement) {
+                    return { id: sup.dataset.id };
+                }
+            }],
+            toDOM(node: Node) {
+                return ["sup", { class: "footnote-ref", "data-id": node.attrs.id }];
+            }
+        };
+
+        nodes.footnote = {
+            attrs: {
+                id: { default: null }
+            },
+            content: "inline*",
+            selectable: false,
+            draggable: false,
+            parseDOM: [{
+                tag: "div.footnote-item[data-id]",
+                getAttrs(div: HTMLElement) {
+                    return { id: div.dataset.id };
+                }
+            }],
+            toDOM(node: Node) {
+                return ["div", { class: "footnote-item", "data-id": node.attrs.id }, 0];
+            }
+        };
+
+        nodes.footnotes = {
+            content: "footnote+",
+            group: "block",
+            selectable: false,
+            draggable: false,
+            isolating: true,
+            parseDOM: [{ tag: "div.footnotes" }],
+            toDOM() {
+                return ["div", { class: "footnotes" },
+                    ["div", { class: "footnotes-label", contenteditable: "false" }, "Footnotes"],
+                    ["div", { class: "footnotes-content" }, 0]
+                ];
+            }
+        };
+    }
+
     if (config.button) {
         nodes.button = {
             attrs: {

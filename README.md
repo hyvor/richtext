@@ -19,6 +19,7 @@ Used in Hyvor Blogs and Hyvor Post.
     toc: true,
     table: true,
     button: true,
+    footnotes: false,
   });
 </script>
 
@@ -162,6 +163,34 @@ Note: `config.audioUploader` must be provided to upload audio files.
 - Content: `inline*`
 - `config.buttonEnabled` must be `true` to enable this node.
 
+
+### `footnote_ref`
+
+- An inline atom marker placed in running text where a footnote citation occurs.
+- Attributes:
+  - `id`: Identifies the matching `footnote` item.
+- Parsed from `<sup class="footnote-ref" data-id>` HTML tag.
+- Group: `inline`
+- Its displayed number is not stored; it's derived purely from document order via a CSS counter.
+- `config.footnotesEnabled` must be `true` to enable this node. Disabled by default.
+- Inserted via the "Footnote" button in the selection tooltip (`insertFootnote`, exported from `@hyvor/richtext`) - there is no slash-menu entry, since insertion requires a text selection.
+
+### `footnotes`
+
+- A block-level container automatically kept at the bottom of the document, holding one `footnote` per `footnote_ref` found in the text (created, removed, and reordered automatically to match the refs - see `footnote` below).
+- Parsed from `<div class="footnotes">` HTML tag.
+- Group: `block`
+- Content: `footnote+`
+- Same condition as `footnote_ref` to enable.
+
+### `footnote`
+
+- A block-level node representing one footnote's editable body, living only inside `footnotes`.
+- Attributes:
+  - `id`: Matches the `footnote_ref` it belongs to.
+- Parsed from `<div class="footnote-item" data-id>` HTML tag.
+- Content: `inline*`
+- Same condition as `footnote_ref` to enable.
 
 ### `code_block`
 

@@ -11,6 +11,8 @@ import ImageView from './image/nodeview-image.svelte.js';
 import TocView from './toc/nodeview-toc.svelte.js';
 import AudioView from './audio/nodeview-audio.svelte.js';
 import ButtonNodeView from './button/nodeview-button.svelte.js';
+import FootnoteRefNodeView from './footnote/nodeview-footnote-ref';
+import FootnoteNodeView from './footnote/nodeview-footnote';
 import type { EditorConfig } from '$lib/config';
 
 interface NodeViewsType {
@@ -59,6 +61,12 @@ export function getNodeViews(config: EditorConfig): NodeViewsType {
 		},
 		button(node, view, getPos) {
 			return new ButtonNodeView(node, view, getPos);
+		},
+		footnote_ref(node, view) {
+			return new FootnoteRefNodeView(node, view);
+		},
+		footnote(node, view) {
+			return new FootnoteNodeView(node, view);
 		}
 	};
 }

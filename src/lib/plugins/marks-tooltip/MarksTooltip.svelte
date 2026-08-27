@@ -3,6 +3,7 @@
 	import { tick, onMount, onDestroy, untrack } from 'svelte';
 	import { slide } from 'svelte/transition';
 	import { IconButton } from '@hyvor/design/components';
+	import IconAsterisk from '@hyvor/icons/IconAsterisk';
 	import IconBoxArrowUpRight from '@hyvor/icons/IconBoxArrowUpRight';
 	import IconChatRight from '@hyvor/icons/IconChatRight';
 	import IconCode from '@hyvor/icons/IconCode';
@@ -19,6 +20,7 @@
 	import { markExtend } from './mark-helpers';
 	import { suggestionsPluginKey } from '../suggestions/plugin-suggestions';
 	import CommentInput from '../suggestions/CommentInput.svelte';
+	import { insertFootnote } from '../footnotes/commands';
 
 	interface Props {
 		view: EditorView;
@@ -33,6 +35,7 @@
 	let commentInputOpen = $state(false);
 
 	let commentsAvailable = $derived(!!suggestionsPluginKey.getState(view.state));
+	let footnotesAvailable = $derived(!!view.state.schema.nodes.footnote_ref);
 
 	function getLink(_: number): Mark | null {
 		const sel = view.state.selection;
@@ -155,6 +158,11 @@
 		linkSelectorOpen = true;
 	}
 
+	function handleFootnoteClick() {
+		insertFootnote(view);
+		show = false;
+	}
+
 	onMount(() => {
 		const handleScroll = () => {
 			if (show && tooltip) {
@@ -218,6 +226,13 @@
 					<IconButton {...getProps('strike')} on:click={(e) => handleClick('strike')}>
 						<IconTypeStrikethrough />
 					</IconButton>
+
+					{#if footnotesAvailable}
+						<span class="mark-separator"></span>
+						<IconButton size="small" variant="invisible" color="gray" on:click={handleFootnoteClick}>
+							<IconAsterisk />
+						</IconButton>
+					{/if}
 
 					{#if commentsAvailable}
 						<span class="mark-separator"></span>
