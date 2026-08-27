@@ -4,8 +4,8 @@ import FigcaptionNodeView from './nodeview-figcaption';
 import { CalloutNodeView } from './callout/nodeview-callout.svelte.js';
 import CodeBlockNodeView from './nodeview-codeblock';
 import CustomHtmlNodeView from './nodeview-custom-html';
-import EmbedView from './embed/nodeview-embed';
-import BookmarkView from './nodeview-bookmark';
+import EmbedView from './embed/nodeview-embed.svelte.js';
+import BookmarkView from './bookmark/nodeview-bookmark.svelte.js';
 import TableNodeView from './table/nodeview-table';
 import ImageView from './image/nodeview-image.svelte.js';
 import TocView from './toc/nodeview-toc.svelte.js';
@@ -20,7 +20,7 @@ interface NodeViewsType {
 export function getNodeViews(config: EditorConfig): NodeViewsType {
 	return {
 		embed(node, view, getPos) {
-			return new EmbedView(node);
+			return new EmbedView(node, config.embed);
 		},
 		figcaption(node) {
 			return new FigcaptionNodeView(node);
@@ -43,7 +43,7 @@ export function getNodeViews(config: EditorConfig): NodeViewsType {
 			return new CustomHtmlNodeView(node, view, getPos);
 		},
 		bookmark(node, view, getPos) {
-			return new BookmarkView(node);
+			return new BookmarkView(node, config.bookmark);
 		},
 		table(node, view, getPos) {
 			return new TableNodeView(node, view, getPos);

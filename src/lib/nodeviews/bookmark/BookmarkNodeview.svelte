@@ -1,29 +1,29 @@
 <script lang="ts">
 	import { IconMessage, Loader } from '@hyvor/design/components';
-	import EmbedHtmlDisplay from './EmbedHtmlDisplay.svelte';
-	import type { EditorConfig } from '$lib/config';
+	import BookmarkDisplay from './BookmarkDisplay.svelte';
+	import type { EditorConfig, BookmarkLink } from '$lib/config';
 
 	interface Props {
 		url: string;
-		fetchEmbed: EditorConfig['embed'];
+		fetchBookmark: EditorConfig['bookmark'];
 	}
 
-	let { url, fetchEmbed }: Props = $props();
+	let { url, fetchBookmark }: Props = $props();
 
 	let isLoading = $state(true);
-	let src: string | null = $state(null);
+	let link: BookmarkLink | null = $state(null);
 	let error: string | null = $state(null);
 
 	$effect(() => {
 		const currentUrl = url;
-		const fetcher = fetchEmbed;
+		const fetcher = fetchBookmark;
 
 		isLoading = true;
 		error = null;
-		src = null;
+		link = null;
 
 		if (!fetcher) {
-			error = 'Embeds are not configured';
+			error = 'Bookmarks are not configured';
 			isLoading = false;
 			return;
 		}
@@ -31,13 +31,13 @@
 		fetcher(currentUrl)
 			.then((result) => {
 				if (result) {
-					src = result;
+					link = result;
 				} else {
-					error = 'Failed to load embed';
+					error = 'Failed to load bookmark';
 				}
 			})
 			.catch(() => {
-				error = 'Failed to load embed';
+				error = 'Failed to load bookmark';
 			})
 			.finally(() => {
 				isLoading = false;
@@ -50,7 +50,7 @@
 		<Loader block padding={100} />
 	{:else if error}
 		<IconMessage error padding={60} message={error} iconSize={70} />
-	{:else if src}
-		<EmbedHtmlDisplay {src} />
+	{:else if link}
+		<BookmarkDisplay {link} />
 	{/if}
 </div>

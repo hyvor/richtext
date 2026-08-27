@@ -50,6 +50,11 @@ export interface EditorConfig {
     fileUploader?: (file: Blob, name: string | null, type: 'image' | 'audio') => Promise<{ url: string } | null>;
     fileMaxSizeInMB?: number; // default: 10
 
+    // return the iframe URL (preferably Unfold Iframe) or null if the URL cannot be embedded.
+    embed?: (url: string) => Promise<string | null>;
+    // return link preview data or null if the URL cannot be previewed.
+    bookmark?: (url: string) => Promise<BookmarkLink | null>;
+
     // Suggestions plugin config
     suggestions?: SuggestionsPluginConfig;
 
@@ -84,4 +89,14 @@ export interface ImageUploadResult {
     src: string;
     alt?: string;
     caption?: string; // HTML supported
+}
+
+export interface BookmarkLink {
+    url: string;
+    title: string | null;
+    description: string | null;
+    siteName: string | null;
+    siteUrl: string | null;
+    thumbnailUrl: string | null;
+    iconUrl: string | null;
 }

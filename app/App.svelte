@@ -179,6 +179,32 @@
 							url: URL.createObjectURL(blob)
 						};
 					},
+					embed: async (url) => {
+						const youtube = url.match(
+							/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/
+						);
+						if (youtube) {
+							return `https://www.youtube.com/embed/${youtube[1]}`;
+						}
+						return null;
+					},
+					bookmark: async (url) => {
+						let hostname = url;
+						try {
+							hostname = new URL(url).hostname;
+						} catch (_) {
+							// ignore
+						}
+						return {
+							url,
+							title: `Demo title for ${hostname}`,
+							description: 'This is a demo bookmark description returned by the host app.',
+							siteName: hostname,
+							siteUrl: url,
+							thumbnailUrl: null,
+							iconUrl: null
+						};
+					},
 					suggestions: {
 						author: currentAuthor,
 						mode: suggestionMode,
