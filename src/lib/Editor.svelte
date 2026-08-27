@@ -654,6 +654,7 @@
 
 	.pm-editor :global(.table-wrap .table-middle) {
 		overflow-x: auto;
+		overflow-y: hidden;
 	}
 
 	.pm-editor :global(table) {

@@ -114,13 +114,17 @@
 			node = pos.node(index);
 			if (node.type.name === 'table_row') {
 				const rowPos = pos.before(index);
+
+				const cells: Node[] = [];
+				node.forEach((cell) => {
+					cells.push(cell.type.createAndFill(cell.attrs)!);
+				});
+				const newRow = node.type.create(node.attrs, cells);
+
 				const tr = $editorStore.view.state.tr;
-				tr.replaceWith(
-					rowPos,
-					rowPos + node.nodeSize,
-					[] // TODO:
-					// schema.nodes.table_row!.createAndFill()!
-				).setSelection(TextSelection.create(tr.doc, rowPos));
+				tr.replaceWith(rowPos, rowPos + node.nodeSize, newRow).setSelection(
+					TextSelection.create(tr.doc, rowPos)
+				);
 				$editorStore.view.dispatch(tr);
 				return close();
 			}

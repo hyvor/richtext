@@ -1,6 +1,7 @@
 <script lang="ts">
 	import IconArrowLeft from '@hyvor/icons/IconArrowLeft';
 	import IconArrowRight from '@hyvor/icons/IconArrowRight';
+	import IconBackspace from '@hyvor/icons/IconBackspace';
 	import IconCardHeading from '@hyvor/icons/IconCardHeading';
 	import IconThreeDots from '@hyvor/icons/IconThreeDots';
 	import IconTrash from '@hyvor/icons/IconTrash';
@@ -119,25 +120,21 @@
 	}
 
 	function handleClearContent() {
-		// TODO: This function is not working properly.
-		// So, the button is disabled for now
-
 		function findColumnIndex() {
 			let domNode = $editorStore.view.domAtPos($editorStore.view.state.selection.$anchor.pos).node;
 			if (domNode.nodeType === 3) domNode = domNode.parentNode!;
 			if (domNode instanceof HTMLElement) {
 				const td = domNode.closest('td, th');
-				if (!td) return;
+				if (!td) return null;
 				const tr = td.closest('tr');
-				if (!tr) return;
-				const columnIndex = Array.from(tr.children).indexOf(td);
-				return columnIndex;
+				if (!tr) return null;
+				return Array.from(tr.children).indexOf(td);
 			}
 
 			return null;
 		}
 
-		let columnIndex = findColumnIndex();
+		const columnIndex = findColumnIndex();
 		if (columnIndex === null) return;
 
 		const pos = $editorStore.view.state.selection.$anchor;
@@ -156,26 +153,22 @@
 
 		const tablePos = pos.before(index);
 
-		const tr = $editorStore.view.state.tr;
-		table.descendants((row, pos) => {
-			if (row.type.name !== 'table_row') return;
-			const rowPos = tablePos + pos;
-
-			//console.log(rowPos, pos);
-
-			row.descendants((cell, pos, _, cellIndex) => {
-				if (cell.type.name !== 'table_cell') return;
-				if (cellIndex === columnIndex) {
-					const cellPos = rowPos + pos;
-					tr.replaceWith(
-						cellPos,
-						cellPos + cell.nodeSize,
-						$editorStore.view.state.schema.nodes.table_cell!.createAndFill()!
-					);
-				}
+		const newRows: Node[] = [];
+		table.forEach((row) => {
+			if (row.type.name !== 'table_row') {
+				newRows.push(row);
+				return;
+			}
+			const cells: Node[] = [];
+			row.forEach((cell, _offset, cellIndex) => {
+				cells.push(cellIndex === columnIndex ? cell.type.createAndFill(cell.attrs)! : cell);
 			});
+			newRows.push(row.type.create(row.attrs, cells));
 		});
+		const newTable = table.type.create(table.attrs, newRows);
 
+		const tr = $editorStore.view.state.tr;
+		tr.replaceWith(tablePos, tablePos + table.nodeSize, newTable);
 		$editorStore.view.dispatch(tr);
 
 		close();
@@ -223,10 +216,12 @@
 					{/snippet}
 					Delete column
 				</ActionListItem>
-				<!-- <ActionListItem on:click={handleClearContent}>
-                    <IconBackspace slot="start" />
-                    Clear content
-                </ActionListItem> -->
+				<ActionListItem on:click={handleClearContent}>
+					{#snippet start()}
+						<IconBackspace />
+					{/snippet}
+					Clear content
+				</ActionListItem>
 			</ActionList>
 		{/snippet}
 	</Dropdown>
