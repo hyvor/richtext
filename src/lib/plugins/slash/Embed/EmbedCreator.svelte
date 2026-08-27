@@ -1,16 +1,19 @@
 <script lang="ts">
 	import { Loader, Modal, TextInput, Button, Validation } from '@hyvor/design/components';
 	import IconArrowReturnLeft from '@hyvor/icons/IconArrowReturnLeft';
-	import EmbedHtmlDisplay from './EmbedHtmlDisplay.svelte';
+	import EmbedHtmlDisplay from '../../../nodeviews/embed/EmbedHtmlDisplay.svelte';
+	import { isValidUrl } from '../../../helpers';
+	import type { EditorConfig } from '$lib/config';
 
 	interface Props {
+		fetchEmbed: NonNullable<EditorConfig['embed']>;
 		onclose: () => void;
 		oncreate: (url: string) => void;
-		oncreatebookmark: (url: string) => void;
-		oncreatehtmlblock: (url: string) => void;
+		oncreatebookmark?: (url: string) => void;
+		oncreatehtmlblock?: (url: string) => void;
 	}
 
-	let { onclose, oncreate, oncreatebookmark, oncreatehtmlblock }: Props = $props();
+	let { fetchEmbed, onclose, oncreate, oncreatebookmark, oncreatehtmlblock }: Props = $props();
 
 	let show = $state(true);
 	let url = $state('');
@@ -24,50 +27,48 @@
 		}
 	});
 
-	let urlData: any = null;
-
 	let isFetching = $state(false);
 	let error: null | string = $state(null);
 	let embedFailed = $state(false);
+	let embedSrc: string | null = $state(null);
 
-	// let urlData: null | UnfoldedEmbed = $state(null);
+	async function handleFetch() {
+		if (!inputStarted) {
+			return;
+		}
 
-	function handleFetch() {
-		return; // TODO: fix this
+		error = null;
+		embedSrc = null;
+		embedFailed = false;
 
-		/* if (!inputStarted) {
-      return;
-    }
+		if (url.trim() === '') {
+			error = 'URL is required';
+			inputEl?.focus();
+			return;
+		}
 
-    error = null;
-    urlData = null;
-    embedFailed = false;
+		if (!isValidUrl(url)) {
+			error = 'Invalid URL';
+			inputEl?.focus();
+			return;
+		}
 
-    if (url.trim() === "") {
-      error = "URL is required";
-      inputEl?.focus();
-      return;
-    }
+		isFetching = true;
 
-    if (!isValidUrl(url)) {
-      error = "Invalid URL";
-      inputEl?.focus();
-      return;
-    }
-
-    isFetching = true;
-
-    getUnfold(url, "embed")
-      .then((data) => {
-        urlData = data;
-      })
-      .catch((_) => {
-        error = "Failed to embed this URL";
-        embedFailed = true;
-      })
-      .finally(() => {
-        isFetching = false;
-      }); */
+		try {
+			const result = await fetchEmbed(url);
+			if (result) {
+				embedSrc = result;
+			} else {
+				error = "Failed to embed this URL";
+				embedFailed = true;
+			}
+		} catch (_) {
+			error = 'Failed to embed this URL';
+			embedFailed = true;
+		} finally {
+			isFetching = false;
+		}
 	}
 
 	function handleCreate() {
@@ -75,11 +76,11 @@
 	}
 
 	function handleCreateBookmark(): void {
-		oncreatebookmark(url);
+		oncreatebookmark?.(url);
 	}
 
 	function handleCreateHtmlBlock(): void {
-		oncreatehtmlblock(url);
+		oncreatehtmlblock?.(url);
 	}
 </script>
 
@@ -87,7 +88,7 @@
 	bind:show
 	title="Create Embed"
 	footer={{
-		confirm: urlData
+		confirm: embedSrc
 			? {
 					text: 'Create Embed'
 				}
@@ -130,17 +131,29 @@
 		</div>
 	{/if}
 
-	{#if embedFailed}
+	{#if embedFailed && (oncreatebookmark || oncreatehtmlblock)}
 		<div class="link-alternatives">
-			We couldn't convert this URL to an embed. You can add a link bookmark to preview the URL or
-			create a custom HTML block and paste the embed code manually.
+			We couldn't convert this URL to an embed.
+			{#if oncreatebookmark}
+				You can add a link bookmark to preview the URL
+			{/if}
+			{#if oncreatebookmark && oncreatehtmlblock}
+				or
+			{/if}
+			{#if oncreatehtmlblock}
+				create a custom HTML block and paste the embed code manually.
+			{/if}
 			<div class="alternatives-button">
-				<Button variant="outline" color="gray" size="small" on:click={handleCreateBookmark}
-					>Create Link Bookmark
-				</Button>
-				<Button variant="outline" color="gray" size="small" on:click={handleCreateHtmlBlock}
-					>Create Custom HTML
-				</Button>
+				{#if oncreatebookmark}
+					<Button variant="outline" color="gray" size="small" on:click={handleCreateBookmark}
+						>Create Link Bookmark
+					</Button>
+				{/if}
+				{#if oncreatehtmlblock}
+					<Button variant="outline" color="gray" size="small" on:click={handleCreateHtmlBlock}
+						>Create Custom HTML
+					</Button>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -149,9 +162,9 @@
 		<Loader block padding={50} />
 	{/if}
 
-	{#if urlData}
+	{#if embedSrc}
 		<div class="display">
-			<EmbedHtmlDisplay url={urlData.url} />
+			<EmbedHtmlDisplay src={embedSrc} />
 		</div>
 	{/if}
 </Modal>

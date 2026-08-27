@@ -1,5 +1,5 @@
 import type { Node, Schema } from 'prosemirror-model';
-import { type Component } from 'svelte';
+import { type Component, mount, unmount } from 'svelte';
 import IconBookmark from '@hyvor/icons/IconBookmark';
 import IconCardImage from '@hyvor/icons/IconCardImage';
 import IconCode from '@hyvor/icons/IconCode';
@@ -114,7 +114,7 @@ export function getOptions(view: EditorView, config: EditorConfig): SlashOption[
 		})
 	}
 
-	if (schema.nodes.embed) {
+	if (schema.nodes.embed && config.embed) {
 		options.push({
 			name: 'Embed',
 			description: 'Embed content from YouTube, Twitter, etc.',
@@ -130,17 +130,17 @@ export function getOptions(view: EditorView, config: EditorConfig): SlashOption[
 				'reddit',
 				'github'
 			],
-			node: async () => null, // TODO
+			node: () => createEmbed(schema, config),
 		});
 	}
 
-	if (schema.nodes.bookmark) {
+	if (schema.nodes.bookmark && config.bookmark) {
 		options.push({
 			name: 'Link Bookmark',
 			description: 'Link preview as a bookmark',
 			icon: IconBookmark,
 			keywords: ['bookmark', 'link'],
-			node: async () => null // TODO:
+			node: () => createBookmark(schema, config.bookmark!)
 		});
 	}
 
@@ -211,81 +211,77 @@ function createQuote(schema: Schema) {
 	return Promise.resolve(schema.nodes.blockquote!.create({}, [schema.nodes.paragraph!.create()]));
 }
 
-// function createEmbed() {
-// 	return new Promise<Node | null>((resolve) => {
-// 		const div = document.createElement('div');
-// 		document.body.appendChild(div);
+function createEmbed(schema: Schema, config: EditorConfig) {
+	return new Promise<Node | null>((resolve) => {
+		const div = document.createElement('div');
+		document.body.appendChild(div);
 
-// 		const creator = mount(EmbedCreator, {
-// 			target: div,
-// 			props: {
-// 				onclose: () => {
-// 					destroy();
-// 					resolve(null);
-// 				},
-// 				oncreate: (url: string) => {
-// 					destroy();
-// 					resolve(
-// 						schema.nodes.figure!.create({}, [
-// 							schema.nodes.embed!.create({ url }),
-// 							schema.nodes.figcaption!.create()
-// 						])
-// 					);
-// 				},
-// 				oncreatebookmark: (url: string) => {
-// 					destroy();
-// 					resolve(
-// 						schema.nodes.figure!.create({}, [
-// 							schema.nodes.bookmark!.create({ url: url }),
-// 							schema.nodes.figcaption!.create()
-// 						])
-// 					);
-// 				},
-// 				oncreatehtmlblock: (html: string) => {
-// 					destroy();
-// 					resolve(schema.nodes.custom_html!.create({ html }));
-// 				}
-// 			}
-// 		});
+		const creator = mount(EmbedCreator, {
+			target: div,
+			props: {
+				fetchEmbed: config.embed!,
+				onclose: () => {
+					destroy();
+					resolve(null);
+				},
+				oncreate: (url: string) => {
+					destroy();
+					resolve(
+						schema.nodes.figure!.create({}, [
+							schema.nodes.embed!.create({ url }),
+							schema.nodes.figcaption!.create()
+						])
+					);
+				},
+				oncreatebookmark: schema.nodes.bookmark && config.bookmark
+					? (url: string) => {
+						destroy();
+						resolve(schema.nodes.bookmark!.create({ url }));
+					}
+					: undefined,
+				oncreatehtmlblock: schema.nodes.custom_html
+					? (html: string) => {
+						destroy();
+						resolve(schema.nodes.custom_html!.create({ html }));
+					}
+					: undefined
+			}
+		});
 
-// 		function destroy() {
-// 			unmount(creator);
-// 			div.remove();
-// 		}
-// 	});
-// }
+		function destroy() {
+			unmount(creator);
+			div.remove();
+		}
+	});
+}
 
-// function createBookmark(url: string = '') {
-// 	return new Promise<Node | null>((resolve) => {
-// 		const div = document.createElement('div');
-// 		document.body.appendChild(div);
+function createBookmark(schema: Schema, fetchBookmark: NonNullable<EditorConfig['bookmark']>, url: string = '') {
+	return new Promise<Node | null>((resolve) => {
+		const div = document.createElement('div');
+		document.body.appendChild(div);
 
-// 		const creator = mount(BookmarkCreator, {
-// 			target: div,
-// 			props: {
-// 				url,
-// 				onclose: () => {
-// 					destroy();
-// 					resolve(null);
-// 				},
-// 				oncreate: (url: string) => {
-// 					destroy();
-// 					resolve(
-// 						schema.nodes.figure!.create({}, [
-// 							schema.nodes.bookmark!.create({ url }),
-// 							schema.nodes.figcaption!.create()
-// 						])
-// 					);
-// 				}
-// 			}
-// 		});
+		const creator = mount(BookmarkCreator, {
+			target: div,
+			props: {
+				url,
+				fetchBookmark,
+				onclose: () => {
+					destroy();
+					resolve(null);
+				},
+				oncreate: (url: string) => {
+					destroy();
+					resolve(schema.nodes.bookmark!.create({ url }));
+				}
+			}
+		});
 
-// 		function destroy() {
-// 			unmount(creator);
-// 			div.remove();
-// 		}
-// 	});
-// }
+		function destroy() {
+			unmount(creator);
+			div.remove();
+		}
+	});
+}
 
 function createTable(schema: Schema, rowCount = 3, colCount = 3) {
 	const headerRow = schema.nodes.table_row!.create(

@@ -1,11 +1,9 @@
 <script lang="ts">
 	import { getHostname } from 'tldts';
-	// import type { UnfoldedLink } from '../../../../../routes/console/lib/types';
-
-	type UnfoldedLink = any; // TODO replace with actual type
+	import type { BookmarkLink } from '$lib/config';
 
 	interface Props {
-		link: UnfoldedLink;
+		link: BookmarkLink;
 	}
 
 	let { link }: Props = $props();
