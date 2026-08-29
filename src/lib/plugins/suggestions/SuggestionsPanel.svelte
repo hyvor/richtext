@@ -15,6 +15,7 @@
 		resolveComment,
 		getResolveAuthor,
 		getCurrentAuthor,
+		isCommentingDisabled,
 		type SuggestionItem,
 		type SuggestionReply,
 		type Author,
@@ -63,6 +64,11 @@
 	let items: SuggestionItem[] = $derived.by(() => {
 		updateId;
 		return getSuggestions(view.state);
+	});
+
+	let commentingDisabled = $derived.by(() => {
+		updateId;
+		return isCommentingDisabled(view.state);
 	});
 
 	// comments aren't "suggestions" for accept-all purposes (acceptAllSuggestions
@@ -551,7 +557,7 @@
 							{/each}
 						</div>
 
-						{#if item.id === activeId}
+						{#if item.id === activeId && !commentingDisabled}
 							<div class="reply-row" transition:slide={{ duration: 150 }}>
 								<TextInput
 									type="text"

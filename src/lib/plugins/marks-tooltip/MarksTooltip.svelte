@@ -18,6 +18,7 @@
 	import LinkSelector from './LinkSelector/LinkSelector.svelte';
 	import { markExtend } from './mark-helpers';
 	import { suggestionsPluginKey } from '../suggestions/plugin-suggestions';
+	import { isCommentingDisabled } from '../suggestions/commands';
 	import CommentInput from '../suggestions/CommentInput.svelte';
 
 	interface Props {
@@ -32,7 +33,10 @@
 	let linkSelectorOpen = $state(false);
 	let commentInputOpen = $state(false);
 
-	let commentsAvailable = $derived(!!suggestionsPluginKey.getState(view.state));
+	let commentsAvailable = $derived.by(() => {
+		updateId;
+		return !!suggestionsPluginKey.getState(view.state) && !isCommentingDisabled(view.state);
+	});
 
 	function getLink(_: number): Mark | null {
 		const sel = view.state.selection;

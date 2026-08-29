@@ -1,6 +1,7 @@
 import { EditorState, NodeSelection, Plugin, type PluginView } from "prosemirror-state"
 import type { EditorView } from "prosemirror-view";
 import MarksTooltip from "./MarksTooltip.svelte";
+import { suggestionsPluginKey } from "../suggestions/plugin-suggestions";
 import  { mount } from "svelte";
 
 
@@ -45,10 +46,14 @@ class MarksTooltipPlugin implements PluginView {
 
         const state = view.state
 
+        const lastDisableCommenting = lastState && suggestionsPluginKey.getState(lastState)?.disableCommenting;
+        const newDisableCommenting = suggestionsPluginKey.getState(state)?.disableCommenting;
+
         if (
-            lastState && 
+            lastState &&
             lastState.doc.eq(state.doc) &&
-            lastState.selection.eq(state.selection)
+            lastState.selection.eq(state.selection) &&
+            lastDisableCommenting === newDisableCommenting
         ) return
 
         if (
