@@ -153,6 +153,11 @@ export interface SuggestionsPluginState {
     author: Author;
     resolveAuthor: (author: Author) => AuthorInfo | Promise<AuthorInfo>;
     source: SuggestionSource;
+    // when true, the host disallows creating new comments and replying to
+    // any suggestion/comment thread 
+    // existing threads/suggestions are still
+    // shown and can still be accepted/rejected/resolved.
+    disableCommenting: boolean;
     // key absent = never asked the host; null = asked, host has no record
     // (never retried); otherwise the resolved {author, comments}.
     cache: Record<string, SuggestionSourceEntry | null | undefined>;
@@ -174,6 +179,11 @@ export interface SuggestionsPluginConfig {
     // SuggestionSource. Required, same as resolveAuthor: without it the
     // plugin has nowhere to store or read identity/content data at all.
     source: SuggestionSource;
+    // when true, hides the "Comment" action (NodeMenu/MarksTooltip) and the
+    // suggestions panel's reply input, and rejects addComment/replyToSuggestion
+    // - the panel and its existing threads otherwise still work as normal.
+    // Default false.
+    disableCommenting?: boolean;
 }
 
 export const suggestionsPluginKey = new PluginKey<SuggestionsPluginState>("suggestions");
@@ -250,6 +260,7 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
                     author: config.author,
                     resolveAuthor: config.resolveAuthor,
                     source: config.source,
+                    disableCommenting: config.disableCommenting ?? false,
                     cache: {},
                     pendingEvents: []
                 };

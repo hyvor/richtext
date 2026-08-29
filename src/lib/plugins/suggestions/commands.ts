@@ -74,6 +74,14 @@ export function setCurrentAuthor(view: EditorView, author: Author) {
     view.dispatch(view.state.tr.setMeta(suggestionsPluginKey, { author }));
 }
 
+export function isCommentingDisabled(state: EditorState): boolean {
+    return suggestionsPluginKey.getState(state)?.disableCommenting ?? false;
+}
+
+export function setCommentingDisabled(view: EditorView, disableCommenting: boolean) {
+    view.dispatch(view.state.tr.setMeta(suggestionsPluginKey, { disableCommenting }));
+}
+
 // Turns an Author id into a display name/picture - see resolveAuthor in
 // SuggestionsPluginConfig. Callers (the panel) should cache results
 // themselves, since this may hit the network on every call.
@@ -360,7 +368,7 @@ export function setNodeAttrs(view: EditorView, pos: number, attrs: Record<string
 export function addComment(view: EditorView, text: string): SuggestionItem | null {
     const { state, dispatch } = view;
     const pluginState = suggestionsPluginKey.getState(state);
-    if (!pluginState) return null;
+    if (!pluginState || pluginState.disableCommenting) return null;
 
     const sel = state.selection;
     if (sel.empty) return null;
@@ -414,7 +422,7 @@ export function addComment(view: EditorView, text: string): SuggestionItem | nul
 export function replyToSuggestion(view: EditorView, id: string, text: string): SuggestionReply | null {
     const { state, dispatch } = view;
     const pluginState = suggestionsPluginKey.getState(state);
-    if (!pluginState) return null;
+    if (!pluginState || pluginState.disableCommenting) return null;
 
     // the thread must still exist in the doc (mark/node-attr with this id)
     if (!getSuggestions(state).some(item => item.id === id)) return null;

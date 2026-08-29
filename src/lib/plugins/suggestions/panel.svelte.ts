@@ -51,14 +51,15 @@ export class SuggestionsPanelView implements PluginView {
         const editableChanged = view.editable !== this.lastEditable;
         this.lastEditable = view.editable;
 
-        const lastCache = lastState && suggestionsPluginKey.getState(lastState)?.cache;
-        const newCache = suggestionsPluginKey.getState(view.state)?.cache;
+        const lastPluginState = lastState && suggestionsPluginKey.getState(lastState);
+        const newPluginState = suggestionsPluginKey.getState(view.state);
         if (
             !editableChanged &&
             lastState &&
             lastState.doc.eq(view.state.doc) &&
             lastState.selection.eq(view.state.selection) &&
-            lastCache === newCache
+            lastPluginState?.cache === newPluginState?.cache &&
+            lastPluginState?.disableCommenting === newPluginState?.disableCommenting
         ) return;
         this.props.updateId++;
     }

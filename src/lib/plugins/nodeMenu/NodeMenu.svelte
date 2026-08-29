@@ -14,6 +14,7 @@
 	import IconChatRight from '@hyvor/icons/IconChatRight';
 	import { deleteNode, moveNode, nodeMenuPos, topLevelBlockPosAt } from './node-menu';
 	import { suggestionsPluginKey } from '../suggestions/plugin-suggestions';
+	import { isCommentingDisabled } from '../suggestions/commands';
 	import CommentInput from '../suggestions/CommentInput.svelte';
 
 	interface Props {
@@ -322,7 +323,7 @@
 				/>
 			{:else}
 				<ActionList>
-					{#if commentsAvailable}
+					{#if commentsAvailable && !isCommentingDisabled(view.state)}
 						<ActionListItem on:click={onComment}>
 							{#snippet start()}
 								<IconChatRight size={14} />
@@ -360,7 +361,7 @@
 <style>
 	.wrap {
 		position: fixed;
-		z-index: 1000;
+		z-index: 900;
 		opacity: 0;
 		pointer-events: none;
 		transition: opacity 0.15s ease;
@@ -374,7 +375,7 @@
 		position: fixed;
 		top: 0;
 		left: 0;
-		z-index: 1000;
+		z-index: 900;
 		display: block;
 		pointer-events: none;
 		opacity: 0.85;
@@ -394,7 +395,7 @@
 
 	.drop-line {
 		position: fixed;
-		z-index: 1000;
+		z-index: 900;
 		display: none;
 		height: 3px;
 		border-radius: 3px;

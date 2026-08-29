@@ -193,7 +193,7 @@ function getNodes(config: SchemaConfig): Record<string, NodeSpec> {
                 attrs: {
                     url: { default: null }
                 },
-                selectable: true,
+                selectable: false,
                 draggable: false,
                 parseDOM: [{
                     tag: "x-embed[data-url]",
