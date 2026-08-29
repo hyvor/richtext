@@ -8,6 +8,8 @@
 		Tooltip
 	} from '@hyvor/design/components';
 	import IconTrash from '@hyvor/icons/IconTrash';
+	import IconImage from '@hyvor/icons/IconImage';
+	import IconSoundwave from '@hyvor/icons/IconSoundwave';
 	import type { EditorView } from 'prosemirror-view';
 	import { NodeSelection } from 'prosemirror-state';
 	import IconGripVertical from '@hyvor/icons/IconGripVertical';
@@ -16,12 +18,48 @@
 	import { suggestionsPluginKey } from '../suggestions/plugin-suggestions';
 	import { isCommentingDisabled } from '../suggestions/commands';
 	import CommentInput from '../suggestions/CommentInput.svelte';
+	import type { EditorConfig } from '$lib/config';
+	import { uploadImage, applyChangedImage } from '../../nodeviews/image/image-upload';
+	import { uploadAudio, applyChangedAudio } from '../../nodeviews/audio/audio-upload';
 
 	interface Props {
 		view: EditorView;
+		fileUploader: EditorConfig['fileUploader'];
+		fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'];
 	}
 
-	let { view }: Props = $props();
+	let { view, fileUploader, fileMaxSizeInMB }: Props = $props();
+
+	// the top-level node at $nodeMenuPos, when it's a figure wrapping an image
+	// (returns the image's own doc position) or a bare audio node (returns its
+	// own position) - null otherwise, or when there's no uploader configured
+	function changeableMediaPos(): { kind: 'image' | 'audio'; pos: number } | null {
+		if (!fileUploader) return null;
+		if ($nodeMenuPos === null) return null;
+		const node = view.state.doc.nodeAt($nodeMenuPos);
+		if (!node) return null;
+		if (node.type.name === 'audio') return { kind: 'audio', pos: $nodeMenuPos };
+		if (node.type.name === 'figure' && node.firstChild?.type.name === 'image') {
+			return { kind: 'image', pos: $nodeMenuPos + 1 };
+		}
+		return null;
+	}
+
+	async function onChangeMedia() {
+		const target = changeableMediaPos();
+		if (!target) return;
+		show = false;
+
+		if (target.kind === 'image') {
+			const image = await uploadImage(fileUploader, fileMaxSizeInMB);
+			if (!image) return;
+			applyChangedImage(view, target.pos, image);
+		} else {
+			const audio = await uploadAudio(fileUploader, fileMaxSizeInMB);
+			if (!audio) return;
+			applyChangedAudio(view, target.pos, audio.url);
+		}
+	}
 
 	let show = $state(false);
 	let commentInputOpen = $state(false);
@@ -323,6 +361,19 @@
 				/>
 			{:else}
 				<ActionList>
+					{#if changeableMediaPos()}
+						{@const kind = changeableMediaPos()?.kind}
+						<ActionListItem on:click={onChangeMedia}>
+							{#snippet start()}
+								{#if kind === 'audio'}
+									<IconSoundwave size={14} />
+								{:else}
+									<IconImage size={14} />
+								{/if}
+							{/snippet}
+							Change {kind}
+						</ActionListItem>
+					{/if}
 					{#if commentsAvailable && !isCommentingDisabled(view.state)}
 						<ActionListItem on:click={onComment}>
 							{#snippet start()}
