@@ -3,10 +3,11 @@ import type { EditorView } from "prosemirror-view";
 import { mount, unmount } from "svelte";
 import NodeMenu from "./NodeMenu.svelte";
 import { nodeMenuPos, topLevelBlockPosAt } from "./node-menu";
+import type { EditorConfig } from "$lib/config";
 
-export default function nodeMenuPlugin() {
+export default function nodeMenuPlugin(config: EditorConfig) {
     return new Plugin({
-        view(editorView) { return new NodeMenuPluginView(editorView) }
+        view(editorView) { return new NodeMenuPluginView(editorView, config) }
     })
 }
 
@@ -16,7 +17,7 @@ export class NodeMenuPluginView implements PluginView {
     private wrap: HTMLElement;
     private component: object;
 
-    constructor(view: EditorView) {
+    constructor(view: EditorView, config: EditorConfig) {
         this.view = view;
         this.container = view.dom.parentNode as HTMLElement;
 
@@ -32,6 +33,8 @@ export class NodeMenuPluginView implements PluginView {
             target: this.wrap,
             props: {
                 view: this.view,
+                fileUploader: config.fileUploader,
+                fileMaxSizeInMB: config.fileMaxSizeInMB,
             }
         });
     }

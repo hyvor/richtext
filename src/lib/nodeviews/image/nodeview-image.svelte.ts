@@ -37,6 +37,12 @@ export default class ImageView implements NodeView {
 
         this.dom = document.createElement('div');
         this.dom.className = 'image-wrap';
+        // centers the node view's own (content-sized) root within the full
+        // figure width, so the left/right resize handles grow/shrink the
+        // image symmetrically around its center instead of drifting - see
+        // ImageNodeview.svelte's startResize()
+        this.dom.style.display = 'flex';
+        this.dom.style.justifyContent = 'center';
 
         this.setPropsFromNode(node);
 
@@ -70,7 +76,7 @@ export default class ImageView implements NodeView {
 
 
     stopEvent(e: Event) {
-        if (e.target instanceof HTMLElement && e.target.closest('.image-node-wrap .top')) {
+        if (e.target instanceof HTMLElement && e.target.closest('.alt-badge, .resize-handle')) {
             return true;
         }
         return false;

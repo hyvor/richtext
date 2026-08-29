@@ -1,6 +1,9 @@
 import type { EditorConfig, ImageUploadResult } from "$lib/config";
 import { uploadFile } from "@hyvor/design/components";
 import { DOMParser, type Schema } from "prosemirror-model";
+import { NodeSelection } from "prosemirror-state";
+import type { EditorView } from "prosemirror-view";
+import { setNodeAttrs } from "../../plugins/suggestions/commands";
 
 export async function uploadImage(fileUploader: EditorConfig['fileUploader'], fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB']) {
     const image = await uploadFile({
@@ -62,4 +65,33 @@ export function getFigureNode(
             result.caption ? getCaptionText(result.caption) : []
         )
     ]);
+}
+
+/**
+ * Swaps an existing image node's src/alt for a freshly uploaded one (and, if
+ * the upload came with a caption, replaces the figure's figcaption content
+ * too) - shared by ImageNodeview's own change flow and the node menu's
+ * "Change image" action, which only has the image's doc position to work
+ * with (no NodeView getPos()).
+ */
+export function applyChangedImage(view: EditorView, imagePos: number, image: ImageUploadResult) {
+    const node = view.state.doc.nodeAt(imagePos);
+    if (!node) return;
+
+    setNodeAttrs(view, imagePos, {
+        ...node.attrs,
+        src: image.src,
+        alt: image.alt || ''
+    });
+
+    if (image.caption) {
+        const schema = view.state.schema;
+        const nodeSel = NodeSelection.create(view.state.doc, imagePos + 1);
+
+        const tr = view.state.tr;
+        const newFigcaption = getFigureNode(schema, image).content.content[1];
+        tr.replaceWith(nodeSel.from, nodeSel.to, newFigcaption);
+
+        view.dispatch(tr);
+    }
 }
