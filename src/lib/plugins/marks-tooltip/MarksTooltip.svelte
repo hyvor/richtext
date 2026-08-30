@@ -18,7 +18,7 @@
 	import LinkSelector from './LinkSelector/LinkSelector.svelte';
 	import { markExtend } from './mark-helpers';
 	import { suggestionsPluginKey } from '../suggestions/plugin-suggestions';
-	import { isCommentingDisabled } from '../suggestions/commands';
+	import { isCommentingDisabled, resolveComment } from '../suggestions/commands';
 	import CommentInput from '../suggestions/CommentInput.svelte';
 
 	interface Props {
@@ -51,6 +51,38 @@
 	}
 
 	let link = $derived(getLink(updateId));
+
+	// comment marks (type "comment" of the suggestion mark) overlapping the
+	// selection - several independent comment threads can stack on the same
+	// range (see withNodeSuggestion), so this collects all of them, not just one
+	function getComments(_: number): Mark[] {
+		const sel = view.state.selection;
+		const suggestionType = view.state.schema.marks.suggestion;
+		if (!suggestionType) return [];
+		const found = new Map<string, Mark>();
+		view.state.doc.nodesBetween(sel.from, sel.to, (node) => {
+			if (!node.isInline) return;
+			for (const mark of node.marks) {
+				if (mark.type === suggestionType && mark.attrs.type === 'comment') {
+					found.set(mark.attrs.id, mark);
+				}
+			}
+		});
+		return [...found.values()];
+	}
+
+	let comments = $derived(getComments(updateId));
+
+	function getCommentPreview(id: string): string {
+		const cache = suggestionsPluginKey.getState(view.state)?.cache;
+		const content = cache?.[id]?.comments[0]?.content;
+		return content ? getTrimmedText(content) : 'Comment';
+	}
+
+	function deleteComment(id: string) {
+		resolveComment(view, id);
+		view.focus();
+	}
 
 	function updatePosition() {
 		if (!tooltip) return;
@@ -138,12 +170,12 @@
 		show = true;
 	}
 
-	function getTrimmedLink(link: string) {
+	function getTrimmedText(text: string) {
 		const limit = 100;
-		if (link.length > limit) {
-			return link.slice(0, limit) + '...';
+		if (text.length > limit) {
+			return text.slice(0, limit) + '...';
 		}
-		return link;
+		return text;
 	}
 
 	function deleteLink() {
@@ -179,7 +211,7 @@
 			{#if link}
 				<div class="link-row">
 					<a class="link" target="_blank" rel="noopener noreferrer" href={link.attrs.href}>
-						{getTrimmedLink(link.attrs.href)}
+						{getTrimmedText(link.attrs.href)}
 						<IconBoxArrowUpRight size={12} />
 					</a>
 					<span class="link-actions">
@@ -192,6 +224,20 @@
 					</span>
 				</div>
 			{/if}
+
+			{#each comments as comment (comment.attrs.id)}
+				<div class="link-row">
+					<span class="comment-preview">
+						<IconChatRight size={12} />
+						{getCommentPreview(comment.attrs.id)}
+					</span>
+					<span class="link-actions">
+						<IconButton color="input" size={20} on:click={() => deleteComment(comment.attrs.id)}>
+							<IconTrash size={10} />
+						</IconButton>
+					</span>
+				</div>
+			{/each}
 
 			{#if commentInputOpen}
 				<div transition:slide={{ duration: 150, axis: 'x' }}>
@@ -285,6 +331,21 @@
 
 	.link:hover {
 		text-decoration: underline !important;
+	}
+
+	.comment-preview {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		color: var(--text-light);
+		font-size: 14px;
+		padding-right: 8px;
+		margin-right: 8px;
+		border-right: 1px solid var(--border);
+		max-width: 250px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.buttons-row {

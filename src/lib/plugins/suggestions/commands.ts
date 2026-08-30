@@ -467,6 +467,15 @@ export function deleteSuggestionReply(view: EditorView, id: string, replyId: str
     const pluginState = suggestionsPluginKey.getState(state);
     if (!pluginState) return;
 
+    // deleting a comment thread's only remaining reply leaves nothing to
+    // discuss - resolve the thread outright so its mark doesn't linger in the
+    // document with no comments left to show for it (fixes #44)
+    const item = getSuggestions(state).find(i => i.id === id);
+    if (item?.type === "comment" && item.comments.length <= 1) {
+        resolveComment(view, id);
+        return;
+    }
+
     dispatch(state.tr.setMeta(suggestionsPluginKey, {
         events: [{ kind: "deleteReply", id, replyId } satisfies SuggestionEvent]
     }));
