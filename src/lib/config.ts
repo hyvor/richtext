@@ -50,6 +50,15 @@ export interface EditorConfig {
     fileUploader?: (file: Blob, name: string | null, type: 'image' | 'audio') => Promise<{ url: string } | null>;
     fileMaxSizeInMB?: number; // default: 10
 
+    image: {
+        // Shown as a small note on an image when its actual size is larger
+        // than the width it's being displayed at in the editor (the browser
+        // caps the preview to the editor's column width, so this tells the
+        // user their image is really bigger than what they see here).
+        // Override for i18n or a different wording.
+        oversizedNoteText: string;
+    };
+
     // return the iframe URL (preferably Unfold Iframe) or null if the URL cannot be embedded.
     embed?: (url: string) => Promise<string | null>;
     // return link preview data or null if the URL cannot be previewed.
@@ -82,6 +91,10 @@ export const defaultEditorConfig: EditorConfig = {
         annotations: true,
         annotationsUrl: null,
         fileName: true,
+    },
+
+    image: {
+        oversizedNoteText: 'Image size is larger than the image preview in the editor.',
     },
 };
 

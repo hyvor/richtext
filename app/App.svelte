@@ -179,6 +179,10 @@
 							url: URL.createObjectURL(blob)
 						};
 					},
+					image: {
+					oversizedNoteText:
+						'Image size is larger than the image preview in the editor. See the post preview for a better idea of how the image will look in the final post.'
+				},
 					embed: async (url) => {
 						const youtube = url.match(
 							/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/

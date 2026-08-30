@@ -2,6 +2,8 @@
 	import type { EditorView } from 'prosemirror-view';
 	import type { EditorConfig } from '$lib/config';
 	import { setNodeAttrs } from '../../plugins/suggestions/commands';
+	import IconExclamationTriangleFill from '@hyvor/icons/IconExclamationTriangleFill';
+	import IconInfoCircleFill from '@hyvor/icons/IconInfoCircleFill';
 
 	interface Props {
 		src: string | null;
@@ -11,16 +13,40 @@
 		getPos: () => number | undefined;
 		fileUploader: EditorConfig['fileUploader'];
 		fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'];
+		oversizedNoteText: EditorConfig['image']['oversizedNoteText'];
 		view: EditorView;
 	}
 
-	let { src, alt, width, height, getPos, view }: Props = $props();
+	let { src, alt, width, height, getPos, view, oversizedNoteText }: Props = $props();
 
 	let imgEl: HTMLImageElement | undefined = $state();
 	// bumped by the img's onload - naturalWidth/naturalHeight are plain DOM
 	// properties, so aspectRatio below needs something reactive to key off of
 	// to recompute once the image has actually finished loading
 	let imgLoaded = $state(false);
+	// the image's rendered (on-screen) width - kept in sync via ResizeObserver
+	// since it changes not just on load but whenever the editor column itself
+	// resizes (browser resize, host page layout change, ...)
+	let renderedWidth = $state(0);
+
+	$effect(() => {
+		if (!imgEl) return;
+		const el = imgEl;
+		const observer = new ResizeObserver(() => {
+			renderedWidth = el.clientWidth;
+		});
+		observer.observe(el);
+		return () => observer.disconnect();
+	});
+
+	// the image's real/target width - what it would render at if the editor
+	// column were wide enough - vs. isOversized, whether the browser is
+	// actually capping it down to fit (see img's max-width:100% below)
+	let intendedWidth = $derived.by(() => {
+		imgLoaded;
+		return width ?? imgEl?.naturalWidth ?? 0;
+	});
+	let isOversized = $derived(renderedWidth > 0 && intendedWidth > renderedWidth + 1);
 
 	let hovering = $state(false);
 	let editingAlt = $state(false);
@@ -31,6 +57,14 @@
 	// shown by the ghost overlay while dragging - null when not resizing
 	let resizeSide: 'left' | 'right' | null = $state(null);
 	let ghostWidth = $state(0);
+
+	function onMouseEnter() {
+		hovering = true;
+	}
+
+	function onMouseLeave() {
+		hovering = false;
+	}
 
 	let aspectRatio = $derived.by(() => {
 		imgLoaded;
@@ -131,8 +165,8 @@
 
 <div
 	class="image-node-wrap"
-	onmouseenter={() => (hovering = true)}
-	onmouseleave={() => (hovering = false)}
+	onmouseenter={onMouseEnter}
+	onmouseleave={onMouseLeave}
 	role="group"
 >
 	<img
@@ -159,6 +193,13 @@
 		onmousedown={(e) => startResize('right', e)}
 	></div>
 
+	{#if isOversized}
+		<div class="oversized-note" class:visible={hovering}>
+			<IconInfoCircleFill size={11} />
+			{oversizedNoteText}
+		</div>
+	{/if}
+
 	{#if editingAlt}
 		<input
 			class="alt-badge alt-input"
@@ -175,13 +216,15 @@
 			type="button"
 			class="alt-badge"
 			class:empty={!alt}
-			class:visible={hovering}
 			onclick={(e) => {
 				e.stopPropagation();
 				startEditAlt();
 			}}
 			onmousedown={(e) => e.stopPropagation()}
 		>
+			{#if !alt}
+				<IconExclamationTriangleFill size={11} />
+			{/if}
 			{alt || 'Add alt text'}
 		</button>
 	{/if}
@@ -254,6 +297,9 @@
 		position: absolute;
 		right: 8px;
 		bottom: 8px;
+		display: flex;
+		align-items: center;
+		gap: 5px;
 		max-width: calc(100% - 16px);
 		padding: 4px 10px;
 		border: none;
@@ -267,20 +313,46 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-		opacity: 0;
 		cursor: text;
-		transition: opacity 0.15s ease;
 	}
 
 	.alt-badge.empty {
 		font-style: italic;
-		color: rgba(255, 255, 255, 0.75);
+		color: rgba(255, 255, 255, 0.85);
 	}
 
-	.alt-badge.visible,
-	.alt-badge.alt-input,
-	.alt-badge:focus-visible {
+	.alt-badge.empty :global(svg) {
+		flex-shrink: 0;
+		color: #ffc255;
+	}
+
+	.oversized-note {
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		max-width: calc(100% - 16px);
+		padding: 4px 10px;
+		border-radius: 6px;
+		background: rgba(0, 0, 0, 0.65);
+		color: #fff;
+		font-size: 12px;
+		line-height: 1.4;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.15s ease;
+	}
+
+	.oversized-note.visible {
 		opacity: 1;
+	}
+
+	.oversized-note :global(svg) {
+		flex-shrink: 0;
+		color: #7ab8ff;
 	}
 
 	.alt-input {

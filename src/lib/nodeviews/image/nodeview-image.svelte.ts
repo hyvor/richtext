@@ -16,6 +16,7 @@ export default class ImageView implements NodeView {
         view: EditorView;
         fileUploader: EditorConfig['fileUploader'];
         fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'];
+        oversizedNoteText: EditorConfig['image']['oversizedNoteText'];
         getPos: () => number | undefined;
         src: string;
         alt: string;
@@ -29,7 +30,8 @@ export default class ImageView implements NodeView {
         view: EditorView,
         getPos: () => number | undefined,
         fileUploader: EditorConfig['fileUploader'],
-        fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB']
+        fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'],
+        oversizedNoteText: EditorConfig['image']['oversizedNoteText']
     ) {
         this.node = node;
         this.view = view;
@@ -50,6 +52,7 @@ export default class ImageView implements NodeView {
         this.props.getPos = this.getPos;
         this.props.fileUploader = fileUploader;
         this.props.fileMaxSizeInMB = fileMaxSizeInMB;
+        this.props.oversizedNoteText = oversizedNoteText;
         this.setPropsFromNode(node);
 
         mount(ImageNodeview, {

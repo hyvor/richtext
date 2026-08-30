@@ -452,7 +452,8 @@ function getMarks(config: SchemaConfig): Record<string, MarkSpec> {
 
 // adding marks to nodes is buggy. mainly while editing, etc.
 // so, instead, for nodes (except doc and text), we use an additional attribute called `suggestions`
-// list of suggestions (same format as the mark)
+// list of suggestions (same format as the mark) - typed as SuggestionNodeMeta[] | null
+// (see plugin-suggestions.ts), not enforced here since node attrs are untyped
 function withSuggestionAttrs(nodes: ReturnType<typeof addListNodes>, config: SchemaConfig): ReturnType<typeof addListNodes> {
     if (!config.suggestions) return nodes;
     let result = nodes;
