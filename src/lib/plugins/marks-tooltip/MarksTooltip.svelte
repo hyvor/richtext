@@ -52,9 +52,6 @@
 
 	let link = $derived(getLink(updateId));
 
-	// comment marks (type "comment" of the suggestion mark) overlapping the
-	// selection - several independent comment threads can stack on the same
-	// range (see withNodeSuggestion), so this collects all of them, not just one
 	function getComments(_: number): Mark[] {
 		const sel = view.state.selection;
 		const suggestionType = view.state.schema.marks.suggestion;
@@ -90,10 +87,6 @@
 		tooltip.style.display = '';
 		const { from, to } = view.state.selection;
 
-		/**
-		 * Find the maximum and minimum left points of the current selection
-		 * Then, the tooltip is placed in the middle of them
-		 */
 		let startLeft = Infinity,
 			endLeft = 0;
 		for (let i = from; i <= to; i++) {
@@ -101,12 +94,9 @@
 			endLeft = Math.max(endLeft, view.coordsAtPos(i).left);
 		}
 
-		// Find a center-ish x position from the selection endpoints (when
-		// crossing lines, end may be more to the left)
 		let left = (endLeft - startLeft) / 2;
 		const selectionTop = view.coordsAtPos(from).top;
 		
-		// Position tooltip using fixed positioning relative to viewport
 		tooltip.style.left =
 			startLeft + left - tooltip.getBoundingClientRect().width / 2 + 'px';
 		tooltip.style.top = selectionTop - tooltip.getBoundingClientRect().height - 10 + 'px';
@@ -118,7 +108,6 @@
 		else return state.doc.rangeHasMark(sel.from, sel.to, type);
 	}
 
-	// position when show/view is changed
 	$effect(() => {
 		if (updateId && show) {
 			if (untrack(() => commentInputOpen)) {

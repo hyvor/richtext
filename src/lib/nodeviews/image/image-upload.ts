@@ -67,13 +67,6 @@ export function getFigureNode(
     ]);
 }
 
-/**
- * Swaps an existing image node's src/alt for a freshly uploaded one (and, if
- * the upload came with a caption, replaces the figure's figcaption content
- * too) - shared by ImageNodeview's own change flow and the node menu's
- * "Change image" action, which only has the image's doc position to work
- * with (no NodeView getPos()).
- */
 export function applyChangedImage(view: EditorView, imagePos: number, image: ImageUploadResult) {
     const node = view.state.doc.nodeAt(imagePos);
     if (!node) return;

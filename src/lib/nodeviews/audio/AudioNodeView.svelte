@@ -10,9 +10,6 @@
 		fileMaxSizeInMB?: number;
 	}
 
-	// getPos/view/fileUploader/fileMaxSizeInMB are unused here now - changing
-	// and removing an audio node are both handled by the node menu instead
-	// (see NodeMenu.svelte's "Change audio" action and generic Delete)
 	let { src }: Props = $props();
 
 	let audioEl: HTMLAudioElement | undefined = $state();

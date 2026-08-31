@@ -25,11 +25,7 @@ export type { SuggestionMode, SuggestionSubtype, Author, AuthorInfo, SuggestionR
 export interface SuggestionItem {
     id: string;
     type: SuggestionSubtype;
-    // null while the host's SuggestionSource hasn't resolved this id yet
-    // (see plugin-suggestions-source.ts) - never comes from the document.
     author: Author | null;
-    // when this suggestion/comment thread was created - null while the
-    // host's SuggestionSource hasn't resolved this id yet, same as author.
     timestamp: number | null;
     from: number;
     to: number;
@@ -37,21 +33,11 @@ export interface SuggestionItem {
     deletedText: string;
     formatAdd: string[];
     formatRemove: string[];
-    // set instead of insertedText/deletedText/formatAdd+Remove when this
-    // suggestion is a whole inserted/deleted/reformatted node (an image, a
-    // blockquote, ...) rather than inline text
     insertedNodeType?: string;
     deletedNodeType?: string;
     formattedNodeType?: string;
-    // a content preview for a whole inserted/deleted node (its concatenated
-    // text, e.g. a paragraph's own text) - lets a host show what the node
-    // actually says instead of just its type name. Absent for nodes with no
-    // text content of their own (image, audio, ...).
     insertedNodeText?: string;
     deletedNodeText?: string;
-    // the reply thread attached to this suggestion/comment - available on
-    // every type, not just "comment" (see marks.suggestion in schema.ts).
-    // Sourced from the host, not the document - empty until resolved.
     comments: SuggestionReply[];
 }
 
@@ -60,9 +46,6 @@ export function getSuggestionMode(state: EditorState): SuggestionMode {
 }
 
 export function setSuggestionMode(view: EditorView, mode: SuggestionMode) {
-    // editing before/after a mode switch shouldn't be undoable as one step -
-    // e.g. undoing a suggestion-mode edit shouldn't reach back into edits made
-    // while still in plain editing mode
     view.dispatch(closeHistory(view.state.tr).setMeta(suggestionsPluginKey, { mode }));
 }
 
@@ -82,9 +65,6 @@ export function setCommentingDisabled(view: EditorView, disableCommenting: boole
     view.dispatch(view.state.tr.setMeta(suggestionsPluginKey, { disableCommenting }));
 }
 
-// Turns an Author id into a display name/picture - see resolveAuthor in
-// SuggestionsPluginConfig. Callers (the panel) should cache results
-// themselves, since this may hit the network on every call.
 export function getResolveAuthor(state: EditorState): (author: Author) => AuthorInfo | Promise<AuthorInfo> {
     return suggestionsPluginKey.getState(state)?.resolveAuthor ?? (() => ({ name: "" }));
 }
@@ -116,11 +96,6 @@ export function getSuggestions(state: EditorState): SuggestionItem[] {
     }
 
     state.doc.descendants((node, pos) => {
-        // whole-node suggestions/comments (see withSuggestionAttrs in schema.ts) -
-        // the entire node is the unit, so don't recurse into a wholly
-        // inserted/deleted node's children looking for more (a reformatted or
-        // commented-only node's children are still walked, since they may
-        // carry their own, independent suggestions/threads)
         const nodeSuggestions = getNodeSuggestions(node);
         for (const ns of nodeSuggestions) {
             const item = ensure(ns.id, ns.type, pos, pos + node.nodeSize);
@@ -159,9 +134,6 @@ export function getSuggestions(state: EditorState): SuggestionItem[] {
             item.formatRemove = (formatMark.attrs.remove as { type: string }[]).map(r => r.type);
         }
 
-        // a range can carry several independent comment threads at once
-        // (excludes: "" lets multiple comment-type instances stack) - handle
-        // all of them, not just one
         for (const mark of node.marks) {
             if (mark.type !== suggestionType || mark.attrs.type !== "comment") continue;
             ensure(mark.attrs.id, "comment", from, to);
@@ -236,15 +208,11 @@ function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "r
 
             if (nodeSuggestion.type === "format") {
                 if (decision === "reject") {
-                    // fully restore the pre-change attrs (which already have the
-                    // `suggestions` attr itself nulled out, since that's how it was
-                    // snapshotted - see markNodeFormatted in diff/render.ts)
                     tr.setNodeMarkup(pos, undefined, (nodeSuggestion as SuggestionFormatNodeMeta).oldAttrs);
                 } else {
                     tr.setNodeAttribute(pos, "suggestions", withoutNodeSuggestion(node, id));
                 }
             }
-            // type === "comment": accept/reject doesn't apply - use resolveComment
         }
 
         if (!node.isInline) return true;
@@ -265,8 +233,6 @@ function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "r
             if (removeContent) {
                 deleteRanges.push({ from, to });
             } else {
-                // remove this specific mark instance, not every suggestion mark in
-                // range - insert/delete/format/comment all share the same mark type
                 if (hasInsert && insertMark) tr.removeMark(from, to, insertMark);
                 if (hasDelete && deleteMark) tr.removeMark(from, to, deleteMark);
             }
@@ -303,19 +269,6 @@ function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "r
     }
 }
 
-/**
- * Updates a node's attrs (heading level/id, image src/width, callout
- * emoji/color, ...). While suggesting, this is recorded as a "format"
- * suggestion on the node (see SuggestionFormatNodeMeta) instead of applying
- * directly - the node-attr equivalent of how inline formatting is tracked via
- * the suggestion mark's format subtype. Repeated edits to the same node by
- * the same author (typing an id char by char, clicking through heading
- * levels) collapse into one suggestion rather than spawning a new one each
- * time. A node that's itself still a pending insert/delete isn't separately
- * tracked here - accepting/rejecting that suggestion already covers whatever
- * attrs it ends up with (a node can only carry one non-comment suggestion at
- * a time - see withNodeSuggestion).
- */
 export function setNodeAttrs(view: EditorView, pos: number, attrs: Record<string, unknown>): void {
     const { state } = view;
     const node = state.doc.nodeAt(pos);
@@ -357,14 +310,6 @@ export function setNodeAttrs(view: EditorView, pos: number, attrs: Record<string
     view.dispatch(tr);
 }
 
-/**
- * Attaches a new comment thread (type "comment") to the current selection (a
- * text range, or a whole selected node like an image). Returns the new
- * thread's opening SuggestionItem, or null if there's nothing selected / the
- * schema has no suggestion mark. Unlike suggestions, comments are never
- * produced by editing - only by this explicit action (see MarksTooltip's
- * comment button and NodeMenu's "Comment" action).
- */
 export function addComment(view: EditorView, text: string): SuggestionItem | null {
     const { state, dispatch } = view;
     const pluginState = suggestionsPluginKey.getState(state);
@@ -410,21 +355,11 @@ export function addComment(view: EditorView, text: string): SuggestionItem | nul
     };
 }
 
-/**
- * Adds a reply to any suggestion or comment thread's discussion - this is
- * what makes suggestions repliable, not just comments. Never touches the
- * document: replies live entirely in the host's SuggestionSource (see
- * plugin-suggestions.ts), keyed by `id`, so this dispatches a zero-step
- * transaction carrying just the reply event - not part of undo history,
- * `onvaluechange`, or any future doc-sync mechanism, since it isn't
- * editorial document content.
- */
 export function replyToSuggestion(view: EditorView, id: string, text: string): SuggestionReply | null {
     const { state, dispatch } = view;
     const pluginState = suggestionsPluginKey.getState(state);
     if (!pluginState || pluginState.disableCommenting) return null;
 
-    // the thread must still exist in the doc (mark/node-attr with this id)
     if (!getSuggestions(state).some(item => item.id === id)) return null;
 
     const reply: SuggestionReply = {
@@ -438,13 +373,6 @@ export function replyToSuggestion(view: EditorView, id: string, text: string): S
     return reply;
 }
 
-/**
- * Edits the text of an existing reply (including a comment thread's opening
- * reply) in its discussion thread. Same zero-step-transaction shape as
- * replyToSuggestion - the edit lives entirely in the host's SuggestionSource,
- * keyed by `id`+`replyId`. Callers (the panel) are responsible for only
- * offering this when the current author owns the reply.
- */
 export function editSuggestionReply(view: EditorView, id: string, replyId: string, content: string): void {
     const { state, dispatch } = view;
     const pluginState = suggestionsPluginKey.getState(state);
@@ -455,21 +383,11 @@ export function editSuggestionReply(view: EditorView, id: string, replyId: strin
     }));
 }
 
-/**
- * Deletes a single reply (including a comment thread's opening reply) from
- * its discussion thread - distinct from resolveComment, which removes the
- * whole thread's document marks. Callers (the panel) are responsible for
- * only offering this when the current author owns the reply, and for
- * confirming with the user first.
- */
 export function deleteSuggestionReply(view: EditorView, id: string, replyId: string): void {
     const { state, dispatch } = view;
     const pluginState = suggestionsPluginKey.getState(state);
     if (!pluginState) return;
 
-    // deleting a comment thread's only remaining reply leaves nothing to
-    // discuss - resolve the thread outright so its mark doesn't linger in the
-    // document with no comments left to show for it (fixes #44)
     const item = getSuggestions(state).find(i => i.id === id);
     if (item?.type === "comment" && item.comments.length <= 1) {
         resolveComment(view, id);
@@ -481,14 +399,6 @@ export function deleteSuggestionReply(view: EditorView, id: string, replyId: str
     }));
 }
 
-/**
- * Resolves a comment thread (type "comment" only - for suggestions use
- * acceptSuggestion/rejectSuggestion instead): strips its mark/node-attr
- * entries from the document (removing just that thread's highlight, leaving
- * any other overlapping threads/suggestions intact) and evicts/notifies its
- * author+comments from the host's SuggestionSource. No content mutation,
- * since a comment never wraps inserted/deleted text.
- */
 export function resolveComment(view: EditorView, id: string): void {
     const { state, dispatch } = view;
     const suggestionType = state.schema.marks.suggestion;
@@ -521,16 +431,6 @@ export function resolveComment(view: EditorView, id: string): void {
     }
 }
 
-/**
- * Seeds the plugin's cache with already-known {id, type, author} pairs
- * without waiting on the host's SuggestionSource.get() - used for content
- * whose authorship is already known locally when it's created (e.g.
- * src/lib/diff's buildDiffDoc-generated suggestions, attributed by the
- * caller rather than a live editing session). Dispatching this synchronously
- * right after loading such content (no `await` in between) lets it win the
- * race against the source view's own microtask-deferred fetch for the same
- * ids - see plugin-suggestions-source.ts.
- */
 export function seedSuggestionSource(
     view: EditorView,
     entries: { id: string; type: SuggestionSubtype; author: Author }[]

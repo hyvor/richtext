@@ -32,11 +32,6 @@ export function getAudioNode(schema: Schema, url: string) {
     });
 }
 
-/**
- * Swaps an existing audio node's src for a freshly uploaded one - used by the
- * node menu's "Change audio" action, which only has the audio node's doc
- * position to work with (no NodeView getPos()).
- */
 export function applyChangedAudio(view: EditorView, audioPos: number, url: string) {
     const node = view.state.doc.nodeAt(audioPos);
     if (!node) return;

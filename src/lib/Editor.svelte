@@ -170,7 +170,6 @@
 	};
 
 	export const collab = {
-		// feed remote steps from authority to the editor
 		receiveSteps(steps: CollabStepJSON[], clientIDs: CollabClientID[]) {
 			if (view) receiveCollabSteps(view, steps, clientIDs);
 		},
