@@ -299,6 +299,7 @@
 		text-overflow: ellipsis;
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 		cursor: text;
+		font-family: inherit;
 	}
 
 	.alt-badge.empty {
@@ -382,5 +383,5 @@
 		white-space: nowrap;
 		pointer-events: none;
 		z-index: 11;
-	}
+	}	
 </style>
