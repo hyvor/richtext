@@ -16,6 +16,7 @@ export default class ImageView implements NodeView {
         view: EditorView;
         fileUploader: EditorConfig['fileUploader'];
         fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'];
+        oversizedNoteText: EditorConfig['image']['oversizedNoteText'];
         getPos: () => number | undefined;
         src: string;
         alt: string;
@@ -29,7 +30,8 @@ export default class ImageView implements NodeView {
         view: EditorView,
         getPos: () => number | undefined,
         fileUploader: EditorConfig['fileUploader'],
-        fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB']
+        fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'],
+        oversizedNoteText: EditorConfig['image']['oversizedNoteText']
     ) {
         this.node = node;
         this.view = view;
@@ -37,6 +39,8 @@ export default class ImageView implements NodeView {
 
         this.dom = document.createElement('div');
         this.dom.className = 'image-wrap';
+        this.dom.style.display = 'flex';
+        this.dom.style.justifyContent = 'center';
 
         this.setPropsFromNode(node);
 
@@ -44,6 +48,7 @@ export default class ImageView implements NodeView {
         this.props.getPos = this.getPos;
         this.props.fileUploader = fileUploader;
         this.props.fileMaxSizeInMB = fileMaxSizeInMB;
+        this.props.oversizedNoteText = oversizedNoteText;
         this.setPropsFromNode(node);
 
         mount(ImageNodeview, {
@@ -70,7 +75,7 @@ export default class ImageView implements NodeView {
 
 
     stopEvent(e: Event) {
-        if (e.target instanceof HTMLElement && e.target.closest('.image-node-wrap .top')) {
+        if (e.target instanceof HTMLElement && e.target.closest('.alt-badge, .resize-handle')) {
             return true;
         }
         return false;

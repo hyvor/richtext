@@ -18,7 +18,7 @@
 	import LinkSelector from './LinkSelector/LinkSelector.svelte';
 	import { markExtend } from './mark-helpers';
 	import { suggestionsPluginKey } from '../suggestions/plugin-suggestions';
-	import { isCommentingDisabled } from '../suggestions/commands';
+	import { isCommentingDisabled, resolveComment } from '../suggestions/commands';
 	import CommentInput from '../suggestions/CommentInput.svelte';
 
 	interface Props {
@@ -52,16 +52,41 @@
 
 	let link = $derived(getLink(updateId));
 
+	function getComments(_: number): Mark[] {
+		const sel = view.state.selection;
+		const suggestionType = view.state.schema.marks.suggestion;
+		if (!suggestionType) return [];
+		const found = new Map<string, Mark>();
+		view.state.doc.nodesBetween(sel.from, sel.to, (node) => {
+			if (!node.isInline) return;
+			for (const mark of node.marks) {
+				if (mark.type === suggestionType && mark.attrs.type === 'comment') {
+					found.set(mark.attrs.id, mark);
+				}
+			}
+		});
+		return [...found.values()];
+	}
+
+	let comments = $derived(getComments(updateId));
+
+	function getCommentPreview(id: string): string {
+		const cache = suggestionsPluginKey.getState(view.state)?.cache;
+		const content = cache?.[id]?.comments[0]?.content;
+		return content ? getTrimmedText(content) : 'Comment';
+	}
+
+	function deleteComment(id: string) {
+		resolveComment(view, id);
+		view.focus();
+	}
+
 	function updatePosition() {
 		if (!tooltip) return;
 
 		tooltip.style.display = '';
 		const { from, to } = view.state.selection;
 
-		/**
-		 * Find the maximum and minimum left points of the current selection
-		 * Then, the tooltip is placed in the middle of them
-		 */
 		let startLeft = Infinity,
 			endLeft = 0;
 		for (let i = from; i <= to; i++) {
@@ -69,12 +94,9 @@
 			endLeft = Math.max(endLeft, view.coordsAtPos(i).left);
 		}
 
-		// Find a center-ish x position from the selection endpoints (when
-		// crossing lines, end may be more to the left)
 		let left = (endLeft - startLeft) / 2;
 		const selectionTop = view.coordsAtPos(from).top;
 		
-		// Position tooltip using fixed positioning relative to viewport
 		tooltip.style.left =
 			startLeft + left - tooltip.getBoundingClientRect().width / 2 + 'px';
 		tooltip.style.top = selectionTop - tooltip.getBoundingClientRect().height - 10 + 'px';
@@ -86,7 +108,6 @@
 		else return state.doc.rangeHasMark(sel.from, sel.to, type);
 	}
 
-	// position when show/view is changed
 	$effect(() => {
 		if (updateId && show) {
 			if (untrack(() => commentInputOpen)) {
@@ -138,12 +159,12 @@
 		show = true;
 	}
 
-	function getTrimmedLink(link: string) {
+	function getTrimmedText(text: string) {
 		const limit = 100;
-		if (link.length > limit) {
-			return link.slice(0, limit) + '...';
+		if (text.length > limit) {
+			return text.slice(0, limit) + '...';
 		}
-		return link;
+		return text;
 	}
 
 	function deleteLink() {
@@ -179,7 +200,7 @@
 			{#if link}
 				<div class="link-row">
 					<a class="link" target="_blank" rel="noopener noreferrer" href={link.attrs.href}>
-						{getTrimmedLink(link.attrs.href)}
+						{getTrimmedText(link.attrs.href)}
 						<IconBoxArrowUpRight size={12} />
 					</a>
 					<span class="link-actions">
@@ -192,6 +213,20 @@
 					</span>
 				</div>
 			{/if}
+
+			{#each comments as comment (comment.attrs.id)}
+				<div class="link-row">
+					<span class="comment-preview">
+						<IconChatRight size={12} />
+						{getCommentPreview(comment.attrs.id)}
+					</span>
+					<span class="link-actions">
+						<IconButton color="input" size={20} on:click={() => deleteComment(comment.attrs.id)}>
+							<IconTrash size={10} />
+						</IconButton>
+					</span>
+				</div>
+			{/each}
 
 			{#if commentInputOpen}
 				<div transition:slide={{ duration: 150, axis: 'x' }}>
@@ -285,6 +320,21 @@
 
 	.link:hover {
 		text-decoration: underline !important;
+	}
+
+	.comment-preview {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		color: var(--text-light);
+		font-size: 14px;
+		padding-right: 8px;
+		margin-right: 8px;
+		border-right: 1px solid var(--border);
+		max-width: 250px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.buttons-row {

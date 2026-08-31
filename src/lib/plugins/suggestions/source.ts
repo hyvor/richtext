@@ -2,22 +2,6 @@ import type { EditorState, PluginView } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import { suggestionsPluginKey, collectSuggestionIds, type SuggestionSourceEntry } from "./plugin-suggestions";
 
-// Bridges the suggestions plugin's document-local ids to the host's
-// SuggestionSource (see plugin-suggestions.ts) - the one place host callbacks
-// actually get called, always post-commit (never from inside
-// appendTransaction, which must stay a pure transaction-building function).
-//
-// Two jobs:
-//  1. Fire source.create/reply/resolve once for each event the just-applied
-//     transaction recorded (state.pendingEvents), so the host's own store
-//     stays in sync with what happened locally.
-//  2. Discover suggestion/comment ids present in the doc that the plugin's
-//     cache doesn't know about yet (freshly loaded document, or another
-//     session's suggestion arriving via some future collab sync) and fetch
-//     them in one batched source.get() call - deferred via queueMicrotask so
-//     a synchronous same-turn seed (see commands.ts's seedSuggestionSource,
-//     used by app/DiffPage.svelte) gets a chance to land first and avoid an
-//     unnecessary round trip for ids that are only ever local.
 export class SuggestionsSourceView implements PluginView {
 
     private view: EditorView;
@@ -62,8 +46,6 @@ export class SuggestionsSourceView implements PluginView {
                     this.notify(() => pluginState.source.resolve!(ev.id, decision));
                 }
             }
-            // "loaded" events are informational only (a source.get() batch
-            // reporting back in) - nothing to notify the host about.
         }
 
         if (!prevState || !prevState.doc.eq(this.view.state.doc)) {
@@ -95,9 +77,6 @@ export class SuggestionsSourceView implements PluginView {
             return;
         }
 
-        // re-check cache membership at flush time - a synchronous seed call
-        // issued between scheduling and this microtask running may already
-        // have filled some of these in
         const ids = [...this.pendingFetch].filter(id => !(id in pluginState.cache));
         this.pendingFetch.clear();
         if (!ids.length) return;

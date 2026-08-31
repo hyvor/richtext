@@ -71,14 +71,9 @@
 		return isCommentingDisabled(view.state);
 	});
 
-	// comments aren't "suggestions" for accept-all purposes (acceptAllSuggestions
-	// itself skips them too, see commands.ts) - only count/offer the button for
-	// actual tracked-change items
 	let suggestionCount = $derived(items.filter((item) => item.type !== 'comment').length);
 	let commentCount = $derived(items.filter((item) => item.type === 'comment').length);
 
-	// filtering only changes what's shown in this list, never the document or
-	// the editor's own decorations - see the "Filter by author" control
 	let visibleItems = $derived(
 		filterAuthor === 'all' ? items : items.filter((item) => item.author === filterAuthor)
 	);
@@ -131,9 +126,6 @@
 		resolveAllComments(view);
 	}
 
-	// the item whose range is closest to the current selection - kept in sync
-	// as the user clicks/moves the cursor around the editor (not just while
-	// editing), so the panel always highlights whatever's relevant
 	let activeId: string | null = $derived.by(() => {
 		if (items.length === 0) return null;
 		const pos = view.state.selection.head;
@@ -155,8 +147,6 @@
 	}
 
 	$effect(() => {
-		// depend on the list (and therefore visibility) so position is
-		// recomputed whenever the panel appears/resizes
 		items;
 		(async () => {
 			await tick();
@@ -190,13 +180,6 @@
 		panel.style.left = editorRect.left - panel.offsetWidth - gap + 'px';
 	}
 
-	// "quoted": prefix + one italic "text" (plain insert or delete).
-	// "replace": prefix + two italic "text"s joined by "with" (a word-level or
-	// whole-node replace - see plugin-suggestions.ts's handleReplaceStep and
-	// diff/render.ts's 'replace' case, both of which reuse one suggestion id
-	// across the deleted and inserted halves, so they land in the same item
-	// here - see getSuggestions() in commands.ts).
-	// "plain": prefix + a description with no quoting/italics (format).
 	type ChangeDescription =
 		| { kind: 'quoted'; prefix: string; text: string }
 		| { kind: 'replace'; prefix: string; from: string; to: string }
@@ -220,10 +203,6 @@
 			return { kind: 'plain', prefix: 'Format', text: item.formattedNodeType };
 		}
 
-		// prefer a content preview (the node's own text, e.g. a paragraph's
-		// text) over the bare type name, so "Insert: paragraph" reads as
-		// "Insert: "this is new content..."" instead - falls back to the type
-		// name only for nodes with no text of their own (image, audio, ...)
 		const inserted = item.insertedText || item.insertedNodeText || item.insertedNodeType;
 		const deleted = item.deletedText || item.deletedNodeText || item.deletedNodeType;
 
@@ -239,16 +218,10 @@
 		return null;
 	}
 
-	// author display name/picture resolution - cached locally since
-	// resolveAuthor may be async (e.g. a network lookup); returns null (shown
-	// as a "…" placeholder) meanwhile
 	let authorCache: Record<string, AuthorInfo> = $state({});
 	let authorPending = new Set<string>();
 
 	function authorInfo(author: Author | null): AuthorInfo | null {
-		// null: the host's SuggestionSource (see plugin-suggestions.ts) hasn't
-		// resolved this suggestion's author yet - distinct from "resolveAuthor
-		// pending", but shows the same placeholder either way
 		if (author === null) return null;
 		const cached = authorCache[author];
 		if (cached) return cached;
@@ -267,9 +240,6 @@
 		return authorInfo(author)?.name ?? '…';
 	}
 
-	// deterministic per-name color for the initials avatar fallback, so the
-	// same author always gets the same color instead of a random one on every
-	// render
 	function avatarColor(seed: string): string {
 		let hash = 0;
 		for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
@@ -334,15 +304,6 @@
 		deleteSuggestionReply(view, item.id, reply.id);
 	}
 
-	// Clicking an item's content (not its buttons/reply input) moves the
-	// editor's selection to its range and scrolls the editor to reveal it -
-	// the reverse direction of activeId/itemEls[...].scrollIntoView above,
-	// which only keeps the panel's own list in sync with the editor
-	// selection, not the other way around. Uses the DOM node's own
-	// scrollIntoView({block: 'center'}) rather than ProseMirror's
-	// tr.scrollIntoView() - the latter only scrolls the minimum distance
-	// needed to bring the selection on-screen, which tends to leave it
-	// sitting right at the viewport's edge instead of somewhere readable.
 	function jumpTo(item: SuggestionItem) {
 		const tr = view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(item.from)));
 		view.dispatch(tr);

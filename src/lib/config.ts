@@ -44,31 +44,33 @@ export interface EditorConfig {
         fileName: boolean;
     }
 
-    // File uploader config (from HDS)
-    // This will be used when the user uploads an image or audio.
-    // fileUploader must be provided if imageEnabled or audioEnabled is true
+    // File uploader (from HDS). Required if image or audio is enabled.
     fileUploader?: (file: Blob, name: string | null, type: 'image' | 'audio') => Promise<{ url: string } | null>;
     fileMaxSizeInMB?: number; // default: 10
 
-    // return the iframe URL (preferably Unfold Iframe) or null if the URL cannot be embedded.
+    image: {
+        // Note shown on an image when it's wider than its displayed size in
+        // the editor. Override for i18n or different wording.
+        oversizedNoteText: string;
+    };
+
+    // Return the iframe URL (preferably Unfold Iframe), or null if not embeddable.
     embed?: (url: string) => Promise<string | null>;
-    // return link preview data or null if the URL cannot be previewed.
+    // Return link preview data, or null if the URL cannot be previewed.
     bookmark?: (url: string) => Promise<BookmarkLink | null>;
 
     // Suggestions plugin config
     suggestions?: SuggestionsPluginConfig;
 
-    // Collaborative editing (prosemirror-collab) config. 
-    // the host provides onSendable and pushes
-    // remote steps back in via the Editor component's collab.receiveSteps().
-    // Omit to disable collaboration entirely.
+    // Collaborative editing (prosemirror-collab). The host provides onSendable and
+    // pushes remote steps back via the Editor component's collab.receiveSteps().
+    // Omit to disable collaboration.
     collab?: CollabPluginConfig;
 
-    // when set, enables the cursor plugin.
-    // callback `onLocalCursorChange` is called (debounced by `debounceMs`) whenever 
-    // the local user's selection moves. Host should distribute this to other clients
-    // for example via WebSocket.
-    // to set other users' cursors, use `editor.cursors.set()`
+    // Enables the cursor plugin. `onLocalCursorChange` fires (debounced by
+    // `debounceMs`) when the local selection moves; the host distributes it to
+    // other clients (e.g. via WebSocket). Set other users' cursors with
+    // `editor.cursors.set()`.
     cursors?: CursorsPluginConfig;
 
 }
@@ -82,6 +84,10 @@ export const defaultEditorConfig: EditorConfig = {
         annotations: true,
         annotationsUrl: null,
         fileName: true,
+    },
+
+    image: {
+        oversizedNoteText: 'Image size is larger than the image preview in the editor.',
     },
 };
 
