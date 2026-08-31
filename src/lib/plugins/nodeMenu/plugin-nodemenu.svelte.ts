@@ -45,7 +45,6 @@ export class NodeMenuPluginView implements PluginView {
             return;
         }
 
-        // ignore when the pointer is over the menu's own handle/dropdown
         if (event.target instanceof Node && this.wrap.contains(event.target)) {
             return;
         }

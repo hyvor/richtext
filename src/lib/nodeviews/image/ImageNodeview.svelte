@@ -20,13 +20,7 @@
 	let { src, alt, width, height, getPos, view, oversizedNoteText }: Props = $props();
 
 	let imgEl: HTMLImageElement | undefined = $state();
-	// bumped by the img's onload - naturalWidth/naturalHeight are plain DOM
-	// properties, so aspectRatio below needs something reactive to key off of
-	// to recompute once the image has actually finished loading
 	let imgLoaded = $state(false);
-	// the image's rendered (on-screen) width - kept in sync via ResizeObserver
-	// since it changes not just on load but whenever the editor column itself
-	// resizes (browser resize, host page layout change, ...)
 	let renderedWidth = $state(0);
 
 	$effect(() => {
@@ -39,9 +33,6 @@
 		return () => observer.disconnect();
 	});
 
-	// the image's real/target width - what it would render at if the editor
-	// column were wide enough - vs. isOversized, whether the browser is
-	// actually capping it down to fit (see img's max-width:100% below)
 	let intendedWidth = $derived.by(() => {
 		imgLoaded;
 		return width ?? imgEl?.naturalWidth ?? 0;
@@ -53,8 +44,6 @@
 	let altDraft = $state('');
 	let altInputEl: HTMLInputElement | undefined = $state();
 
-	// the resize handle currently being dragged, and the live preview width
-	// shown by the ghost overlay while dragging - null when not resizing
 	let resizeSide: 'left' | 'right' | null = $state(null);
 	let ghostWidth = $state(0);
 
@@ -138,10 +127,6 @@
 
 		function onMove(e: MouseEvent) {
 			const dx = e.clientX - startX;
-			// dragging either handle resizes symmetrically around the image's
-			// center, since figures are centered in the editor column - moving
-			// just the one edge you're dragging would otherwise visually shift
-			// the whole image sideways
 			const delta = side === 'right' ? dx * 2 : -dx * 2;
 			ghostWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + delta));
 		}
