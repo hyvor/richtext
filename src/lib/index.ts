@@ -2,7 +2,7 @@ export { default as Editor } from './Editor.svelte';
 export { diffDoc, buildDiffDoc } from './diff';
 export type { Diff, InlineOp, DiffSuggestionRef } from './diff';
 export { getSchema } from './schema';
-export type { SchemaConfig, EditorConfig } from './config';
+export type { SchemaConfig, EditorConfig, UploadFileConfig } from './config';
 
 export type {
 	SuggestionMode,

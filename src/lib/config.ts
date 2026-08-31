@@ -1,6 +1,7 @@
 import type { SuggestionsPluginConfig } from './plugins/suggestions/plugin-suggestions';
 import type { CollabPluginConfig } from './plugins/collab/plugin-collab';
 import type { CursorsPluginConfig } from './plugins/cursors/plugin-cursors';
+import type { FileUploaderConfig } from '@hyvor/design/components';
 
 // all defaults to true
 export interface SchemaConfig {
@@ -30,6 +31,10 @@ export const defaultSchemaConfig: SchemaConfig = {
     suggestions: false,
 };
 
+export type UploadFileConfig = {
+    uploader: (file: Blob, name: string | null, type: 'image' | 'audio') => Promise<{ url: string } | null>;
+} & Pick<FileUploaderConfig, 'maxFileSizeInMB' | 'mediaLoad' | 'unsplashSearch' | 'excalidraw'>;
+
 export interface EditorConfig {
 
     // Colors
@@ -45,8 +50,17 @@ export interface EditorConfig {
     }
 
     // File uploader (from HDS). Required if image or audio is enabled.
-    fileUploader?: (file: Blob, name: string | null, type: 'image' | 'audio') => Promise<{ url: string } | null>;
-    fileMaxSizeInMB?: number; // default: 10
+    uploadFileConfig?: UploadFileConfig;
+
+    /**
+     * @deprecated use uploadFileConfig.uploader instead.
+     */
+    fileUploader?: UploadFileConfig['uploader'];
+
+    /**
+     * @deprecated use uploadFileConfig.maxFileSizeInMB instead.
+     */
+    fileMaxSizeInMB?: number;
 
     image: {
         // Note shown on an image when it's wider than its displayed size in

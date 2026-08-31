@@ -11,8 +11,7 @@
 		width: number | null;
 		height: number | null;
 		getPos: () => number | undefined;
-		fileUploader: EditorConfig['fileUploader'];
-		fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'];
+		uploadFileConfig: EditorConfig['uploadFileConfig'];
 		oversizedNoteText: EditorConfig['image']['oversizedNoteText'];
 		view: EditorView;
 	}

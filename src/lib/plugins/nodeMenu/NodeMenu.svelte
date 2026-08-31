@@ -24,14 +24,13 @@
 
 	interface Props {
 		view: EditorView;
-		fileUploader: EditorConfig['fileUploader'];
-		fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'];
+		uploadFileConfig: EditorConfig['uploadFileConfig'];
 	}
 
-	let { view, fileUploader, fileMaxSizeInMB }: Props = $props();
+	let { view, uploadFileConfig }: Props = $props();
 
 	function changeableMediaPos(): { kind: 'image' | 'audio'; pos: number } | null {
-		if (!fileUploader) return null;
+		if (!uploadFileConfig) return null;
 		if ($nodeMenuPos === null) return null;
 		const node = view.state.doc.nodeAt($nodeMenuPos);
 		if (!node) return null;
@@ -44,15 +43,15 @@
 
 	async function onChangeMedia() {
 		const target = changeableMediaPos();
-		if (!target) return;
+		if (!target || !uploadFileConfig) return;
 		show = false;
 
 		if (target.kind === 'image') {
-			const image = await uploadImage(fileUploader, fileMaxSizeInMB);
+			const image = await uploadImage(uploadFileConfig);
 			if (!image) return;
 			applyChangedImage(view, target.pos, image);
 		} else {
-			const audio = await uploadAudio(fileUploader, fileMaxSizeInMB);
+			const audio = await uploadAudio(uploadFileConfig);
 			if (!audio) return;
 			applyChangedAudio(view, target.pos, audio.url);
 		}
