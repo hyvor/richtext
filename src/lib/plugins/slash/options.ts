@@ -80,7 +80,7 @@ export function getOptions(view: EditorView, config: EditorConfig): SlashOption[
 			description: 'Add an image',
 			icon: IconCardImage,
 			keywords: ['image', 'picture', 'upload'],
-			node: () => uploadImageGetFigureNode(schema, config.fileUploader, config.fileMaxSizeInMB),
+			node: () => uploadImageGetFigureNode(schema, config.fileUploader, config.fileMaxSizeInMB, config.uploadFileConfig),
 		});
 	}
 
@@ -150,7 +150,7 @@ export function getOptions(view: EditorView, config: EditorConfig): SlashOption[
 			description: 'Add an audio',
 			icon: IconSoundwave,
 			keywords: ['audio', 'sound', 'upload'],
-			node: () => uploadAudioGetAudioNode(schema, config.fileUploader, config.fileMaxSizeInMB),
+			node: () => uploadAudioGetAudioNode(schema, config.fileUploader, config.fileMaxSizeInMB, config.uploadFileConfig),
 		});
 	}
 

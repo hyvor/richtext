@@ -5,11 +5,18 @@ import { NodeSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import { setNodeAttrs } from "../../plugins/suggestions/commands";
 
-export async function uploadImage(fileUploader: EditorConfig['fileUploader'], fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB']) {
+export async function uploadImage(
+    fileUploader: EditorConfig['fileUploader'],
+    fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'],
+    uploadFileConfig: EditorConfig['uploadFileConfig']
+) {
     const image = await uploadFile({
         type: 'image',
         uploader: (file, name) => fileUploader(file, name, 'image'),
-        maxFileSizeInMB: fileMaxSizeInMB
+        maxFileSizeInMB: fileMaxSizeInMB,
+        mediaLoad: uploadFileConfig?.mediaLoad,
+        unsplashSearch: uploadFileConfig?.unsplashSearch,
+        excalidraw: uploadFileConfig?.excalidraw
     });
 
     if (image === null) {
@@ -27,9 +34,10 @@ export async function uploadImage(fileUploader: EditorConfig['fileUploader'], fi
 export async function uploadImageGetFigureNode(
     schema: Schema,
     fileUploader: EditorConfig['fileUploader'],
-    fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB']
+    fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'],
+    uploadFileConfig: EditorConfig['uploadFileConfig']
 ) {
-    const image = await uploadImage(fileUploader, fileMaxSizeInMB);
+    const image = await uploadImage(fileUploader, fileMaxSizeInMB, uploadFileConfig);
 
     if (image === null) {
         return null;

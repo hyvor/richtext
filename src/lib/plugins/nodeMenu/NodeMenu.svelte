@@ -26,9 +26,10 @@
 		view: EditorView;
 		fileUploader: EditorConfig['fileUploader'];
 		fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'];
+		uploadFileConfig: EditorConfig['uploadFileConfig'];
 	}
 
-	let { view, fileUploader, fileMaxSizeInMB }: Props = $props();
+	let { view, fileUploader, fileMaxSizeInMB, uploadFileConfig }: Props = $props();
 
 	function changeableMediaPos(): { kind: 'image' | 'audio'; pos: number } | null {
 		if (!fileUploader) return null;
@@ -48,11 +49,11 @@
 		show = false;
 
 		if (target.kind === 'image') {
-			const image = await uploadImage(fileUploader, fileMaxSizeInMB);
+			const image = await uploadImage(fileUploader, fileMaxSizeInMB, uploadFileConfig);
 			if (!image) return;
 			applyChangedImage(view, target.pos, image);
 		} else {
-			const audio = await uploadAudio(fileUploader, fileMaxSizeInMB);
+			const audio = await uploadAudio(fileUploader, fileMaxSizeInMB, uploadFileConfig);
 			if (!audio) return;
 			applyChangedAudio(view, target.pos, audio.url);
 		}

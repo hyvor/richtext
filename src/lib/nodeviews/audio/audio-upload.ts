@@ -4,20 +4,26 @@ import { type Schema } from "prosemirror-model";
 import type { EditorView } from "prosemirror-view";
 import { setNodeAttrs } from "../../plugins/suggestions/commands";
 
-export async function uploadAudio(fileUploader: EditorConfig['fileUploader'], fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB']) {
+export async function uploadAudio(
+    fileUploader: EditorConfig['fileUploader'],
+    fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'],
+    uploadFileConfig: EditorConfig['uploadFileConfig']
+) {
     return await uploadFile({
         type: 'audio',
         uploader: (blob, name) => fileUploader(blob, name, 'audio'),
         maxFileSizeInMB: fileMaxSizeInMB,
+        mediaLoad: uploadFileConfig?.mediaLoad,
     });
 }
 
 export async function uploadAudioGetAudioNode(
     schema: Schema,
     fileUploader: EditorConfig['fileUploader'],
-    fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB']
+    fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'],
+    uploadFileConfig: EditorConfig['uploadFileConfig']
 ) {
-    const audio = await uploadAudio(fileUploader, fileMaxSizeInMB);
+    const audio = await uploadAudio(fileUploader, fileMaxSizeInMB, uploadFileConfig);
 
     if (audio === null) {
         return null;

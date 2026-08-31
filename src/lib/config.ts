@@ -1,6 +1,7 @@
 import type { SuggestionsPluginConfig } from './plugins/suggestions/plugin-suggestions';
 import type { CollabPluginConfig } from './plugins/collab/plugin-collab';
 import type { CursorsPluginConfig } from './plugins/cursors/plugin-cursors';
+import type { FileUploaderConfig } from '@hyvor/design/components';
 
 // all defaults to true
 export interface SchemaConfig {
@@ -47,6 +48,9 @@ export interface EditorConfig {
     // File uploader (from HDS). Required if image or audio is enabled.
     fileUploader?: (file: Blob, name: string | null, type: 'image' | 'audio') => Promise<{ url: string } | null>;
     fileMaxSizeInMB?: number; // default: 10
+
+    // When defined, shows their respective tabs: mediaLoad, unsplashSearch, excalidraw
+    uploadFileConfig?: Pick<FileUploaderConfig, 'mediaLoad' | 'unsplashSearch' | 'excalidraw'>;
 
     image: {
         // Note shown on an image when it's wider than its displayed size in
