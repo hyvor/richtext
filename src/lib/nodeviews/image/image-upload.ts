@@ -1,22 +1,18 @@
-import type { EditorConfig, ImageUploadResult } from "$lib/config";
+import type { ImageUploadResult, UploadFileConfig } from "$lib/config";
 import { uploadFile } from "@hyvor/design/components";
 import { DOMParser, type Schema } from "prosemirror-model";
 import { NodeSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import { setNodeAttrs } from "../../plugins/suggestions/commands";
 
-export async function uploadImage(
-    fileUploader: EditorConfig['fileUploader'],
-    fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'],
-    uploadFileConfig: EditorConfig['uploadFileConfig']
-) {
+export async function uploadImage(uploadFileConfig: UploadFileConfig) {
     const image = await uploadFile({
         type: 'image',
-        uploader: (file, name) => fileUploader(file, name, 'image'),
-        maxFileSizeInMB: fileMaxSizeInMB,
-        mediaLoad: uploadFileConfig?.mediaLoad,
-        unsplashSearch: uploadFileConfig?.unsplashSearch,
-        excalidraw: uploadFileConfig?.excalidraw
+        uploader: (file, name) => uploadFileConfig.uploader(file, name, 'image'),
+        maxFileSizeInMB: uploadFileConfig.maxFileSizeInMB,
+        mediaLoad: uploadFileConfig.mediaLoad,
+        unsplashSearch: uploadFileConfig.unsplashSearch,
+        excalidraw: uploadFileConfig.excalidraw
     });
 
     if (image === null) {
@@ -33,11 +29,9 @@ export async function uploadImage(
 
 export async function uploadImageGetFigureNode(
     schema: Schema,
-    fileUploader: EditorConfig['fileUploader'],
-    fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'],
-    uploadFileConfig: EditorConfig['uploadFileConfig']
+    uploadFileConfig: UploadFileConfig
 ) {
-    const image = await uploadImage(fileUploader, fileMaxSizeInMB, uploadFileConfig);
+    const image = await uploadImage(uploadFileConfig);
 
     if (image === null) {
         return null;

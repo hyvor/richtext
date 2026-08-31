@@ -53,13 +53,12 @@ export function getNodeViews(config: EditorConfig): NodeViewsType {
 				node,
 				view,
 				getPos,
-				config.fileUploader,
-				config.fileMaxSizeInMB,
+				config.uploadFileConfig,
 				config.image.oversizedNoteText
 			);
 		},
 		audio(node, view, getPos) {
-			return new AudioView(node, view, getPos, config.fileUploader, config.fileMaxSizeInMB);
+			return new AudioView(node, view, getPos, config.uploadFileConfig);
 		},
 		toc(node, view, getPos) {
 			return new TocView(node, view, getPos);

@@ -14,8 +14,7 @@ export default class ImageView implements NodeView {
 
     private props: {
         view: EditorView;
-        fileUploader: EditorConfig['fileUploader'];
-        fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'];
+        uploadFileConfig: EditorConfig['uploadFileConfig'];
         oversizedNoteText: EditorConfig['image']['oversizedNoteText'];
         getPos: () => number | undefined;
         src: string;
@@ -29,8 +28,7 @@ export default class ImageView implements NodeView {
         node: Node,
         view: EditorView,
         getPos: () => number | undefined,
-        fileUploader: EditorConfig['fileUploader'],
-        fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'],
+        uploadFileConfig: EditorConfig['uploadFileConfig'],
         oversizedNoteText: EditorConfig['image']['oversizedNoteText']
     ) {
         this.node = node;
@@ -46,8 +44,7 @@ export default class ImageView implements NodeView {
 
         this.props.view = this.view;
         this.props.getPos = this.getPos;
-        this.props.fileUploader = fileUploader;
-        this.props.fileMaxSizeInMB = fileMaxSizeInMB;
+        this.props.uploadFileConfig = uploadFileConfig;
         this.props.oversizedNoteText = oversizedNoteText;
         this.setPropsFromNode(node);
 

@@ -74,13 +74,14 @@ export function getOptions(view: EditorView, config: EditorConfig): SlashOption[
 		}
 	]
 
-	if (schema.nodes.image && config.fileUploader) {
+	if (schema.nodes.image && config.uploadFileConfig) {
+		const uploadFileConfig = config.uploadFileConfig;
 		options.push({
 			name: 'Image',
 			description: 'Add an image',
 			icon: IconCardImage,
 			keywords: ['image', 'picture', 'upload'],
-			node: () => uploadImageGetFigureNode(schema, config.fileUploader, config.fileMaxSizeInMB, config.uploadFileConfig),
+			node: () => uploadImageGetFigureNode(schema, uploadFileConfig),
 		});
 	}
 
@@ -144,13 +145,14 @@ export function getOptions(view: EditorView, config: EditorConfig): SlashOption[
 		});
 	}
 
-	if (schema.nodes.audio && config.fileUploader) {
+	if (schema.nodes.audio && config.uploadFileConfig) {
+		const uploadFileConfig = config.uploadFileConfig;
 		options.push({
 			name: 'Audio',
 			description: 'Add an audio',
 			icon: IconSoundwave,
 			keywords: ['audio', 'sound', 'upload'],
-			node: () => uploadAudioGetAudioNode(schema, config.fileUploader, config.fileMaxSizeInMB, config.uploadFileConfig),
+			node: () => uploadAudioGetAudioNode(schema, uploadFileConfig),
 		});
 	}
 

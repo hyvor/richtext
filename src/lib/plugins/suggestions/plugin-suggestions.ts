@@ -115,7 +115,7 @@ export interface SuggestionSourceEntry {
 }
 
 // Host-supplied backing store for suggestion/comment identity+content data -
-// mirrors EditorConfig's fileUploader: the editor only ever holds a
+// mirrors EditorConfig's uploadFileConfig: the editor only ever holds a
 // reference (the mark/node-attr `id`), the host owns the real persistence
 // and any auth/attribution checks. `get` is called in batches (never one id
 // at a time) whenever the editor encounters ids it hasn't seen yet (e.g.

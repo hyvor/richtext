@@ -6,8 +6,7 @@
 		src: string;
 		getPos: () => number | undefined;
 		view: EditorView;
-		fileUploader: EditorConfig['fileUploader'];
-		fileMaxSizeInMB?: number;
+		uploadFileConfig: EditorConfig['uploadFileConfig'];
 	}
 
 	let { src }: Props = $props();

@@ -30,9 +30,17 @@
 	let isLoading = $state(true);
 	let view: EditorView | undefined;
 
-	const editorConfig: EditorConfig = $derived(
-		Object.assign({}, defaultEditorConfig, props.editorConfig)
-	);
+	const editorConfig: EditorConfig = $derived.by(() => {
+		const config = Object.assign({}, defaultEditorConfig, props.editorConfig);
+		if (!config.uploadFileConfig && config.fileUploader) {
+			config.uploadFileConfig = {
+				uploader: config.fileUploader,
+				maxFileSizeInMB: config.fileMaxSizeInMB
+			};
+		}
+
+		return config;
+	});
 
 	async function createEditor() {
 		isLoading = true;

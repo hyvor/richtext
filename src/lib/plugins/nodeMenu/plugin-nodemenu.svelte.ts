@@ -33,8 +33,6 @@ export class NodeMenuPluginView implements PluginView {
             target: this.wrap,
             props: {
                 view: this.view,
-                fileUploader: config.fileUploader,
-                fileMaxSizeInMB: config.fileMaxSizeInMB,
                 uploadFileConfig: config.uploadFileConfig,
             }
         });

@@ -31,6 +31,10 @@ export const defaultSchemaConfig: SchemaConfig = {
     suggestions: false,
 };
 
+export type UploadFileConfig = {
+    uploader: (file: Blob, name: string | null, type: 'image' | 'audio') => Promise<{ url: string } | null>;
+} & Pick<FileUploaderConfig, 'maxFileSizeInMB' | 'mediaLoad' | 'unsplashSearch' | 'excalidraw'>;
+
 export interface EditorConfig {
 
     // Colors
@@ -46,11 +50,17 @@ export interface EditorConfig {
     }
 
     // File uploader (from HDS). Required if image or audio is enabled.
-    fileUploader?: (file: Blob, name: string | null, type: 'image' | 'audio') => Promise<{ url: string } | null>;
-    fileMaxSizeInMB?: number; // default: 10
+    uploadFileConfig?: UploadFileConfig;
 
-    // When defined, shows their respective tabs: mediaLoad, unsplashSearch, excalidraw
-    uploadFileConfig?: Pick<FileUploaderConfig, 'mediaLoad' | 'unsplashSearch' | 'excalidraw'>;
+    /**
+     * @deprecated use uploadFileConfig.uploader instead.
+     */
+    fileUploader?: UploadFileConfig['uploader'];
+
+    /**
+     * @deprecated use uploadFileConfig.maxFileSizeInMB instead.
+     */
+    fileMaxSizeInMB?: number;
 
     image: {
         // Note shown on an image when it's wider than its displayed size in
