@@ -43,7 +43,7 @@ export function getPlugins(schema: Schema, config: EditorConfig) {
 
 		pasteImagesPlugin(),
 
-		nodeMenuPlugin(),
+		nodeMenuPlugin(config),
 		// completionPlugin(),
 	];
 

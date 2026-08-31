@@ -1,13 +1,9 @@
 <script lang="ts">
-	import { IconButton, TextInput, Tooltip, confirm } from '@hyvor/design/components';
 	import type { EditorView } from 'prosemirror-view';
-	import { NodeSelection } from 'prosemirror-state';
-	import IconPencil from '@hyvor/icons/IconPencil';
-	import IconTrash from '@hyvor/icons/IconTrash';
-	import { onMount } from 'svelte';
-	import type { EditorConfig, ImageUploadResult } from '$lib/config';
-	import { getFigureNode, uploadImage } from './image-upload';
+	import type { EditorConfig } from '$lib/config';
 	import { setNodeAttrs } from '../../plugins/suggestions/commands';
+	import IconExclamationTriangleFill from '@hyvor/icons/IconExclamationTriangleFill';
+	import IconInfoCircleFill from '@hyvor/icons/IconInfoCircleFill';
 
 	interface Props {
 		src: string | null;
@@ -17,25 +13,56 @@
 		getPos: () => number | undefined;
 		fileUploader: EditorConfig['fileUploader'];
 		fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'];
+		oversizedNoteText: EditorConfig['image']['oversizedNoteText'];
 		view: EditorView;
 	}
 
-	let { src, alt, width, height, getPos, view, fileUploader, fileMaxSizeInMB }: Props = $props();
+	let { src, alt, width, height, getPos, view, oversizedNoteText }: Props = $props();
 
 	let imgEl: HTMLImageElement | undefined = $state();
+	let imgLoaded = $state(false);
+	let renderedWidth = $state(0);
 
-	let displayWidth: string = $state('0');
-	let displayHeight: string = $state('0');
-
-	function setDisplaySize() {
+	$effect(() => {
 		if (!imgEl) return;
-		displayWidth = Math.floor(width ? width : imgEl?.naturalWidth).toString();
-		displayHeight = Math.floor(height ? height : imgEl?.naturalHeight).toString();
+		const el = imgEl;
+		const observer = new ResizeObserver(() => {
+			renderedWidth = el.clientWidth;
+		});
+		observer.observe(el);
+		return () => observer.disconnect();
+	});
+
+	let intendedWidth = $derived.by(() => {
+		imgLoaded;
+		return width ?? imgEl?.naturalWidth ?? 0;
+	});
+	let isOversized = $derived(renderedWidth > 0 && intendedWidth > renderedWidth + 1);
+
+	let hovering = $state(false);
+	let editingAlt = $state(false);
+	let altDraft = $state('');
+	let altInputEl: HTMLInputElement | undefined = $state();
+
+	let resizeSide: 'left' | 'right' | null = $state(null);
+	let ghostWidth = $state(0);
+
+	function onMouseEnter() {
+		hovering = true;
 	}
 
-	function handleLoad() {
-		setDisplaySize();
+	function onMouseLeave() {
+		hovering = false;
 	}
+
+	let aspectRatio = $derived.by(() => {
+		imgLoaded;
+		return imgEl?.naturalWidth && imgEl?.naturalHeight ? imgEl.naturalWidth / imgEl.naturalHeight : 1;
+	});
+	let ghostHeight = $derived(Math.round(ghostWidth / aspectRatio));
+	let ghostPercent = $derived(
+		imgEl?.naturalWidth ? Math.round((ghostWidth / imgEl.naturalWidth) * 100) : 100
+	);
 
 	function updateProps(
 		props: Partial<{
@@ -59,194 +86,302 @@
 		});
 	}
 
-	function handleAltInput(e: any) {
-		const pos = getPos();
-		if (pos === undefined) return;
-		updateProps({
-			alt: e.target.value
-		});
+	function startEditAlt() {
+		altDraft = alt ?? '';
+		editingAlt = true;
 	}
 
-	function handleRangeInput(e: any) {
-		const value = parseInt(e.target.value);
-		let width: number | null, height: number | null;
-		if (!imgEl) return;
-		if (value === 100) {
-			width = null;
-			height = null;
-		} else {
-			width = (imgEl.naturalWidth * value) / 100;
-			height = (imgEl.naturalHeight * value) / 100;
-		}
-
-		updateProps({
-			width,
-			height
-		});
+	function submitAlt() {
+		editingAlt = false;
+		if (altDraft === (alt ?? '')) return;
+		updateProps({ alt: altDraft });
 	}
 
-	async function handleChangeClick() {
-		if (!fileUploader) {
-			return;
-		}
-
-		const image = await uploadImage(fileUploader, fileMaxSizeInMB);
-
-		if (image === null) {
-			return;
-		}
-
-		changeImage(image);
-	}
-
-	async function handleDelete() {
-		const confirmed = await confirm({
-			title: 'Remove image',
-			content:
-				'Are you sure you want to remove this image? It will not be deleted from the media library.',
-			confirmText: 'Yes, remove it',
-			danger: true
-		});
-
-		if (!confirmed) return;
-
-		const pos = getPos();
-
-		if (pos === undefined) return;
-
-		// figure
-		const figureSel = NodeSelection.create(view.state.doc, pos - 1);
-
-		view.dispatch(view.state.tr.delete(figureSel.from, figureSel.to));
-		view.focus();
-	}
-
-	function changeImage(image: ImageUploadResult) {
-		const pos = getPos();
-
-		if (pos === undefined) return;
-
-		updateProps({
-			src: image.src,
-			alt: image.alt || ''
-		});
-
-		const schema = view.state.schema;
-
-		if (image.caption) {
-			const nodeSel = NodeSelection.create(view.state.doc, pos + 1);
-
-			const tr = view.state.tr;
-			const newFigcaption = getFigureNode(schema, image).content.content[1];
-			tr.replaceWith(nodeSel.from, nodeSel.to, newFigcaption);
-
-			view.dispatch(tr);
+	function onAltKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			altInputEl?.blur();
+		} else if (e.key === 'Escape') {
+			e.preventDefault();
+			editingAlt = false;
 		}
 	}
 
-	onMount(() => {
-		setDisplaySize();
-	});
 	$effect(() => {
-		width;
-		height;
-		setDisplaySize();
+		if (editingAlt) altInputEl?.focus();
 	});
+
+	function startResize(side: 'left' | 'right', event: MouseEvent) {
+		if (!imgEl) return;
+		event.preventDefault();
+		event.stopPropagation();
+
+		const naturalWidth = imgEl.naturalWidth || 1;
+		const startWidth = width ?? imgEl.getBoundingClientRect().width;
+		const startX = event.clientX;
+		const minWidth = 60;
+		const maxWidth = naturalWidth * 3;
+
+		resizeSide = side;
+		ghostWidth = startWidth;
+
+		function onMove(e: MouseEvent) {
+			const dx = e.clientX - startX;
+			const delta = side === 'right' ? dx * 2 : -dx * 2;
+			ghostWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + delta));
+		}
+
+		function onUp() {
+			window.removeEventListener('mousemove', onMove);
+			window.removeEventListener('mouseup', onUp);
+			resizeSide = null;
+
+			const isNatural = Math.abs(ghostWidth - naturalWidth) < 1;
+			updateProps({
+				width: isNatural ? null : Math.round(ghostWidth),
+				height: isNatural ? null : Math.round(ghostWidth / aspectRatio)
+			});
+		}
+
+		window.addEventListener('mousemove', onMove);
+		window.addEventListener('mouseup', onUp);
+	}
 </script>
 
-<div class="image-node-wrap">
-	<div class="top">
-		<div class="left">
-			<TextInput size="small" placeholder="Add alt text..." on:input={handleAltInput} value={alt}>
-				{#snippet start()}
-					<span>ALT</span>
-				{/snippet}
-			</TextInput>
+<div
+	class="image-node-wrap"
+	onmouseenter={onMouseEnter}
+	onmouseleave={onMouseLeave}
+	role="group"
+>
+	<img
+		{src}
+		{alt}
+		bind:this={imgEl}
+		width={width ? width : undefined}
+		height={height ? height : undefined}
+		onload={() => (imgLoaded = true)}
+	/>
+
+	<div class="hover-tint" class:visible={hovering || resizeSide !== null}></div>
+
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="resize-handle left"
+		class:visible={hovering || resizeSide === 'left'}
+		onmousedown={(e) => startResize('left', e)}
+	></div>
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="resize-handle right"
+		class:visible={hovering || resizeSide === 'right'}
+		onmousedown={(e) => startResize('right', e)}
+	></div>
+
+	{#if isOversized}
+		<div class="oversized-note" class:visible={hovering}>
+			<IconInfoCircleFill size={11} />
+			{oversizedNoteText}
 		</div>
+	{/if}
 
-		<div class="right">
-			{#if imgEl}
-				<div class="range-wrap">
-					<span class="size">
-						Size ({displayWidth} x {displayHeight})
-					</span>
-					<input
-						type="range"
-						min={1}
-						max={100}
-						step={1}
-						oninput={handleRangeInput}
-						value={width ? (width / imgEl.naturalWidth) * 100 : 100}
-					/>
-				</div>
-			{/if}
-
-			<div>
-				<Tooltip text="Change image">
-					<IconButton size="small" color="input" on:click={handleChangeClick}>
-						<IconPencil size={12} />
-					</IconButton>
-				</Tooltip>
-
-				<Tooltip text="Remove image">
-					<IconButton size="small" color="input" on:click={handleDelete}>
-						<IconTrash size={12} />
-					</IconButton>
-				</Tooltip>
-			</div>
-		</div>
-	</div>
-	<div class="img-wrap">
-		<img
-			{src}
-			{alt}
-			bind:this={imgEl}
-			width={width ? width : undefined}
-			height={height ? height : undefined}
-			onload={handleLoad}
+	{#if editingAlt}
+		<input
+			class="alt-badge alt-input"
+			bind:this={altInputEl}
+			bind:value={altDraft}
+			placeholder="Describe this image..."
+			onkeydown={onAltKeydown}
+			onblur={submitAlt}
+			onclick={(e) => e.stopPropagation()}
+			onmousedown={(e) => e.stopPropagation()}
 		/>
-	</div>
+	{:else}
+		<button
+			type="button"
+			class="alt-badge"
+			class:empty={!alt}
+			onclick={(e) => {
+				e.stopPropagation();
+				startEditAlt();
+			}}
+			onmousedown={(e) => e.stopPropagation()}
+		>
+			{#if !alt}
+				<IconExclamationTriangleFill size={11} />
+			{/if}
+			{alt || 'Add alt text'}
+		</button>
+	{/if}
+
+	{#if resizeSide !== null}
+		<div class="resize-ghost" style="width: {ghostWidth}px; height: {ghostHeight}px;">
+			{#if src}
+				<img {src} alt="" />
+			{/if}
+		</div>
+		<div class="resize-label">{ghostPercent}% &middot; {Math.round(ghostWidth)}&times;{ghostHeight}px</div>
+	{/if}
 </div>
 
 <style>
 	.image-node-wrap {
-		background-color: #fafafa;
-		border-radius: 20px;
-		display: flex;
-		flex-direction: column;
+		position: relative;
+		display: inline-flex;
+		max-width: 100%;
 	}
 
-	.top {
-		border-bottom: 1px solid #eee;
-		padding: 15px;
+	img {
+		display: block;
+		max-width: 100%;
+		height: auto;
+		border-radius: 6px;
+	}
+
+	.hover-tint {
+		position: absolute;
+		inset: 0;
+		border-radius: 6px;
+		box-shadow: inset 0 -60px 40px -30px rgba(0, 0, 0, 0.25);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.15s ease;
+	}
+
+	.hover-tint.visible {
+		opacity: 1;
+	}
+
+	.resize-handle {
+		position: absolute;
+		top: 50%;
+		width: 8px;
+		height: 40px;
+		margin-top: -20px;
+		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.9);
+		box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+		opacity: 0;
+		cursor: ew-resize;
+		transition: opacity 0.15s ease;
+	}
+
+	.resize-handle.visible {
+		opacity: 1;
+	}
+
+	.resize-handle.left {
+		left: 8px;
+	}
+
+	.resize-handle.right {
+		right: 8px;
+	}
+
+	.alt-badge {
+		position: absolute;
+		right: 8px;
+		bottom: 8px;
 		display: flex;
 		align-items: center;
 		gap: 5px;
+		max-width: calc(100% - 16px);
+		padding: 4px 10px;
+		border: none;
+		border-radius: 6px;
+		background: rgba(0, 0, 0, 0.65);
+		color: #fff;
+		font-size: 12px;
+		line-height: 1.4;
+		text-align: left;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+		cursor: text;
+		font-family: inherit;
 	}
 
-	.left {
-		flex: 1;
+	.alt-badge.empty {
+		font-style: italic;
+		color: rgba(255, 255, 255, 0.85);
 	}
 
-	.right {
+	.alt-badge.empty :global(svg) {
+		flex-shrink: 0;
+		color: #ffc255;
+	}
+
+	.oversized-note {
+		position: absolute;
+		top: 8px;
+		right: 8px;
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: 5px;
+		max-width: calc(100% - 16px);
+		padding: 4px 10px;
+		border-radius: 6px;
+		background: rgba(0, 0, 0, 0.65);
+		color: #fff;
+		font-size: 12px;
+		line-height: 1.4;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.15s ease;
 	}
 
-	.img-wrap {
-		padding: 15px;
+	.oversized-note.visible {
+		opacity: 1;
 	}
 
-	.range-wrap {
-		display: inline-flex;
-		align-items: center;
-		position: relative;
+	.oversized-note :global(svg) {
+		flex-shrink: 0;
+		color: #7ab8ff;
 	}
 
-	.size {
-		font-size: 10px;
-		color: var(--text-light);
-		margin-right: 5px;
+	.alt-input {
+		width: 220px;
+		outline: none;
 	}
+
+	.alt-input::placeholder {
+		color: rgba(255, 255, 255, 0.75);
+	}
+
+	.resize-ghost {
+		position: absolute;
+		top: 0;
+		left: 50%;
+		transform: translateX(-50%);
+		overflow: hidden;
+		border-radius: 6px;
+		outline: 2px dashed rgba(0, 0, 0, 0.4);
+		outline-offset: 2px;
+		opacity: 0.45;
+		pointer-events: none;
+		z-index: 10;
+	}
+
+	.resize-ghost img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.resize-label {
+		position: absolute;
+		top: 8px;
+		left: 50%;
+		transform: translateX(-50%);
+		padding: 3px 10px;
+		border-radius: 20px;
+		background: rgba(0, 0, 0, 0.75);
+		color: #fff;
+		font-size: 11px;
+		white-space: nowrap;
+		pointer-events: none;
+		z-index: 11;
+	}	
 </style>

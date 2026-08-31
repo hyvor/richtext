@@ -1,6 +1,9 @@
 import type { EditorConfig, ImageUploadResult } from "$lib/config";
 import { uploadFile } from "@hyvor/design/components";
 import { DOMParser, type Schema } from "prosemirror-model";
+import { NodeSelection } from "prosemirror-state";
+import type { EditorView } from "prosemirror-view";
+import { setNodeAttrs } from "../../plugins/suggestions/commands";
 
 export async function uploadImage(fileUploader: EditorConfig['fileUploader'], fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB']) {
     const image = await uploadFile({
@@ -62,4 +65,26 @@ export function getFigureNode(
             result.caption ? getCaptionText(result.caption) : []
         )
     ]);
+}
+
+export function applyChangedImage(view: EditorView, imagePos: number, image: ImageUploadResult) {
+    const node = view.state.doc.nodeAt(imagePos);
+    if (!node) return;
+
+    setNodeAttrs(view, imagePos, {
+        ...node.attrs,
+        src: image.src,
+        alt: image.alt || ''
+    });
+
+    if (image.caption) {
+        const schema = view.state.schema;
+        const nodeSel = NodeSelection.create(view.state.doc, imagePos + 1);
+
+        const tr = view.state.tr;
+        const newFigcaption = getFigureNode(schema, image).content.content[1];
+        tr.replaceWith(nodeSel.from, nodeSel.to, newFigcaption);
+
+        view.dispatch(tr);
+    }
 }

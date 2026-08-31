@@ -170,7 +170,6 @@
 	};
 
 	export const collab = {
-		// feed remote steps from authority to the editor
 		receiveSteps(steps: CollabStepJSON[], clientIDs: CollabClientID[]) {
 			if (view) receiveCollabSteps(view, steps, clientIDs);
 		},
@@ -620,12 +619,18 @@
 	}
 
 	.pm-editor :global(:not(pre) > code) {
-		background: rgba(135, 131, 120, 0.15);
-		color: #eb5757;
-		border-radius: 3px;
-		font-size: 85%;
-		padding: 0.2em 0.4em;
-		font-family: monospace;
+		background: var(--input);
+		color: var(--text);
+		border: 1px solid rgba(0, 0, 0, 0.06);
+		border-radius: 4px;
+		font-size: 0.85em;
+		padding: 0.15em 0.4em;
+		font-family:
+			source-code-pro,
+			Menlo,
+			Courier New,
+			Consolas,
+			monospace;
 	}
 
 	.pm-editor :global(a) {

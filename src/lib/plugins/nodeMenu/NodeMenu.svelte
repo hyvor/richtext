@@ -8,6 +8,8 @@
 		Tooltip
 	} from '@hyvor/design/components';
 	import IconTrash from '@hyvor/icons/IconTrash';
+	import IconImage from '@hyvor/icons/IconImage';
+	import IconSoundwave from '@hyvor/icons/IconSoundwave';
 	import type { EditorView } from 'prosemirror-view';
 	import { NodeSelection } from 'prosemirror-state';
 	import IconGripVertical from '@hyvor/icons/IconGripVertical';
@@ -16,18 +18,49 @@
 	import { suggestionsPluginKey } from '../suggestions/plugin-suggestions';
 	import { isCommentingDisabled } from '../suggestions/commands';
 	import CommentInput from '../suggestions/CommentInput.svelte';
+	import type { EditorConfig } from '$lib/config';
+	import { uploadImage, applyChangedImage } from '../../nodeviews/image/image-upload';
+	import { uploadAudio, applyChangedAudio } from '../../nodeviews/audio/audio-upload';
 
 	interface Props {
 		view: EditorView;
+		fileUploader: EditorConfig['fileUploader'];
+		fileMaxSizeInMB: EditorConfig['fileMaxSizeInMB'];
 	}
 
-	let { view }: Props = $props();
+	let { view, fileUploader, fileMaxSizeInMB }: Props = $props();
+
+	function changeableMediaPos(): { kind: 'image' | 'audio'; pos: number } | null {
+		if (!fileUploader) return null;
+		if ($nodeMenuPos === null) return null;
+		const node = view.state.doc.nodeAt($nodeMenuPos);
+		if (!node) return null;
+		if (node.type.name === 'audio') return { kind: 'audio', pos: $nodeMenuPos };
+		if (node.type.name === 'figure' && node.firstChild?.type.name === 'image') {
+			return { kind: 'image', pos: $nodeMenuPos + 1 };
+		}
+		return null;
+	}
+
+	async function onChangeMedia() {
+		const target = changeableMediaPos();
+		if (!target) return;
+		show = false;
+
+		if (target.kind === 'image') {
+			const image = await uploadImage(fileUploader, fileMaxSizeInMB);
+			if (!image) return;
+			applyChangedImage(view, target.pos, image);
+		} else {
+			const audio = await uploadAudio(fileUploader, fileMaxSizeInMB);
+			if (!audio) return;
+			applyChangedAudio(view, target.pos, audio.url);
+		}
+	}
 
 	let show = $state(false);
 	let commentInputOpen = $state(false);
 
-	// static for the editor's lifetime - the suggestions plugin is either
-	// installed at creation or not (see src/lib/plugins/suggestions)
 	const commentsAvailable = !!suggestionsPluginKey.getState(view.state);
 
 	function selectNode(pos: number) {
@@ -39,24 +72,18 @@
 	function onComment() {
 		if ($nodeMenuPos === null) return;
 		if (!selectNode($nodeMenuPos)) return;
-		// deferred - swapping the DOM synchronously here detaches the clicked item before Dropdown's own outside-click listener sees this same click, so it misreads it as "outside" and closes the menu
 		setTimeout(() => {
 			commentInputOpen = true;
 		});
 	}
 
-	// reset back to the action list once the dropdown closes, so it doesn't
-	// reopen showing a stale comment box
 	$effect(() => {
 		if (!show) commentInputOpen = false;
 	});
 
 	let wrapEl: HTMLSpanElement | undefined = $state();
 
-	// how far the pointer needs to move (in px) before a mousedown on the
-	// handle turns into a drag, so a plain click still opens the menu
 	const DRAG_THRESHOLD = 4;
-	// scroll-edge trigger zone, in px from the top/bottom of the viewport
 	const AUTOSCROLL_MARGIN = 60;
 
 	let dragging = $state(false);
@@ -82,8 +109,6 @@
 
 		let { left, top } = domNode.getBoundingClientRect();
 
-		// align near the top-left corner of the node, rather than vertically
-		// centered on it
 		left -= 26;
 		top += 5;
 
@@ -91,7 +116,6 @@
 		wrapEl.style.left = `${left}px`;
 	}
 
-	// how long the pointer can sit idle before the menu hides itself
 	const IDLE_HIDE_MS = 1000;
 	let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -102,10 +126,6 @@
 		}
 	}
 
-	// keeps the menu visible while the pointer is actively moving (over a
-	// node, or over the menu/dropdown itself) and hides it once the pointer
-	// has been still for IDLE_HIDE_MS - never while dragging or while the
-	// dropdown is open, since that would yank the menu away mid-interaction
 	function scheduleIdleHide() {
 		clearIdleTimer();
 		if ($nodeMenuPos === null || dragging || show) return;
@@ -115,8 +135,6 @@
 		}, IDLE_HIDE_MS);
 	}
 
-	// hides the menu immediately once the user starts typing, so it doesn't
-	// linger over a node the pointer isn't near anymore
 	function onEditorKeydown(event: KeyboardEvent) {
 		if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(event.key)) return;
 		clearIdleTimer();
@@ -140,7 +158,6 @@
 	function onDelete() {
 		if ($nodeMenuPos === null) return;
 		const pos = $nodeMenuPos;
-		// deferred - see onComment() above for why closing the dropdown can't happen synchronously inside this click handler
 		setTimeout(() => {
 			deleteNode(view, pos);
 			show = false;
@@ -184,8 +201,6 @@
 
 		window.scrollBy(0, scrollSpeed);
 
-		// the page scrolled under a stationary pointer - recompute what's
-		// now under it so the handle/indicator/target stay in sync
 		const result = view.posAtCoords({ left: lastClientX, top: lastClientY });
 		if (result) {
 			nodeMenuPos.set(topLevelBlockPosAt(view.state.doc.resolve(result.pos)));
@@ -323,6 +338,19 @@
 				/>
 			{:else}
 				<ActionList>
+					{#if changeableMediaPos()}
+						{@const kind = changeableMediaPos()?.kind}
+						<ActionListItem on:click={onChangeMedia}>
+							{#snippet start()}
+								{#if kind === 'audio'}
+									<IconSoundwave size={14} />
+								{:else}
+									<IconImage size={14} />
+								{/if}
+							{/snippet}
+							Change {kind}
+						</ActionListItem>
+					{/if}
 					{#if commentsAvailable && !isCommentingDisabled(view.state)}
 						<ActionListItem on:click={onComment}>
 							{#snippet start()}

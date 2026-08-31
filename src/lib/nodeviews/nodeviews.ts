@@ -49,7 +49,14 @@ export function getNodeViews(config: EditorConfig): NodeViewsType {
 			return new TableNodeView(node, view, getPos);
 		},
 		image(node, view, getPos) {
-			return new ImageView(node, view, getPos, config.fileUploader, config.fileMaxSizeInMB);
+			return new ImageView(
+				node,
+				view,
+				getPos,
+				config.fileUploader,
+				config.fileMaxSizeInMB,
+				config.image.oversizedNoteText
+			);
 		},
 		audio(node, view, getPos) {
 			return new AudioView(node, view, getPos, config.fileUploader, config.fileMaxSizeInMB);
