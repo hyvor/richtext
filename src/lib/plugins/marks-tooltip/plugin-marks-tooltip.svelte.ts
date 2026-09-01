@@ -16,6 +16,8 @@ class MarksTooltipPlugin implements PluginView {
     view: EditorView;
     wrap: HTMLElement;
 
+    private lastEditable: boolean;
+
     private props: {
         view: EditorView,
         show: boolean,
@@ -24,6 +26,7 @@ class MarksTooltipPlugin implements PluginView {
 
     constructor(view: EditorView) {
         this.view = view;
+        this.lastEditable = view.editable;
 
         this.wrap = document.createElement("div")
         this.wrap.className = "pm-tooltip"
@@ -49,7 +52,11 @@ class MarksTooltipPlugin implements PluginView {
         const lastDisableCommenting = lastState && suggestionsPluginKey.getState(lastState)?.disableCommenting;
         const newDisableCommenting = suggestionsPluginKey.getState(state)?.disableCommenting;
 
+        const editableChanged = view.editable !== this.lastEditable;
+        this.lastEditable = view.editable;
+
         if (
+            !editableChanged &&
             lastState &&
             lastState.doc.eq(state.doc) &&
             lastState.selection.eq(state.selection) &&

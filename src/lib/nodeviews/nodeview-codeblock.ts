@@ -57,6 +57,7 @@ export default class CodeBlockNodeView implements NodeView {
 			matchTags: { bothTags: true },
 			autoCloseBrackets: true,
 			autoCloseTags: true,
+			readOnly: this.view.editable ? false : 'nocursor',
 			extraKeys: this.codeMirrorKeymap()
 		});
 
@@ -233,6 +234,11 @@ export default class CodeBlockNodeView implements NodeView {
 			return;
 		}
 
+		if (!this.view.editable) {
+			this.createReadonlyToolbar();
+			return;
+		}
+
 		const _self = this;
 		const toolbar = document.createElement('div');
 		toolbar.className = 'code-toolbar';
@@ -264,10 +270,13 @@ export default class CodeBlockNodeView implements NodeView {
 		inputs.className = 'code-toolbar-inputs';
 		toolbar.appendChild(inputs);
 
+		const editable = this.view.editable;
+
 		function createInput(type) {
 			const input = document.createElement('input');
 			input.className = 'input';
 			input.type = 'text';
+			input.disabled = !editable;
 			input.oninput = (e) => {
 				_self.view.dispatch(
 					_self.view.state.tr.setNodeMarkup(_self.getPos(), null, {
@@ -283,6 +292,33 @@ export default class CodeBlockNodeView implements NodeView {
 		if (this.config.annotations) this.inputAno = createInput('annotations');
 		if (this.config.fileName) this.inputName = createInput('name');
 
+		this.dom.appendChild(toolbar);
+	}
+
+	// Read-only mode: show the language / annotations / file name as plain text
+	// (only the ones that have a value), never as editable inputs.
+	private createReadonlyToolbar() {
+		const entries: [string, string][] = [];
+		if (this.config.language && this.node.attrs.language)
+			entries.push(['Language', this.node.attrs.language]);
+		if (this.config.annotations && this.node.attrs.annotations)
+			entries.push(['Annotations', this.node.attrs.annotations]);
+		if (this.config.fileName && this.node.attrs.name)
+			entries.push(['File Name', this.node.attrs.name]);
+
+		if (entries.length === 0) {
+			this.dom.classList.add('no-toolbar');
+			return;
+		}
+
+		const toolbar = document.createElement('div');
+		toolbar.className = 'code-toolbar';
+		const labels = document.createElement('div');
+		labels.className = 'code-toolbar-labels';
+		labels.innerHTML = entries
+			.map(([label, value]) => `<div>${label}: <strong>${value.replace(/</g, '&lt;')}</strong></div>`)
+			.join('');
+		toolbar.appendChild(labels);
 		this.dom.appendChild(toolbar);
 	}
 

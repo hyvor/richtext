@@ -12,9 +12,10 @@
 		view: EditorView;
 		levels?: number[];
 		getPos: () => number | undefined;
+		editable?: boolean;
 	}
 
-	let { view, levels = [1, 2, 3, 4], getPos }: Props = $props();
+	let { view, levels = [1, 2, 3, 4], getPos, editable = true }: Props = $props();
 
 	let doc = $state(view.state.doc);
 
@@ -51,7 +52,9 @@
 			<IconMessage padding={40} empty iconSize={50} message="No headings found" />
 		{/if}
 	</div>
-	<TocLevels bind:levels on:change={handleLevelsChange} />
+	{#if editable}
+		<TocLevels bind:levels on:change={handleLevelsChange} />
+	{/if}
 </div>
 
 <style>

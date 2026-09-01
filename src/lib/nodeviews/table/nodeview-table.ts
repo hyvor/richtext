@@ -27,11 +27,14 @@ export default class TableNodeView implements NodeView {
         this.dom = document.createElement("div");
         this.dom.classList.add("table-wrap");
 
-        this.top = this.dom.appendChild(document.createElement("div"));
+        this.top = document.createElement("div");
         this.top.className = "table-top";
         this.top.contentEditable = "false";
 
-        mount(TableTop, {target: this.top});
+        if (view.editable) {
+            this.dom.appendChild(this.top);
+            mount(TableTop, {target: this.top});
+        }
         // this.createRowMenuComponent();
 
         this.middle = this.dom.appendChild(document.createElement("div"));

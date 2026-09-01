@@ -17,6 +17,7 @@ export default class TocView implements NodeView {
         getPos: () => number | undefined;
         view: EditorView;
         levels: undefined|number[];
+        editable: boolean;
     } = $state({} as any)
 
     constructor(node: Node, view: EditorView, getPos: () => number | undefined) {
@@ -30,7 +31,8 @@ export default class TocView implements NodeView {
         this.props = {
             getPos: this.getPos,
             view: this.view,
-            levels: this.levels
+            levels: this.levels,
+            editable: view.editable
         }
 
         mount(Toc, {
