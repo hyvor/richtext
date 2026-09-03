@@ -361,6 +361,7 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
             // we try to group delete+insert into a 'replace' using the suggestion id when possible.
             decorations(state) {
                 const decorations: Decoration[] = [];
+                const suggestionType = state.schema.marks.suggestion;
 
                 const deleteIds = new Set<string>();
                 const insertIds = new Set<string>();
@@ -372,61 +373,92 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
                     return true;
                 });
 
+                const activeIds = new Set<string>();
+                const selHead = state.selection.head;
+                state.doc.descendants((node, pos) => {
+                    const from = pos, to = pos + node.nodeSize;
+                    if (selHead < from || selHead > to) return false;
+                    for (const s of getNodeSuggestions(node)) activeIds.add(s.id);
+                    if (node.isInline && suggestionType) {
+                        for (const mark of node.marks) {
+                            if (mark.type === suggestionType) activeIds.add(mark.attrs.id);
+                        }
+                    }
+                    return true;
+                });
+
                 state.doc.descendants((node, pos) => {
                     const list = getNodeSuggestions(node);
-                    if (!list.length) return true;
 
-                    // a node holds at most one pending insert/delete/format at a time
-                    // (the "primary" entry), but any number of independent comment
-                    // threads alongside it
-                    const primary = list.find(s => s.type !== "comment");
-                    const comments = list.filter(s => s.type === "comment");
+                    if (list.length) {
+                        const primary = list.find(s => s.type !== "comment");
+                        const comments = list.filter(s => s.type === "comment");
 
-                    if (primary?.type === "delete") {
-                        const isReplace = insertIds.has(primary.id);
-                        decorations.push(Decoration.node(pos, pos + node.nodeSize, {
-                            class: isReplace ? "suggestion-node-delete suggestion-node-replace-delete" : "suggestion-node-delete",
-                            "data-suggestion-id": primary.id,
-                            title: `Suggested ${isReplace ? "replacement" : "deletion"}`
-                        }));
-                        if (isReplace) {
-                            // sits right at the boundary between the deleted node and its
-                            // paired inserted node - a small "replaced" divider connecting them
-                            decorations.push(Decoration.widget(pos + node.nodeSize, () => {
-                                const el = document.createElement("div");
-                                el.className = "suggestion-replace-connector";
-                                el.setAttribute("data-suggestion-id", primary.id);
-                                el.textContent = "Replaced with";
-                                return el;
-                            }, { key: `replace-${primary.id}` }));
+                        if (primary?.type === "delete") {
+                            const isReplace = insertIds.has(primary.id);
+                            const active = activeIds.has(primary.id);
+                            decorations.push(Decoration.node(pos, pos + node.nodeSize, {
+                                class: [
+                                    "suggestion-node-delete",
+                                    isReplace && "suggestion-node-replace-delete",
+                                    active && "suggestion-node-active active-delete"
+                                ].filter(Boolean).join(" "),
+                                "data-suggestion-id": primary.id,
+                                title: `Suggested ${isReplace ? "replacement" : "deletion"}`
+                            }));
+                            if (isReplace) {
+                                // sits right at the boundary between the deleted node and its
+                                // paired inserted node - a small "replaced" divider connecting them
+                                decorations.push(Decoration.widget(pos + node.nodeSize, () => {
+                                    const el = document.createElement("div");
+                                    el.className = "suggestion-replace-connector";
+                                    el.setAttribute("data-suggestion-id", primary.id);
+                                    el.textContent = "Replaced with";
+                                    return el;
+                                }, { key: `replace-${primary.id}` }));
+                            }
+                        } else if (primary?.type === "insert") {
+                            const isReplace = deleteIds.has(primary.id);
+                            const active = activeIds.has(primary.id);
+                            decorations.push(Decoration.node(pos, pos + node.nodeSize, {
+                                class: [
+                                    "suggestion-node-insert",
+                                    isReplace && "suggestion-node-replace-insert",
+                                    active && "suggestion-node-active active-insert"
+                                ].filter(Boolean).join(" "),
+                                "data-suggestion-id": primary.id,
+                                title: `Suggested ${isReplace ? "replacement" : "insertion"}`
+                            }));
+                        } else if (primary?.type === "format") {
+                            decorations.push(Decoration.node(pos, pos + node.nodeSize, {
+                                class: activeIds.has(primary.id) ? "suggestion-node-format suggestion-node-active active-format" : "suggestion-node-format",
+                                "data-suggestion-id": primary.id,
+                                title: "Suggested formatting"
+                            }));
                         }
-                    } else if (primary?.type === "insert") {
-                        const isReplace = deleteIds.has(primary.id);
-                        decorations.push(Decoration.node(pos, pos + node.nodeSize, {
-                            class: isReplace ? "suggestion-node-insert suggestion-node-replace-insert" : "suggestion-node-insert",
-                            "data-suggestion-id": primary.id,
-                            title: `Suggested ${isReplace ? "replacement" : "insertion"}`
-                        }));
-                    } else if (primary?.type === "format") {
-                        decorations.push(Decoration.node(pos, pos + node.nodeSize, {
-                            class: "suggestion-node-format",
-                            "data-suggestion-id": primary.id,
-                            title: "Suggested formatting"
-                        }));
+
+                        if (comments.length) {
+                            decorations.push(Decoration.node(pos, pos + node.nodeSize, {
+                                class: comments.some(c => activeIds.has(c.id)) ? "node-comment suggestion-node-active active-comment" : "node-comment",
+                                "data-suggestion-ids": comments.map(c => c.id).join(",")
+                            }));
+                        }
+
+                        if (primary && primary.type !== "format") return false;
                     }
 
-                    if (comments.length) {
-                        decorations.push(Decoration.node(pos, pos + node.nodeSize, {
-                            class: "node-comment",
-                            "data-suggestion-ids": comments.map(c => c.id).join(",")
-                        }));
+                    if (node.isInline && suggestionType) {
+                        for (const mark of node.marks) {
+                            if (mark.type === suggestionType && activeIds.has(mark.attrs.id)) {
+                                decorations.push(Decoration.inline(pos, pos + node.nodeSize, {
+                                    class: `suggestion-active active-${mark.attrs.type}`
+                                }));
+                                break;
+                            }
+                        }
                     }
 
-                    // skip descending into children only when this node itself is a
-                    // whole insert/delete (matches prior behavior) - format-only or
-                    // comment-only nodes still get walked, since their children may
-                    // carry their own, independent suggestions/comments
-                    return !(primary && primary.type !== "format");
+                    return true;
                 });
                 return decorations.length ? DecorationSet.create(state.doc, decorations) : null;
             }
