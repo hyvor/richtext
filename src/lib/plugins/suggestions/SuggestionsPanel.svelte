@@ -172,12 +172,34 @@
 		};
 	});
 
+	function getVisibleBounds(el: HTMLElement): { top: number; bottom: number } {
+		let top = 0;
+		let bottom = window.innerHeight;
+		let node = el.parentElement;
+		while (node) {
+			const overflowY = getComputedStyle(node).overflowY;
+			if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') {
+				const rect = node.getBoundingClientRect();
+				top = Math.max(top, rect.top);
+				bottom = Math.min(bottom, rect.bottom);
+			}
+			node = node.parentElement;
+		}
+		return { top, bottom };
+	}
+
 	function updatePosition() {
 		if (!panel) return;
 		const editorRect = view.dom.getBoundingClientRect();
 		const gap = 16;
-		panel.style.top = Math.max(12, editorRect.top) + 'px';
+		const visible = getVisibleBounds(view.dom);
+
+		const top = Math.max(12, editorRect.top, visible.top);
+		const bottom = Math.min(window.innerHeight - 12, editorRect.bottom, visible.bottom);
+
+		panel.style.top = top + 'px';
 		panel.style.left = editorRect.left - panel.offsetWidth - gap + 'px';
+		panel.style.maxHeight = Math.max(0, bottom - top) + 'px';
 	}
 
 	type ChangeDescription =
@@ -207,7 +229,12 @@
 		const deleted = item.deletedText || item.deletedNodeText || item.deletedNodeType;
 
 		if (inserted && deleted) {
-			return { kind: 'replace', prefix: 'Replace', from: truncate(deleted), to: truncate(inserted) };
+			return {
+				kind: 'replace',
+				prefix: 'Replace',
+				from: truncate(deleted),
+				to: truncate(inserted)
+			};
 		}
 		if (inserted) {
 			return { kind: 'quoted', prefix: 'Insert', text: truncate(inserted) };
@@ -377,9 +404,7 @@
 	<div class="entry-actions" onclick={(e) => e.stopPropagation()}>
 		{#if isMine(reply.author)}
 			<Dropdown
-				bind:show={
-					() => dropdownOpen[reply.id] ?? false, (v) => (dropdownOpen[reply.id] = v)
-				}
+				bind:show={() => dropdownOpen[reply.id] ?? false, (v) => (dropdownOpen[reply.id] = v)}
 				position="left"
 				align="end"
 				width={140}
@@ -413,7 +438,8 @@
 	<div class="suggestions-panel" bind:this={panel}>
 		<div class="header-wrap" class:open={panelOpen}>
 			<div class="header">
-				<span>{pluralize(suggestionCount, 'suggestion')}, {pluralize(commentCount, 'comment')}</span>
+				<span>{pluralize(suggestionCount, 'suggestion')}, {pluralize(commentCount, 'comment')}</span
+				>
 				<IconButton size={18} color="input" onclick={() => (panelOpen = !panelOpen)}>
 					<span class="fold-icon" class:open={panelOpen}>
 						<IconChevronDown size={12} />
@@ -545,6 +571,9 @@
 	.suggestions-panel {
 		position: fixed;
 		width: 280px;
+		/* fallback for the first paint before updatePosition() runs - it always
+		   sets an inline max-height clamped to the editor's actual visible
+		   bounds afterwards, see updatePosition() */
 		max-height: calc(100vh - 40px);
 		overflow-y: auto;
 		font-size: 13px;
@@ -698,7 +727,7 @@
 	.author-row .right {
 		display: flex;
 		flex-direction: column;
-    	line-height: 12px;
+		line-height: 12px;
 	}
 
 	.author-row strong {
