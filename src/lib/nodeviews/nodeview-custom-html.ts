@@ -49,6 +49,7 @@ export default class CustomHtmlNodeView {
 			matchTags: { bothTags: true },
 			autoCloseBrackets: true,
 			autoCloseTags: true,
+			readOnly: this.view.editable ? false : 'nocursor',
 			extraKeys: this.codeMirrorKeymap()
 		});
 

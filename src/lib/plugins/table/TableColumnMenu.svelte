@@ -42,7 +42,7 @@
 		if (!view) return;
 
 		const selection = view.state.selection;
-		const selectionInTable = isSelectionInTable(selection);
+		const selectionInTable = view.editable && isSelectionInTable(selection);
 
 		if (selectionInTable) {
 			show = true;

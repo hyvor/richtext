@@ -14,6 +14,8 @@ class ButtonTooltipPlugin implements PluginView {
     view: EditorView;
     wrap: HTMLElement;
 
+    private lastEditable: boolean;
+
     private props: {
         view: EditorView,
         show: boolean,
@@ -22,6 +24,7 @@ class ButtonTooltipPlugin implements PluginView {
 
     constructor(view: EditorView) {
         this.view = view;
+        this.lastEditable = view.editable;
 
         this.wrap = document.createElement("div")
         this.wrap.className = "pm-button-tooltip"
@@ -44,8 +47,12 @@ class ButtonTooltipPlugin implements PluginView {
 
         const state = view.state
 
+        const editableChanged = view.editable !== this.lastEditable;
+        this.lastEditable = view.editable;
+
         if (
-            lastState && 
+            !editableChanged &&
+            lastState &&
             lastState.doc.eq(state.doc) &&
             lastState.selection.eq(state.selection)
         ) return

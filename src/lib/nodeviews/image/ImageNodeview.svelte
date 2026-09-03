@@ -14,9 +14,10 @@
 		uploadFileConfig: EditorConfig['uploadFileConfig'];
 		oversizedNoteText: EditorConfig['image']['oversizedNoteText'];
 		view: EditorView;
+		editable: boolean;
 	}
 
-	let { src, alt, width, height, getPos, view, oversizedNoteText }: Props = $props();
+	let { src, alt, width, height, getPos, view, oversizedNoteText, editable }: Props = $props();
 
 	let imgEl: HTMLImageElement | undefined = $state();
 	let imgLoaded = $state(false);
@@ -162,20 +163,22 @@
 		onload={() => (imgLoaded = true)}
 	/>
 
-	<div class="hover-tint" class:visible={hovering || resizeSide !== null}></div>
+	{#if editable}
+		<div class="hover-tint" class:visible={hovering || resizeSide !== null}></div>
 
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="resize-handle left"
-		class:visible={hovering || resizeSide === 'left'}
-		onmousedown={(e) => startResize('left', e)}
-	></div>
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="resize-handle right"
-		class:visible={hovering || resizeSide === 'right'}
-		onmousedown={(e) => startResize('right', e)}
-	></div>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="resize-handle left"
+			class:visible={hovering || resizeSide === 'left'}
+			onmousedown={(e) => startResize('left', e)}
+		></div>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="resize-handle right"
+			class:visible={hovering || resizeSide === 'right'}
+			onmousedown={(e) => startResize('right', e)}
+		></div>
+	{/if}
 
 	{#if isOversized}
 		<div class="oversized-note" class:visible={hovering}>
@@ -184,7 +187,9 @@
 		</div>
 	{/if}
 
-	{#if editingAlt}
+	{#if !editable}
+		<!-- read-only: no alt-text editing affordance -->
+	{:else if editingAlt}
 		<input
 			class="alt-badge alt-input"
 			bind:this={altInputEl}

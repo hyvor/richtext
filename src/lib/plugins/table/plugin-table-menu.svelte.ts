@@ -18,12 +18,15 @@ export class PluginTableMenu implements PluginView {
     private rowMenu: Record<string, any> | null = null;
     private columnMenu: Record<string, any> | null = null;
 
+    private lastEditable: boolean;
+
     private props:{
         updateId: number;
     } = $state({ updateId: 0 });
 
     constructor(view: EditorView) {
         this.view = view;
+        this.lastEditable = view.editable;
 
         this.wrap = document.createElement("div")
         view.dom!.parentNode!.appendChild(this.wrap);
@@ -41,7 +44,9 @@ export class PluginTableMenu implements PluginView {
     }
 
     update(view: EditorView, prevState: EditorState) {
-        if (prevState.selection.eq(view.state.selection)) return;
+        const editableChanged = view.editable !== this.lastEditable;
+        this.lastEditable = view.editable;
+        if (!editableChanged && prevState.selection.eq(view.state.selection)) return;
         this.props.updateId++;
     }
 

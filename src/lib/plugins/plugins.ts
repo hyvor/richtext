@@ -18,6 +18,7 @@ import type { EditorConfig } from '$lib/config';
 import nodeMenuPlugin from './nodeMenu/plugin-nodemenu.svelte.js';
 import suggestionsPlugin from './suggestions/plugin-suggestions';
 import headingFocusPlugin from './plugin-heading-focus';
+import linkClickPlugin from './plugin-link-click';
 import collabPlugin from './collab/plugin-collab';
 import cursorsPlugin from './cursors/plugin-cursors';
 
@@ -28,6 +29,7 @@ export function getPlugins(schema: Schema, config: EditorConfig) {
 
 		placeholderPlugin('Start writing...'),
 		headingFocusPlugin(),
+		linkClickPlugin(),
 		marksTooltipPlugin(),
 		buttonTooltipPlugin(),
 		wordCountPlugin(),

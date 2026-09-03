@@ -38,7 +38,7 @@ class SlashTipPlugin implements PluginView {
 		const { state } = view;
 		const { selection } = state;
 
-		if (!selection.empty) {
+		if (!view.editable || !selection.empty) {
 			return this.hide();
 		}
 

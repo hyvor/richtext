@@ -158,8 +158,10 @@
 	}
 
 	export function setEditable(editable: boolean) {
-		view?.setProps({
-			editable: () => editable
+		if (!view) return;
+		view.setProps({
+			editable: () => editable,
+			nodeViews: getNodeViews(editorConfig)
 		});
 	}
 
@@ -333,7 +335,7 @@
 		animation: fadeIn06 0.2s ease-in-out;
 	}
 
-	.pm-editor :global(.heading-wrap.heading-focused .heading-compact) {
+	.pm-editor :global(.ProseMirror[contenteditable='true'] .heading-wrap.heading-focused .heading-compact) {
 		display: none;
 	}
 
@@ -511,7 +513,7 @@
 		text-align: center;
 	}
 
-	.pm-editor :global(figure figcaption.empty:before) {
+	.pm-editor :global(.ProseMirror[contenteditable='true'] figure figcaption.empty:before) {
 		content: 'Enter caption...';
 		color: #aaa;
 		position: absolute;
@@ -525,7 +527,7 @@
 		display: block;
 	}
 
-	.pm-editor :global(figure x-embed:before) {
+	.pm-editor :global(.ProseMirror[contenteditable='true'] figure x-embed:before) {
 		content: '';
 		position: absolute;
 		z-index: 1;
@@ -646,6 +648,13 @@
 		text-decoration: underline;
 	}
 
+	/* In editing mode a plain click is ignored (only Cmd/Ctrl+click navigates -
+	   see plugin-link-click.ts), so the caret cursor communicates "click to
+	   edit here". Read-only keeps the normal link pointer. */
+	.pm-editor :global(.ProseMirror[contenteditable='true'] a) {
+		cursor: text;
+	}
+
 	.pm-editor :global(mark) {
 		padding: 0.2em 0.4em;
 		background-color: #fcf8e3;
@@ -763,7 +772,7 @@
 		cursor: text;
 	}
 
-	.pm-editor :global(.button-wrap a.button:empty::before) {
+	.pm-editor :global(.ProseMirror[contenteditable='true'] .button-wrap a.button:empty::before) {
 		content: 'Your text here';
 		color: var(--text-light);
 	}

@@ -16,6 +16,7 @@ export class CalloutNodeView implements NodeView {
 
     emojiWrap: HTMLSpanElement;
     colorPickersWrap: HTMLDivElement;
+    private editable: boolean;
 
     emojiPickerExports: { changeEmoji: (emoji: string) => void }
 
@@ -30,6 +31,7 @@ export class CalloutNodeView implements NodeView {
         this.node = node;
         this.view = view;
         this.getPos = getPos;
+        this.editable = view.editable;
 
         this.dom = document.createElement("aside")
 
@@ -71,18 +73,23 @@ export class CalloutNodeView implements NodeView {
             changeAttr: this.changeAttr.bind(this)
         }
 
-        this.emojiPickerExports = mount(EmojiPicker, {
-            target: this.emojiWrap,
-            props: {
-                emoji: this.props.emoji,
-                changeAttr: this.props.changeAttr,
-            }
-        }) as typeof this.emojiPickerExports;
+        if (this.editable) {
+            this.emojiPickerExports = mount(EmojiPicker, {
+                target: this.emojiWrap,
+                props: {
+                    emoji: this.props.emoji,
+                    changeAttr: this.props.changeAttr,
+                }
+            }) as typeof this.emojiPickerExports;
 
-        mount(CalloutColors, {
-            target: this.colorPickersWrap,
-            props: this.props
-        })
+            mount(CalloutColors, {
+                target: this.colorPickersWrap,
+                props: this.props
+            })
+        } else {
+            // Read-only: render the emoji as plain text, no picker / color controls.
+            this.emojiWrap.textContent = this.props.emoji ?? '';
+        }
 
         this.updateFromAttrs();
     }
@@ -108,6 +115,9 @@ export class CalloutNodeView implements NodeView {
 
     updateFromAttrs() {
         this.props.emoji = this.node.attrs.emoji;
+        if (!this.editable) {
+            this.emojiWrap.textContent = this.node.attrs.emoji ?? '';
+        }
         this.changeColors(this.node.attrs.bg, this.node.attrs.fg)
         this.dom.dataset.emoji = this.node.attrs.emoji;
     }

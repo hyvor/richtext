@@ -8,10 +8,10 @@ export default class HeadingNodeView implements NodeView {
 	contentDOM: HTMLElement;
 
 	private selection: any;
-	private input: HTMLInputElement;
-	private inputWrap: HTMLDivElement;
-	private headingDetails: HTMLDivElement;
-	private compactLabel: HTMLDivElement;
+	private input?: HTMLInputElement;
+	private inputWrap?: HTMLDivElement;
+	private headingDetails?: HTMLDivElement;
+	private compactLabel?: HTMLDivElement;
 
 	private node: ProsemirrorNode;
 
@@ -21,6 +21,25 @@ export default class HeadingNodeView implements NodeView {
 
 		this.dom = document.createElement('div');
 		this.dom.classList.add('heading-wrap');
+
+		// Create contentDOM up front so read-only mode can return early with
+		// just the rendered heading and the level/id label (no editing chrome).
+		this.contentDOM = document.createElement('h' + this.node.attrs.level);
+		this.contentDOM.id = this.node.attrs.id || '';
+
+		// The compact label shown in
+		// both modes; the details bar below (level switcher + id input) is
+		// editing-only.
+		this.compactLabel = document.createElement('div');
+		this.compactLabel.classList.add('heading-compact');
+		this.compactLabel.contentEditable = 'false';
+
+		if (!view.editable) {
+			this.dom.appendChild(this.compactLabel);
+			this.dom.appendChild(this.contentDOM);
+			this.updateCompactLabel();
+			return;
+		}
 
 		const headingDetails = document.createElement('div');
 		headingDetails.classList.add('heading-details');
@@ -70,15 +89,9 @@ export default class HeadingNodeView implements NodeView {
 		// Compact label, shown by default; the details bar above is only
 		// shown while the cursor is inside this heading (see
 		// plugin-heading-focus.ts / .heading-focused in Editor.svelte)
-		this.compactLabel = document.createElement('div');
-		this.compactLabel.classList.add('heading-compact');
-		this.compactLabel.contentEditable = 'false';
 		this.dom.appendChild(this.compactLabel);
 
-		// Create contentDOM
-		this.contentDOM = document.createElement('h' + this.node.attrs.level);
 		const id = this.node.attrs.id || "";
-		this.contentDOM.id = id;
 		this.dom.appendChild(this.contentDOM);
 
 		const type = document.createElement("span");
@@ -115,7 +128,7 @@ export default class HeadingNodeView implements NodeView {
             // changing ID
 
 			this.contentDOM.id = node.attrs.id;
-            this.input.value = node.attrs.id;
+            if (this.input) this.input.value = node.attrs.id;
             this.updateCompactLabel();
             return true;
         }
@@ -124,11 +137,12 @@ export default class HeadingNodeView implements NodeView {
     }
 
 	private updateCompactLabel() {
+		if (!this.compactLabel) return;
 		const { level, id } = this.node.attrs;
 		this.compactLabel.textContent = `H${level}` + (id ? ` #${id}` : '');
 	}
 
 	stopEvent(e: Event) {
-		return this.headingDetails.contains(e.target as Node);
+		return !!this.headingDetails && this.headingDetails.contains(e.target as Node);
 	}
 }

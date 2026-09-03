@@ -17,6 +17,7 @@ export default class ImageView implements NodeView {
         uploadFileConfig: EditorConfig['uploadFileConfig'];
         oversizedNoteText: EditorConfig['image']['oversizedNoteText'];
         getPos: () => number | undefined;
+        editable: boolean;
         src: string;
         alt: string;
         width: number | null;
@@ -44,6 +45,7 @@ export default class ImageView implements NodeView {
 
         this.props.view = this.view;
         this.props.getPos = this.getPos;
+        this.props.editable = view.editable;
         this.props.uploadFileConfig = uploadFileConfig;
         this.props.oversizedNoteText = oversizedNoteText;
         this.setPropsFromNode(node);
