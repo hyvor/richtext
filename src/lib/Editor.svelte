@@ -295,8 +295,7 @@
 	.pm-editor :global(pre),
 	.pm-editor :global(ul),
 	.pm-editor :global(ol),
-	.pm-editor :global(bookmark)
-	{
+	.pm-editor :global(bookmark) {
 		line-height: 30px;
 		margin-top: 20px;
 		margin-bottom: 0;
@@ -335,7 +334,8 @@
 		animation: fadeIn06 0.2s ease-in-out;
 	}
 
-	.pm-editor :global(.ProseMirror[contenteditable='true'] .heading-wrap.heading-focused .heading-compact) {
+	.pm-editor
+		:global(.ProseMirror[contenteditable='true'] .heading-wrap.heading-focused .heading-compact) {
 		display: none;
 	}
 
@@ -800,7 +800,6 @@
 		text-underline-offset: 3px;
 	}
 
-
 	/* whole-node suggestions (a deleted/inserted/reformatted block or atom node
 	   that can't carry an inline mark) - rendered as decorations from the
 	   `suggestions` node attr, see plugin-suggestions.ts */
@@ -861,6 +860,30 @@
 		height: 1px;
 		background: currentColor;
 		opacity: 0.35;
+	}
+
+	.pm-editor :global(.suggestion-active),
+	.pm-editor :global(.suggestion-node-active) {
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+	}
+
+	.pm-editor :global(.suggestion-active) {
+		border-radius: 3px;
+	}
+
+	.pm-editor :global(.suggestion-active.active-insert),
+	.pm-editor :global(.suggestion-node-active.active-insert) {
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 50%, white);
+	}
+
+	.pm-editor :global(.suggestion-active.active-delete),
+	.pm-editor :global(.suggestion-node-active.active-delete) {
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 50%, white);
+	}
+
+	.pm-editor :global(.suggestion-active.active-format),
+	.pm-editor :global(.suggestion-node-active.active-format) {
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--orange) 50%, white);
 	}
 
 	/* other users' cursors/selections - see plugin-cursors.ts. --cursor-color
