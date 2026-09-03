@@ -60,7 +60,8 @@ class MarksTooltipPlugin implements PluginView {
             state.selection.empty || 
             !view.editable ||
             state.doc.cut(state.selection.from, state.selection.to).textContent === "" ||
-            state.selection instanceof NodeSelection
+            state.selection instanceof NodeSelection ||
+            Boolean(state.selection.$from.parent.type.spec.code || state.selection.$to.parent.type.spec.code)
         ) {
             this.props.show = false;
             return
