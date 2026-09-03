@@ -192,13 +192,31 @@
 		if (!panel) return;
 		const editorRect = view.dom.getBoundingClientRect();
 		const gap = 16;
+		const margin = 12;
 		const visible = getVisibleBounds(view.dom);
 
-		const top = Math.max(12, editorRect.top, visible.top);
-		const bottom = Math.min(window.innerHeight - 12, editorRect.bottom, visible.bottom);
+		const top = Math.max(margin, editorRect.top, visible.top);
+		const bottom = Math.min(window.innerHeight - margin, editorRect.bottom, visible.bottom);
+
+		// prefer sitting to the left of the editor (the common case - most
+		// hosts give it a wide margin there), but that assumes ~300px of
+		// spare room, which a centered modal usually doesn't have - fall back
+		// to the right of the editor, then to hugging whichever edge is
+		// closest, rather than rendering mostly off-screen and unclickable
+		const panelWidth = panel.offsetWidth;
+		const leftOfEditor = editorRect.left - panelWidth - gap;
+		const rightOfEditor = editorRect.right + gap;
+		let left: number;
+		if (leftOfEditor >= margin) {
+			left = leftOfEditor;
+		} else if (rightOfEditor + panelWidth <= window.innerWidth - margin) {
+			left = rightOfEditor;
+		} else {
+			left = Math.max(margin, leftOfEditor);
+		}
 
 		panel.style.top = top + 'px';
-		panel.style.left = editorRect.left - panel.offsetWidth - gap + 'px';
+		panel.style.left = left + 'px';
 		panel.style.maxHeight = Math.max(0, bottom - top) + 'px';
 	}
 
@@ -331,14 +349,32 @@
 		deleteSuggestionReply(view, item.id, reply.id);
 	}
 
+	// centers the given doc position in the editor's viewport - native
+	// Element.scrollIntoView() rather than prosemirror-view's own
+	// tr.scrollIntoView(), which only scrolls the minimum distance needed to
+	// bring the selection on-screen (leaving it sitting right at the edge)
+	function scrollPosIntoView(pos: number) {
+		let node: globalThis.Node | null = view.domAtPos(pos).node;
+		while (node && node.nodeType !== Node.ELEMENT_NODE) node = node.parentNode;
+		(node as HTMLElement | null)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+	}
+
 	function jumpTo(item: SuggestionItem) {
 		const tr = view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(item.from)));
 		view.dispatch(tr);
 		view.focus();
+		scrollPosIntoView(item.from);
+	}
 
-		let node: globalThis.Node | null = view.domAtPos(item.from).node;
-		while (node && node.nodeType !== Node.ELEMENT_NODE) node = node.parentNode;
-		(node as HTMLElement | null)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+	// wraps an accept/reject/resolve action so that, once it's moved the
+	// selection to whatever suggestion/comment comes next (see
+	// focusAdjacentItem in commands.ts), the editor scrolls to reveal it too -
+	// same "center in view" treatment as clicking an item directly (jumpTo),
+	// just without stealing focus from wherever the user clicked (a panel
+	// button, not the document)
+	function resolveAndAdvance(action: () => void) {
+		action();
+		scrollPosIntoView(view.state.selection.head);
 	}
 
 	function jumpToOnKey(e: KeyboardEvent, item: SuggestionItem) {
@@ -378,7 +414,9 @@
 		<IconButton
 			size={18}
 			onclick={() =>
-				item.type === 'comment' ? resolveComment(view, item.id) : acceptSuggestion(view, item.id)}
+				resolveAndAdvance(() =>
+					item.type === 'comment' ? resolveComment(view, item.id) : acceptSuggestion(view, item.id)
+				)}
 			color="input"
 			style="color:var(--green-dark)"
 		>
@@ -391,7 +429,7 @@
 			<IconButton
 				size={18}
 				color="input"
-				onclick={() => rejectSuggestion(view, item.id)}
+				onclick={() => resolveAndAdvance(() => rejectSuggestion(view, item.id))}
 				style="color:var(--red-dark)"
 			>
 				<IconX size={12} />
@@ -437,15 +475,13 @@
 {#if items.length > 0 && view.editable}
 	<div class="suggestions-panel" bind:this={panel}>
 		<div class="header-wrap" class:open={panelOpen}>
-			<div class="header">
+			<button class="header" onclick={() => (panelOpen = !panelOpen)}>
 				<span>{pluralize(suggestionCount, 'suggestion')}, {pluralize(commentCount, 'comment')}</span
 				>
-				<IconButton size={18} color="input" onclick={() => (panelOpen = !panelOpen)}>
-					<span class="fold-icon" class:open={panelOpen}>
-						<IconChevronDown size={12} />
-					</span>
-				</IconButton>
-			</div>
+				<span class="fold-icon" class:open={panelOpen}>
+					<IconChevronDown size={12} />
+				</span>
+			</button>
 			{#if panelOpen}
 				<div class="header-extra" transition:slide={{ duration: 150 }}>
 					<div class="extra-group">
@@ -571,9 +607,6 @@
 	.suggestions-panel {
 		position: fixed;
 		width: 280px;
-		/* fallback for the first paint before updatePosition() runs - it always
-		   sets an inline max-height clamped to the editor's actual visible
-		   bounds afterwards, see updatePosition() */
 		max-height: calc(100vh - 40px);
 		overflow-y: auto;
 		font-size: 13px;
@@ -585,13 +618,10 @@
 		top: 0;
 		z-index: 1;
 		margin: 0 4px;
-		border-radius: 10px;
+		border-radius: 20px;
 		transition:
 			background-color 0.15s ease,
 			box-shadow 0.15s ease;
-	}
-
-	.header-wrap.open {
 		background: var(--box-background);
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 	}
@@ -601,8 +631,9 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 8px;
-		padding: 4px 8px 4px 12px;
 		font-weight: 600;
+		width: 100%;
+		padding: 10px 20px;
 	}
 
 	.fold-icon {
@@ -615,10 +646,11 @@
 	}
 
 	.header-extra {
-		padding: 4px 12px 12px;
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
+		padding: 10px 20px;
+		padding-top: 0;
 	}
 
 	.extra-group {

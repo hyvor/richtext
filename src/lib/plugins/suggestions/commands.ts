@@ -1,5 +1,6 @@
 import type { EditorState } from "prosemirror-state";
-import { NodeSelection } from "prosemirror-state";
+import { NodeSelection, TextSelection } from "prosemirror-state";
+import type { Transaction } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import { closeHistory } from "prosemirror-history";
 import {
@@ -174,12 +175,22 @@ export function resolveAllComments(view: EditorView) {
     }
 }
 
+function focusAdjacentItem(tr: Transaction, items: SuggestionItem[], id: string) {
+    const idx = items.findIndex(i => i.id === id);
+    if (idx === -1) return;
+    const next = items[idx + 1] ?? items[idx - 1];
+    if (!next) return;
+    const pos = Math.max(0, Math.min(tr.mapping.map(next.from), tr.doc.content.size));
+    tr.setSelection(TextSelection.near(tr.doc.resolve(pos)));
+}
+
 function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "reject") {
     const { state } = view;
     const schema = state.schema;
     const suggestionType = schema.marks.suggestion;
     if (!suggestionType) return;
 
+    const items = getSuggestions(state);
     const tr = state.tr;
     const deleteRanges: { from: number; to: number }[] = [];
     let found = false;
@@ -265,7 +276,9 @@ function resolveSuggestion(view: EditorView, id: string, decision: "accept" | "r
     if (tr.steps.length > 0 || found) {
         tr.setMeta(SUGGESTIONS_SKIP_META, true);
         tr.setMeta(suggestionsPluginKey, { events: [{ kind: "resolve", id, decision } satisfies SuggestionEvent] });
+        focusAdjacentItem(tr, items, id);
         view.dispatch(tr);
+        view.focus();
     }
 }
 
@@ -404,6 +417,7 @@ export function resolveComment(view: EditorView, id: string): void {
     const suggestionType = state.schema.marks.suggestion;
     if (!suggestionType) return;
 
+    const items = getSuggestions(state);
     const tr = state.tr;
     let found = false;
 
@@ -427,7 +441,9 @@ export function resolveComment(view: EditorView, id: string): void {
     if (found) {
         tr.setMeta(SUGGESTIONS_SKIP_META, true);
         tr.setMeta(suggestionsPluginKey, { events: [{ kind: "resolve", id, decision: "resolve" } satisfies SuggestionEvent] });
+        focusAdjacentItem(tr, items, id);
         dispatch(tr);
+        view.focus();
     }
 }
 
