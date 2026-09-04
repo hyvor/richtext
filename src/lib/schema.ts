@@ -336,10 +336,10 @@ function getMarks(config: SchemaConfig): Record<string, MarkSpec> {
         toDOM() { return ["code", 0] }
     } as MarkSpec,
 
-    // highlight: {
-    //     parseDOM: [{ tag: "mark" }],
-    //     toDOM() { return ["mark", 0] }
-    // } as MarkSpec,
+    highlight: {
+        parseDOM: [{ tag: "mark" }],
+        toDOM() { return ["mark", 0] }
+    } as MarkSpec,
 
     // :: MarkSpec A link. Has `href` and `title` attributes. `title`
     // defaults to the empty string. Rendered and parsed as an `<a>`
