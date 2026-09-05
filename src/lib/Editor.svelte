@@ -470,6 +470,7 @@
 		border-style: solid;
 		border-left-width: 4px;
 		padding: 10px 15px;
+		margin-left: 0;
 	}
 
 	.pm-editor :global(blockquote *:first-child),
