@@ -11,7 +11,9 @@
 	import { defaultEditorConfig, type EditorConfig } from './config';
 	import {
 		getSuggestionMode,
+		getSuggestions,
 		setSuggestionMode,
+		type SuggestionItem,
 		type SuggestionMode
 	} from './plugins/suggestions/commands';
 	import { SUGGESTIONS_SKIP_META } from './plugins/suggestions/plugin-suggestions';
@@ -176,6 +178,9 @@
 		},
 		setMode(mode: SuggestionMode) {
 			if (view) setSuggestionMode(view, mode);
+		},
+		getSuggestions(): SuggestionItem[] {
+			return view ? getSuggestions(view.state) : [];
 		}
 	};
 
