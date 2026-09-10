@@ -35,7 +35,7 @@
     "ws": "^8.21.3"
   },
   "peerDependencies": {
-    "@hyvor/design": ">=2.0.0-0 <3.0.0-0",
+    "@hyvor/design": "*",
     "@hyvor/icons": "^1.1.0",
     "svelte": ">=5"
   },
