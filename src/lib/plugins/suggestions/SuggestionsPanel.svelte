@@ -610,6 +610,7 @@
 		max-height: calc(100vh - 40px);
 		overflow-y: auto;
 		font-size: 13px;
+		line-height: normal;
 		z-index: 100;
 	}
 
