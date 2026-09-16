@@ -759,7 +759,7 @@
 	.author-row .right {
 		display: flex;
 		flex-direction: column;
-		line-height: 12px;
+		line-height: normal;
 	}
 
 	.author-row strong {
