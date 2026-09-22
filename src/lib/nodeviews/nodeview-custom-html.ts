@@ -2,11 +2,13 @@ import { exitCode } from 'prosemirror-commands';
 import { undo, redo } from 'prosemirror-history';
 import { TextSelection, Selection } from 'prosemirror-state';
 import { computeChange } from './nodeview-codeblock';
+import { renderCodeSuggestions, type CmTextMarker } from './codeblock-suggestions';
 import { Node } from 'prosemirror-model';
 import { EditorView } from 'prosemirror-view';
 
 export default class CustomHtmlNodeView {
 	private cm: any;
+	private suggestionMarkers: CmTextMarker[] = [];
 
 	private node: Node;
 	private view: EditorView;
@@ -73,7 +75,10 @@ export default class CustomHtmlNodeView {
 		// this.dom = this.cm.getWrapperElement()
 		// CodeMirror needs to be in the DOM to properly initialize, so
 		// schedule it to update itself
-		setTimeout(() => this.cm.refresh(), 20);
+		setTimeout(() => {
+			this.cm.refresh();
+			this.renderSuggestions();
+		}, 20);
 
 		// This flag is used to avoid an update loop between the outer and
 		// inner editor
@@ -199,7 +204,12 @@ export default class CustomHtmlNodeView {
 			);
 			this.updating = false;
 		}
+		this.renderSuggestions();
 		return true;
+	}
+
+	private renderSuggestions() {
+		this.suggestionMarkers = renderCodeSuggestions(this.cm, this.node, this.suggestionMarkers);
 	}
 
 	selectNode() {

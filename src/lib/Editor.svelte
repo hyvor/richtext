@@ -800,6 +800,23 @@
 		text-underline-offset: 3px;
 	}
 
+	.pm-editor :global(.code-wrap .cm-suggestion-insert) {
+		text-decoration: underline;
+		text-decoration-color: #2e9e5b;
+		background-color: rgba(46, 158, 91, 0.18);
+	}
+
+	.pm-editor :global(.code-wrap .cm-suggestion-delete) {
+		text-decoration: line-through;
+		text-decoration-color: #d64545;
+		background-color: rgba(214, 69, 69, 0.16);
+		opacity: 0.8;
+	}
+
+	.pm-editor :global(.code-wrap .cm-suggestion-comment) {
+		background-color: rgba(181, 137, 46, 0.2);
+	}
+
 	/* whole-node suggestions (a deleted/inserted/reformatted block or atom node
 	   that can't carry an inline mark) - rendered as decorations from the
 	   `suggestions` node attr, see plugin-suggestions.ts */

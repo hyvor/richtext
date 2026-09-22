@@ -108,7 +108,7 @@ function getNodes(config: SchemaConfig): Record<string, NodeSpec> {
                 name: { default: null },
             },
             content: "text*",
-            marks: "",
+            marks: config.suggestions ? "suggestion" : "",
             group: "block",
             code: true,
             defining: true,
@@ -121,7 +121,7 @@ function getNodes(config: SchemaConfig): Record<string, NodeSpec> {
     if (config.customHtml) {
         nodes.custom_html = {
             content: "text*",
-            marks: "",
+            marks: config.suggestions ? "suggestion" : "",
             group: "block",
             code: true,
             defining: true,

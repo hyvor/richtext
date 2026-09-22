@@ -447,6 +447,8 @@ export default function suggestionsPlugin(config: SuggestionsPluginConfig) {
                         if (primary && primary.type !== "format") return false;
                     }
 
+                    if (node.type.spec.code) return false;
+
                     if (node.isInline && suggestionType) {
                         for (const mark of node.marks) {
                             if (mark.type === suggestionType && activeIds.has(mark.attrs.id)) {
