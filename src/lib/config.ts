@@ -35,6 +35,22 @@ export type UploadFileConfig = {
     uploader: (file: Blob, name: string | null, type: 'image' | 'audio') => Promise<{ url: string } | null>;
 } & Pick<FileUploaderConfig, 'maxFileSizeInMB' | 'mediaLoad' | 'unsplashSearch' | 'excalidraw'>;
 
+export interface LinkSearchResult {
+    title: string;
+    url: string;
+    description?: string;
+}
+
+export interface LinkSearchConfig {
+    label: string;
+    placeholder?: string;
+    noResultsText?: string;
+    errorText?: string;
+    scopes?: { id: string | number; name: string }[];
+    defaultScopeId?: string | number;
+    search: (query: string, scopeId?: string | number) => Promise<LinkSearchResult[]>;
+}
+
 export interface EditorConfig {
 
     // Colors
@@ -72,6 +88,8 @@ export interface EditorConfig {
     embed?: (url: string) => Promise<string | null>;
     // Return link preview data, or null if the URL cannot be previewed.
     bookmark?: (url: string) => Promise<BookmarkLink | null>;
+
+    linkSearch?: LinkSearchConfig[];
 
     // Suggestions plugin config
     suggestions?: SuggestionsPluginConfig;
