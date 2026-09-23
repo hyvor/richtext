@@ -43,8 +43,6 @@ export function getPlugins(schema: Schema, config: EditorConfig) {
 
 		history(),
 
-		pasteImagesPlugin(),
-
 		nodeMenuPlugin(config),
 		// completionPlugin(),
 	];
@@ -55,6 +53,10 @@ export function getPlugins(schema: Schema, config: EditorConfig) {
 			tableEditing(),
 			tableMenuPlugin(),
 		);
+	}
+
+	if (schema.nodes.image && config.uploadFileConfig) {
+		plugins.push(pasteImagesPlugin(config.uploadFileConfig));
 	}
 
 	if (config.suggestions && schema.marks.suggestion) {
