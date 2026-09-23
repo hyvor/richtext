@@ -1,181 +1,85 @@
-import { Fragment, Slice, type Node, type Schema } from 'prosemirror-model';
-import { Plugin, TextSelection } from 'prosemirror-state';
-import type { EditorView } from 'prosemirror-view';
-import type { EditorConfig, UploadFileConfig } from '$lib/config';
+import { EditorView } from 'prosemirror-view';
+import { Plugin } from 'prosemirror-state';
+import type { UploadFileConfig } from '$lib/config';
 import { getFigureNode } from '../nodeviews/image/image-upload';
 import { setNodeAttrs } from './suggestions/commands';
 
-export default function pasteImagesPlugin(schema: Schema, config: EditorConfig) {
+/**
+ * Uploads pasted images through the host's uploader:
+ * - image files on the clipboard (e.g. screenshots) are uploaded and inserted as figures
+ * - images inside pasted HTML are pasted as-is, then re-uploaded and their src replaced
+ */
+export default function pasteImagesPlugin(uploadFileConfig: UploadFileConfig) {
 	return new Plugin({
 		props: {
-			transformPasted(slice) {
-				if (!schema.nodes.image || !schema.nodes.figure) return slice;
-				return new Slice(
-					wrapBareImages(slice.content, schema),
-					slice.openStart,
-					slice.openEnd
+			handlePaste: (view, e, slice) => {
+				const files = Array.from(e.clipboardData?.files ?? []).filter((file) =>
+					file.type.startsWith('image/')
 				);
-			},
 
-			handlePaste(view, event, slice) {
-				if (!view.editable || !schema.nodes.image) return false;
-
-				const files = imageFilesFrom(event.clipboardData);
-				if (files.length && !sliceHasText(slice)) {
-					void insertAndUploadFiles(view, files, config);
+				// only files (no HTML) -> nothing for ProseMirror to paste, so we insert them
+				if (files.length && !e.clipboardData?.getData('text/html')) {
+					uploadAndInsertFiles(files, view, uploadFileConfig);
 					return true;
 				}
 
-				const uploadFileConfig = config.uploadFileConfig;
-				const srcs = imageSrcsIn(slice.content);
-				if (srcs.length && uploadFileConfig?.uploader) {
-					setTimeout(() => {
-						void uploadAndReplaceImages(srcs, view, uploadFileConfig);
-					});
+				const images: string[] = [];
+				slice.content.descendants((node) => {
+					if (node.type.name === 'image' && node.attrs.src) {
+						images.push(node.attrs.src);
+					}
+				});
+
+				if (images.length) {
+					// let the default paste run first, then swap the srcs
+					setTimeout(() => uploadAndReplaceImages(images, view, uploadFileConfig), 0);
 				}
 
 				return false;
-			},
-
-			handleDrop(view, event, _slice, moved) {
-				if (moved || !view.editable || !schema.nodes.image) return false;
-
-				const files = imageFilesFrom(event.dataTransfer);
-				if (!files.length) return false;
-
-				const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
-				if (coords) {
-					view.dispatch(
-						view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(coords.pos)))
-					);
-				}
-
-				void insertAndUploadFiles(view, files, config);
-				return true;
 			}
 		}
 	});
 }
 
-function wrapBareImages(fragment: Fragment, schema: Schema, parentIsFigure = false): Fragment {
-	const imageType = schema.nodes.image;
-	const figureType = schema.nodes.figure;
-	const captionType = schema.nodes.figcaption;
-	if (!imageType || !figureType || !captionType) return fragment;
-
-	const children: Node[] = [];
-	fragment.forEach((node) => {
-		if (node.type === imageType && !parentIsFigure) {
-			children.push(figureType.create(null, [node, captionType.create()]));
-			return;
-		}
-		if (node.content.size > 0) {
-			children.push(
-				node.copy(wrapBareImages(node.content, schema, node.type === figureType))
-			);
-			return;
-		}
-		children.push(node);
-	});
-
-	return Fragment.fromArray(children);
+function isTooLarge(blob: Blob, uploadFileConfig: UploadFileConfig) {
+	const max = uploadFileConfig.maxFileSizeInMB;
+	return max !== undefined && blob.size > max * 1024 * 1024;
 }
 
-function imageFilesFrom(data: DataTransfer | null): File[] {
-	if (!data) return [];
-
-	const fromList = Array.from(data.files).filter((file) => file.type.startsWith('image/'));
-	if (fromList.length) return fromList;
-
-	const fromItems: File[] = [];
-	for (const item of Array.from(data.items)) {
-		if (item.kind === 'file' && item.type.startsWith('image/')) {
-			const file = item.getAsFile();
-			if (file) fromItems.push(file);
-		}
-	}
-	return fromItems;
-}
-
-function sliceHasText(slice: Slice): boolean {
-	let found = false;
-	slice.content.descendants((node) => {
-		if (node.isText && node.text!.trim()) found = true;
-	});
-	return found;
-}
-
-function imageSrcsIn(fragment: Fragment): string[] {
-	const srcs: string[] = [];
-	fragment.descendants((node) => {
-		if (node.type.name === 'image' && typeof node.attrs.src === 'string' && node.attrs.src) {
-			srcs.push(node.attrs.src);
-		}
-	});
-	return [...new Set(srcs)];
-}
-
-async function insertAndUploadFiles(view: EditorView, files: File[], config: EditorConfig) {
-	const schema = view.state.schema;
-	if (!schema.nodes.image || !schema.nodes.figure) return;
-
-	const pending: { tempSrc: string; file: File }[] = [];
-	const figures: Node[] = [];
-
+async function uploadAndInsertFiles(files: File[], view: EditorView, uploadFileConfig: UploadFileConfig) {
 	for (const file of files) {
-		if (!withinSizeLimit(file, config.uploadFileConfig?.maxFileSizeInMB)) continue;
-		const tempSrc = URL.createObjectURL(file);
-		pending.push({ tempSrc, file });
-		figures.push(getFigureNode(schema, { src: tempSrc }));
-	}
+		if (isTooLarge(file, uploadFileConfig)) continue;
 
-	if (!figures.length) return;
-
-	view.dispatch(
-		view.state.tr.replaceSelection(new Slice(Fragment.fromArray(figures), 0, 0)).scrollIntoView()
-	);
-
-	const uploader = config.uploadFileConfig?.uploader;
-	if (!uploader) return;
-
-	for (const { tempSrc, file } of pending) {
-		if (view.isDestroyed) return;
 		try {
-			const result = await uploader(file, file.name || null, 'image');
-			if (result?.url) {
-				replaceImageSrc(view, tempSrc, result.url);
-				URL.revokeObjectURL(tempSrc);
-			}
-		} catch {
-			// keep the object-URL preview if the host rejects the upload
+			const uploaded = await uploadFileConfig.uploader(file, file.name || null, 'image');
+			if (!uploaded || view.isDestroyed) continue;
+
+			const figure = getFigureNode(view.state.schema, { src: uploaded.url });
+			view.dispatch(view.state.tr.replaceSelectionWith(figure).scrollIntoView());
+		} catch (e) {
+			console.error('[richtext] failed to upload pasted image', e);
 		}
 	}
 }
 
-async function uploadAndReplaceImages(
-	srcs: string[],
-	view: EditorView,
-	uploadFileConfig: UploadFileConfig
-) {
-	for (const src of srcs) {
-		if (view.isDestroyed) return;
+async function uploadAndReplaceImages(imageUrls: string[], view: EditorView, uploadFileConfig: UploadFileConfig) {
+	for (const url of new Set(imageUrls)) {
 		try {
-			const blob = await fetch(src).then((res) => {
-				if (!res.ok) throw new Error('fetch failed');
-				return res.blob();
-			});
-			if (blob.type.indexOf('image') === -1) continue;
-			if (!withinSizeLimit(blob, uploadFileConfig.maxFileSizeInMB)) continue;
+			const blob = await fetch(url).then((res) => res.blob());
+			if (!blob.type.startsWith('image/') || isTooLarge(blob, uploadFileConfig)) continue;
 
-			const result = await uploadFileConfig.uploader(blob, nameFromSrc(src), 'image');
-			if (result?.url && result.url !== src) replaceImageSrc(view, src, result.url);
-		} catch {
-			// leave the original src (e.g. CORS-blocked remote images)
+			const uploaded = await uploadFileConfig.uploader(blob, null, 'image');
+			if (!uploaded || view.isDestroyed) continue;
+
+			replaceImage(url, uploaded.url, view);
+		} catch (e) {
+			// e.g. CORS: keep the original src
+			console.error('[richtext] failed to upload pasted image', url, e);
 		}
 	}
 }
 
-function replaceImageSrc(view: EditorView, currentUrl: string, newUrl: string) {
+function replaceImage(currentUrl: string, newUrl: string, view: EditorView) {
 	const positions: number[] = [];
 	view.state.doc.descendants((node, pos) => {
 		if (node.type.name === 'image' && node.attrs.src === currentUrl) {
@@ -185,21 +89,6 @@ function replaceImageSrc(view: EditorView, currentUrl: string, newUrl: string) {
 
 	for (const pos of positions) {
 		const node = view.state.doc.nodeAt(pos);
-		if (!node) continue;
-		setNodeAttrs(view, pos, { ...node.attrs, src: newUrl });
-	}
-}
-
-function withinSizeLimit(blob: Blob, maxFileSizeInMB?: number) {
-	if (!maxFileSizeInMB) return true;
-	return blob.size <= maxFileSizeInMB * 1024 * 1024;
-}
-
-function nameFromSrc(src: string): string | null {
-	try {
-		const last = new URL(src, window.location.href).pathname.split('/').pop();
-		return last || null;
-	} catch {
-		return null;
+		if (node) setNodeAttrs(view, pos, { ...node.attrs, src: newUrl });
 	}
 }
