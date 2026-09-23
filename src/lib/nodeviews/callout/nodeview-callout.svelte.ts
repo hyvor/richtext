@@ -94,6 +94,13 @@ export class CalloutNodeView implements NodeView {
         this.updateFromAttrs();
     }
 
+    // the emoji picker / color pickers render inline inside the editor DOM,
+    // so keep their events (e.g. Backspace in the emoji search) away from ProseMirror
+    stopEvent(e: Event) {
+        const target = e.target as Node;
+        return this.emojiWrap.contains(target) || this.colorPickersWrap.contains(target);
+    }
+
     ignoreMutation(mutation: ViewMutationRecord) {
         if (mutation.target === this.contentDOM) {
             return false;
